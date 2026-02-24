@@ -6,40 +6,27 @@ const state = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle (Hamburger Button)
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
-    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
         };
     }
-
-    // 2. Sidebar Auto-Close (Menu Items)
-    // FIX: Force sidebar to close state when any link is clicked
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
-            // On mobile, 'toggled' means OPEN. Removing it closes it.
-            // On desktop, 'toggled' means CLOSED. Adding it closes it.
-            if (window.innerWidth < 768) {
-                wrapper.classList.remove("toggled");
-            }
+            if (window.innerWidth < 768) wrapper.classList.remove("toggled");
         });
     });
 
-    // 3. Initialize App
     try {
         initWorker();
         renderAssetRows();
-        initPresets();        // Populates Tabs (Strategy/Persona)
-        initRunModelInputs(); // Populates Run Model Dropdowns
-        
-        // Load Defaults into Tabs
+        initPresets();
+        initRunModelInputs();
         if(PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
         if(PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-        
         setupEventListeners();
     } catch (err) {
         console.error("App Init Error:", err);
@@ -52,8 +39,10 @@ function initWorker() {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
+            // Enable slider now that data is loaded
+            document.getElementById('confidence-slider').disabled = false;
             renderChart(payload);
-            renderResultsTable(payload); // FIX: Ensure this is called
+            renderResultsTable(payload);
         } else if (type === 'ERROR') {
             updateUIState('Error');
             alert('Error: ' + payload);
@@ -62,15 +51,12 @@ function initWorker() {
 }
 
 // --- Inputs & Populators ---
-
 function initPresets() {
-    // Strategy Tab Dropdown
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect && PRESET_STRATEGIES) {
         PRESET_STRATEGIES.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index;
-            opt.text = preset.name;
+            opt.value = index; opt.text = preset.name;
             stratSelect.appendChild(opt);
         });
         stratSelect.addEventListener('change', (e) => {
@@ -78,13 +64,11 @@ function initPresets() {
         });
     }
 
-    // Persona Tab Dropdown
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect && PRESET_PERSONAS) {
         PRESET_PERSONAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index;
-            opt.text = preset.name;
+            opt.value = index; opt.text = preset.name;
             persSelect.appendChild(opt);
         });
         persSelect.addEventListener('change', (e) => {
@@ -94,37 +78,30 @@ function initPresets() {
 }
 
 function initRunModelInputs() {
-    // 1. CMA Selector
     const cmaSelect = document.getElementById('run-cma-select');
     if(cmaSelect && PRESET_CMAS) {
-        // Keep "Custom" as top option
         PRESET_CMAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index; 
-            opt.text = preset.name;
+            opt.value = index; opt.text = preset.name;
             cmaSelect.appendChild(opt);
         });
     }
 
-    // 2. Persona Selector
     const persSelect = document.getElementById('run-persona-select');
     if(persSelect && PRESET_PERSONAS) {
         PRESET_PERSONAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index;
-            opt.text = preset.name;
+            opt.value = index; opt.text = preset.name;
             persSelect.appendChild(opt);
         });
     }
 
-    // 3. Strategy Selectors (1, 2, 3)
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach(id => {
         const sel = document.getElementById(id);
         if(sel && PRESET_STRATEGIES) {
             PRESET_STRATEGIES.forEach((preset, index) => {
                 const opt = document.createElement('option');
-                opt.value = index;
-                opt.text = preset.name;
+                opt.value = index; opt.text = preset.name;
                 sel.appendChild(opt);
             });
         }
@@ -148,12 +125,10 @@ function loadPersonaPreset(index) {
     setVal('p-growth', p.realSalaryGrowth);
 }
 
-// --- Data Gathering Logic (The "Brain") ---
-
+// --- Data Logic ---
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (sel.value === 'custom') {
-        // Scrape from "Markets" Tab
         const r = {}, v = {}, ce = {}, cc = {};
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
@@ -167,7 +142,6 @@ function getActiveCMA() {
         });
         return { r, v, ce, cc };
     } else {
-        // Use Preset
         return PRESET_CMAS[sel.value].data;
     }
 }
@@ -175,7 +149,6 @@ function getActiveCMA() {
 function getActivePersona() {
     const sel = document.getElementById('run-persona-select');
     if (sel.value === 'custom') {
-        // Scrape from "Personas" Tab
         return {
             age: parseFloat(document.getElementById('p-age').value),
             retirementAge: parseFloat(document.getElementById('p-retAge').value),
@@ -185,24 +158,19 @@ function getActivePersona() {
             realSalaryGrowth: parseFloat(document.getElementById('p-growth').value)
         };
     } else {
-        // Use Preset
         return PRESET_PERSONAS[sel.value].data;
     }
 }
 
 function getActiveStrategies(months) {
     const strategies = [];
-    
-    // Helper to process a selection
     const processStrat = (selId) => {
         const sel = document.getElementById(selId);
-        if(!sel || sel.value === "") return null; // "None" selected
+        if(!sel || sel.value === "") return null;
 
         let name, points;
-        
         if(sel.value === 'custom') {
             name = "Custom (Strategies Tab)";
-            // Scrape table
             const rows = document.querySelectorAll('#strategy-table tbody tr');
             points = [];
             rows.forEach(row => {
@@ -215,23 +183,18 @@ function getActiveStrategies(months) {
             });
             points.sort((a, b) => b.years - a.years);
         } else {
-            // Fetch from Config Presets
             const preset = PRESET_STRATEGIES[sel.value];
             name = preset.name;
             points = preset.points;
         }
-
-        // Interpolate weights for the simulation
         const monthlyWeights = interpolateWeights(points, months);
         return { name, monthlyWeights, implAdjustments: {} };
     };
 
     const s1 = processStrat('run-strat-1');
     if(s1) strategies.push(s1);
-
     const s2 = processStrat('run-strat-2');
     if(s2) strategies.push(s2);
-
     const s3 = processStrat('run-strat-3');
     if(s3) strategies.push(s3);
 
@@ -242,30 +205,17 @@ function interpolateWeights(points, totalMonths) {
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
-        // Logic to find surrounding points
-        let p1 = points[0];
-        let p2 = points[points.length - 1];
-        
+        let p1 = points[0], p2 = points[points.length - 1];
         for (let i = 0; i < points.length - 1; i++) {
             if (yearsRemaining <= points[i].years && yearsRemaining >= points[i+1].years) {
-                p1 = points[i];
-                p2 = points[i+1];
-                break;
+                p1 = points[i]; p2 = points[i+1]; break;
             }
         }
-        
-        const range = p1.years - p2.years;
-        const ratio = range === 0 ? 0 : (yearsRemaining - p2.years) / range;
-        
+        const ratio = (p1.years - p2.years) === 0 ? 0 : (yearsRemaining - p2.years) / (p1.years - p2.years);
         const w = {};
         ASSET_CLASSES.forEach(ac => {
-            let w1 = 0, w2 = 0;
-            if (p1.weights && p1.weights[ac.key] !== undefined) w1 = p1.weights[ac.key];
-            else if (p1[ac.key] !== undefined) w1 = p1[ac.key]; // Fallback for flattened structure
-
-            if (p2.weights && p2.weights[ac.key] !== undefined) w2 = p2.weights[ac.key];
-            else if (p2[ac.key] !== undefined) w2 = p2[ac.key];
-
+            let w1 = (p1.weights ? p1.weights[ac.key] : p1[ac.key]) || 0;
+            let w2 = (p2.weights ? p2.weights[ac.key] : p2[ac.key]) || 0;
             w[ac.key] = w2 + (w1 - w2) * ratio;
         });
         monthlyWeights.push(w);
@@ -277,10 +227,9 @@ function interpolateWeights(points, totalMonths) {
 
 function runSimulation() {
     updateUIState('Running...');
-    
-    // Clear old results immediately
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
+    document.getElementById('confidence-slider').disabled = true;
 
     const persona = getActivePersona();
     const cma = getActiveCMA();
@@ -294,30 +243,43 @@ function runSimulation() {
     }
 
     const payload = {
-        cma,
-        assetKeys: ASSET_CLASSES.map(a => a.key),
-        persona,
-        settings: { simCount: 2000, inflation: 2.5 },
-        strategies
+        cma, assetKeys: ASSET_CLASSES.map(a => a.key),
+        persona, settings: { simCount: 2000, inflation: 2.5 }, strategies
     };
-
     state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
+}
+
+function updateConfidence() {
+    const slider = document.getElementById('confidence-slider');
+    const val = parseInt(slider.value);
+    
+    // Update Label
+    const alpha = (100 - val) / 2;
+    const low = Math.round(alpha);
+    const high = Math.round(100 - alpha);
+    document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
+
+    // Request new stats from worker (FAST)
+    state.worker.postMessage({ 
+        type: 'RECALCULATE_STATS', 
+        payload: { confidence: val / 100 } 
+    });
 }
 
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
     
-    const labels = Array.from({length: results[0].percentiles.p50.length}, (_, i) => i);
+    const labels = Array.from({length: results[0].percentiles.pMedian.length}, (_, i) => i);
     const datasets = [];
 
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // Median Line
+        // 1. Median (Solid)
         datasets.push({
-            label: `${res.name} (Median)`,
-            data: res.percentiles.p50,
+            label: res.name, // Simplified Name
+            data: res.percentiles.pMedian,
             borderColor: color.border,
             backgroundColor: 'transparent',
             pointRadius: 0,
@@ -325,22 +287,28 @@ function renderChart(results) {
             tension: 0.1
         });
 
-        // Range (Fill)
+        // 2. Upper Bound (Dashed)
         datasets.push({
-            label: `${res.name} Range`,
-            data: res.percentiles.p95,
-            borderColor: 'transparent',
-            backgroundColor: color.fill,
-            pointRadius: 0,
-            fill: '+1' 
-        });
-        datasets.push({
-            label: `${res.name} Lower`,
-            data: res.percentiles.p05,
-            borderColor: 'transparent',
+            label: `${res.name} Upper`,
+            data: res.percentiles.pUpper,
+            borderColor: color.border,
             backgroundColor: 'transparent',
             pointRadius: 0,
-            fill: false
+            borderWidth: 1.5,
+            borderDash: [5, 5],
+            tension: 0.1
+        });
+
+        // 3. Lower Bound (Dashed)
+        datasets.push({
+            label: `${res.name} Lower`,
+            data: res.percentiles.pLower,
+            borderColor: color.border,
+            backgroundColor: 'transparent',
+            pointRadius: 0,
+            borderWidth: 1.5,
+            borderDash: [5, 5],
+            tension: 0.1
         });
     });
 
@@ -352,10 +320,17 @@ function renderChart(results) {
             interaction: { mode: 'index', intersect: false },
             plugins: { 
                 filler: { propagate: false },
+                legend: {
+                    labels: {
+                        // Filter out Upper/Lower from legend to keep it clean
+                        filter: function(item, chart) {
+                            return !item.text.includes('Upper') && !item.text.includes('Lower');
+                        }
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            if (context.dataset.label.includes('Range') || context.dataset.label.includes('Lower')) return null;
                             return context.dataset.label + ': £' + Math.round(context.raw).toLocaleString();
                         }
                     }
@@ -372,15 +347,20 @@ function renderChart(results) {
 function renderResultsTable(results) {
     const tbody = document.querySelector('#results-table tbody');
     if(!tbody) return;
-    tbody.innerHTML = ''; // Clear the "Run projection" message
+    tbody.innerHTML = '';
+    
+    // Update headers based on returned stats
+    const stats = results[0].stats;
+    document.getElementById('th-lower').innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
+    document.getElementById('th-upper').innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
 
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
-        const lastIdx = res.percentiles.p50.length - 1;
+        const lastIdx = res.percentiles.pMedian.length - 1;
         
-        const low = Math.round(res.percentiles.p05[lastIdx]).toLocaleString();
-        const med = Math.round(res.percentiles.p50[lastIdx]).toLocaleString();
-        const high = Math.round(res.percentiles.p95[lastIdx]).toLocaleString();
+        const low = Math.round(res.percentiles.pLower[lastIdx]).toLocaleString();
+        const med = Math.round(res.percentiles.pMedian[lastIdx]).toLocaleString();
+        const high = Math.round(res.percentiles.pUpper[lastIdx]).toLocaleString();
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -393,7 +373,6 @@ function renderResultsTable(results) {
     });
 }
 
-// --- Basic Rendering (Tables) ---
 function renderAssetRows() {
     const tbody = document.querySelector('#cma-table tbody');
     if(!tbody) return;
@@ -439,10 +418,7 @@ function renderStrategyTable(points) {
         tr.innerHTML = html;
         tbody.appendChild(tr);
     });
-
-    tbody.querySelectorAll('input').forEach(inp => {
-        inp.addEventListener('input', () => validateStrategyTable());
-    });
+    tbody.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => validateStrategyTable()));
 }
 
 function validateStrategyTable() {
@@ -479,17 +455,12 @@ function updateUIState(status) {
 }
 
 function setupEventListeners() {
-    document.querySelectorAll('.list-group-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            e.currentTarget.classList.add('active');
-            const target = e.currentTarget.dataset.tab;
-            document.getElementById(`tab-${target}`).classList.remove('d-none');
-        });
-    });
-    
     const runBtn = document.getElementById('run-simulation-btn');
     if(runBtn) runBtn.addEventListener('click', runSimulation);
+
+    // Slider Listener
+    const slider = document.getElementById('confidence-slider');
+    if(slider) {
+        slider.addEventListener('input', updateConfidence);
+    }
 }
