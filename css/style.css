@@ -22,9 +22,12 @@ body {
     background: linear-gradient(180deg, #212529 0%, #343a40 100%);
 }
 
+/* --- FIXED LOGO ALIGNMENT --- */
 #sidebar-wrapper .sidebar-heading {
-    padding: 0.875rem 1.25rem;
+    padding: 1rem 1.25rem; /* Matches list-group-item padding */
     font-size: 1.2rem;
+    text-align: left !important; /* Forces left align */
+    padding-left: 20px; /* Precise alignment with menu icons */
 }
 
 #sidebar-wrapper .list-group {
@@ -52,9 +55,13 @@ body {
     font-weight: 600;
 }
 
-/* Input Tweaks */
 input[type="number"] {
     text-align: right;
+}
+
+.list-group-item {
+    border: none;
+    padding: 1rem 1.25rem; /* Standard padding */
 }
 
 .list-group-item.active {
