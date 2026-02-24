@@ -8,15 +8,30 @@ const state = {
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    initWorker();
-    renderAssetRows();
-    initPresets();
-    
-    // Load defaults if table is empty
-    if(PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
-    if(PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-    
-    setupEventListeners();
+    // 1. ACTIVATE MENU IMMEDIATELY (Before loading data)
+    const menuBtn = document.getElementById("menu-toggle");
+    if (menuBtn) {
+        menuBtn.onclick = function(e) {
+            e.preventDefault();
+            document.getElementById("wrapper").classList.toggle("toggled");
+        };
+    }
+
+    // 2. Initialize the rest of the app
+    try {
+        initWorker();
+        renderAssetRows();
+        initPresets();
+        
+        // Load defaults if available
+        if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+        if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+        
+        setupEventListeners();
+    } catch (err) {
+        console.error("App Initialization Error:", err);
+        alert("App failed to load data. Please check config.js is updated.");
+    }
 });
 
 function initWorker() {
@@ -37,6 +52,7 @@ function initWorker() {
 
 function renderAssetRows() {
     const tbody = document.querySelector('#cma-table tbody');
+    if (!tbody) return; // Guard clause
     tbody.innerHTML = '';
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
@@ -54,51 +70,62 @@ function renderAssetRows() {
 function initPresets() {
     // Strategy Select
     const stratSelect = document.getElementById('strategy-preset-select');
-    PRESET_STRATEGIES.forEach((preset, index) => {
-        const opt = document.createElement('option');
-        opt.value = index;
-        opt.text = preset.name;
-        stratSelect.appendChild(opt);
-    });
-    stratSelect.addEventListener('change', (e) => {
-        if(e.target.value !== "") loadStrategyPreset(e.target.value);
-    });
+    if (stratSelect && PRESET_STRATEGIES) {
+        PRESET_STRATEGIES.forEach((preset, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.text = preset.name;
+            stratSelect.appendChild(opt);
+        });
+        stratSelect.addEventListener('change', (e) => {
+            if(e.target.value !== "") loadStrategyPreset(e.target.value);
+        });
+    }
 
     // Persona Select
     const persSelect = document.getElementById('persona-preset-select');
-    PRESET_PERSONAS.forEach((preset, index) => {
-        const opt = document.createElement('option');
-        opt.value = index;
-        opt.text = preset.name;
-        persSelect.appendChild(opt);
-    });
-    persSelect.addEventListener('change', (e) => {
-        if(e.target.value !== "") loadPersonaPreset(e.target.value);
-    });
+    if (persSelect && PRESET_PERSONAS) {
+        PRESET_PERSONAS.forEach((preset, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.text = preset.name;
+            persSelect.appendChild(opt);
+        });
+        persSelect.addEventListener('change', (e) => {
+            if(e.target.value !== "") loadPersonaPreset(e.target.value);
+        });
+    }
 }
 
 function loadStrategyPreset(index) {
+    if (!PRESET_STRATEGIES[index]) return;
     const preset = PRESET_STRATEGIES[index];
     renderStrategyTable(preset.points);
 }
 
 function loadPersonaPreset(index) {
+    if (!PRESET_PERSONAS[index]) return;
     const p = PRESET_PERSONAS[index].data;
-    document.getElementById('p-age').value = p.age;
-    document.getElementById('p-retAge').value = p.retirementAge;
-    document.getElementById('p-pot').value = p.savings;
-    document.getElementById('p-salary').value = p.salary;
-    document.getElementById('p-contrib').value = p.contribution;
-    document.getElementById('p-growth').value = p.realSalaryGrowth;
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) el.value = val;
+    };
+    setVal('p-age', p.age);
+    setVal('p-retAge', p.retirementAge);
+    setVal('p-pot', p.savings);
+    setVal('p-salary', p.salary);
+    setVal('p-contrib', p.contribution);
+    setVal('p-growth', p.realSalaryGrowth);
 }
 
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
+    if (!table) return;
     
     // Build Header based on Assets
     let headerHTML = '<th>Years to Ret</th>';
     ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name} %</th>`);
-    headerHTML += '<th>Total %</th>'; // Validation column
+    headerHTML += '<th>Total %</th>'; 
     table.querySelector('thead tr').innerHTML = headerHTML;
 
     const tbody = table.querySelector('tbody');
@@ -110,13 +137,10 @@ function renderStrategyTable(points) {
         
         let rowSum = 0;
         ASSET_CLASSES.forEach(ac => {
-            // Support both direct key access (old) and nested weights object (new)
             let val = 0;
             if(row.weights && row.weights[ac.key] !== undefined) val = row.weights[ac.key];
             else if(row[ac.key] !== undefined) val = row[ac.key];
             
-            // Convert decimal to percent for display if < 1, else assume percent
-            // The JSON provided has decimals (0.79). The UI inputs expect Percent (79).
             const displayVal = val <= 1 ? (val * 100) : val;
             rowSum += displayVal;
 
@@ -128,7 +152,6 @@ function renderStrategyTable(points) {
         tbody.appendChild(tr);
     });
 
-    // Attach listeners to update total on change
     tbody.querySelectorAll('input').forEach(inp => {
         inp.addEventListener('input', () => validateStrategyTable());
     });
@@ -136,6 +159,7 @@ function renderStrategyTable(points) {
 
 window.addStrategyRow = function() {
     const tbody = document.querySelector('#strategy-table tbody');
+    if (!tbody) return;
     const tr = document.createElement('tr');
     let html = `<td><input type="number" class="form-control form-control-sm years-input" value="10"></td>`;
     ASSET_CLASSES.forEach(ac => {
@@ -145,7 +169,6 @@ window.addStrategyRow = function() {
     tr.innerHTML = html;
     tbody.appendChild(tr);
     
-    // Re-attach listeners (simple approach)
     tbody.querySelectorAll('input').forEach(inp => {
         inp.oninput = validateStrategyTable;
     });
@@ -284,8 +307,12 @@ function setupEventListeners() {
         });
     });
     
-    document.getElementById('run-simulation-btn').addEventListener('click', runSimulation);
-    document.getElementById("menu-toggle").onclick = function() {
+    const runBtn = document.getElementById('run-simulation-btn');
+    if(runBtn) runBtn.addEventListener('click', runSimulation);
+    
+    // Sidebar Toggle (Fallback)
+    document.getElementById("menu-toggle").onclick = function(e) {
+        e.preventDefault();
         document.getElementById("wrapper").classList.toggle("toggled");
     };
 }
