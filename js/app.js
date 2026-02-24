@@ -6,7 +6,7 @@ const state = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Menu Toggle Logic (Auto-close on mobile)
+    // 1. Sidebar Toggle (Hamburger Button)
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     
@@ -17,21 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Close sidebar when a menu item is clicked (User request)
+    // 2. Sidebar Auto-Close (Menu Items)
+    // FIX: Force sidebar to close state when any link is clicked
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
-            if (window.innerWidth < 768) { // Only on mobile/tablet
+            // On mobile, 'toggled' means OPEN. Removing it closes it.
+            // On desktop, 'toggled' means CLOSED. Adding it closes it.
+            if (window.innerWidth < 768) {
                 wrapper.classList.remove("toggled");
             }
         });
     });
 
-    // 2. Initialize App
+    // 3. Initialize App
     try {
         initWorker();
         renderAssetRows();
-        initPresets(); // Populates Tab dropdowns
-        initRunModelInputs(); // Populates Run Model dropdowns
+        initPresets();        // Populates Tabs (Strategy/Persona)
+        initRunModelInputs(); // Populates Run Model Dropdowns
         
         // Load Defaults into Tabs
         if(PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
@@ -50,7 +53,7 @@ function initWorker() {
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             renderChart(payload);
-            renderResultsTable(payload);
+            renderResultsTable(payload); // FIX: Ensure this is called
         } else if (type === 'ERROR') {
             updateUIState('Error');
             alert('Error: ' + payload);
@@ -61,7 +64,7 @@ function initWorker() {
 // --- Inputs & Populators ---
 
 function initPresets() {
-    // 1. Strategies Tab Dropdown
+    // Strategy Tab Dropdown
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect && PRESET_STRATEGIES) {
         PRESET_STRATEGIES.forEach((preset, index) => {
@@ -75,7 +78,7 @@ function initPresets() {
         });
     }
 
-    // 2. Persona Tab Dropdown
+    // Persona Tab Dropdown
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect && PRESET_PERSONAS) {
         PRESET_PERSONAS.forEach((preset, index) => {
@@ -91,18 +94,19 @@ function initPresets() {
 }
 
 function initRunModelInputs() {
-    // Populate Run Model CMA Select
+    // 1. CMA Selector
     const cmaSelect = document.getElementById('run-cma-select');
     if(cmaSelect && PRESET_CMAS) {
+        // Keep "Custom" as top option
         PRESET_CMAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index; // index in PRESET_CMAS
+            opt.value = index; 
             opt.text = preset.name;
             cmaSelect.appendChild(opt);
         });
     }
 
-    // Populate Run Model Persona Select
+    // 2. Persona Selector
     const persSelect = document.getElementById('run-persona-select');
     if(persSelect && PRESET_PERSONAS) {
         PRESET_PERSONAS.forEach((preset, index) => {
@@ -113,7 +117,7 @@ function initRunModelInputs() {
         });
     }
 
-    // Populate Strategy Selectors (1, 2, 3)
+    // 3. Strategy Selectors (1, 2, 3)
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach(id => {
         const sel = document.getElementById(id);
         if(sel && PRESET_STRATEGIES) {
@@ -144,12 +148,12 @@ function loadPersonaPreset(index) {
     setVal('p-growth', p.realSalaryGrowth);
 }
 
-// --- Data Gathering Logic ---
+// --- Data Gathering Logic (The "Brain") ---
 
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (sel.value === 'custom') {
-        // Scrape from Table
+        // Scrape from "Markets" Tab
         const r = {}, v = {}, ce = {}, cc = {};
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
@@ -163,6 +167,7 @@ function getActiveCMA() {
         });
         return { r, v, ce, cc };
     } else {
+        // Use Preset
         return PRESET_CMAS[sel.value].data;
     }
 }
@@ -170,6 +175,7 @@ function getActiveCMA() {
 function getActivePersona() {
     const sel = document.getElementById('run-persona-select');
     if (sel.value === 'custom') {
+        // Scrape from "Personas" Tab
         return {
             age: parseFloat(document.getElementById('p-age').value),
             retirementAge: parseFloat(document.getElementById('p-retAge').value),
@@ -179,6 +185,7 @@ function getActivePersona() {
             realSalaryGrowth: parseFloat(document.getElementById('p-growth').value)
         };
     } else {
+        // Use Preset
         return PRESET_PERSONAS[sel.value].data;
     }
 }
@@ -187,14 +194,14 @@ function getActiveStrategies(months) {
     const strategies = [];
     
     // Helper to process a selection
-    const processStrat = (selId, defaultName) => {
+    const processStrat = (selId) => {
         const sel = document.getElementById(selId);
-        if(!sel || sel.value === "") return null;
+        if(!sel || sel.value === "") return null; // "None" selected
 
         let name, points;
         
         if(sel.value === 'custom') {
-            name = "Custom (From Tab)";
+            name = "Custom (Strategies Tab)";
             // Scrape table
             const rows = document.querySelectorAll('#strategy-table tbody tr');
             points = [];
@@ -208,12 +215,13 @@ function getActiveStrategies(months) {
             });
             points.sort((a, b) => b.years - a.years);
         } else {
+            // Fetch from Config Presets
             const preset = PRESET_STRATEGIES[sel.value];
             name = preset.name;
             points = preset.points;
         }
 
-        // Interpolate
+        // Interpolate weights for the simulation
         const monthlyWeights = interpolateWeights(points, months);
         return { name, monthlyWeights, implAdjustments: {} };
     };
@@ -234,6 +242,7 @@ function interpolateWeights(points, totalMonths) {
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
+        // Logic to find surrounding points
         let p1 = points[0];
         let p2 = points[points.length - 1];
         
@@ -250,10 +259,9 @@ function interpolateWeights(points, totalMonths) {
         
         const w = {};
         ASSET_CLASSES.forEach(ac => {
-            // Handle both structure types (direct or nested)
             let w1 = 0, w2 = 0;
             if (p1.weights && p1.weights[ac.key] !== undefined) w1 = p1.weights[ac.key];
-            else if (p1[ac.key] !== undefined) w1 = p1[ac.key];
+            else if (p1[ac.key] !== undefined) w1 = p1[ac.key]; // Fallback for flattened structure
 
             if (p2.weights && p2.weights[ac.key] !== undefined) w2 = p2.weights[ac.key];
             else if (p2[ac.key] !== undefined) w2 = p2[ac.key];
@@ -270,6 +278,10 @@ function interpolateWeights(points, totalMonths) {
 function runSimulation() {
     updateUIState('Running...');
     
+    // Clear old results immediately
+    const tbody = document.querySelector('#results-table tbody');
+    if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
+
     const persona = getActivePersona();
     const cma = getActiveCMA();
     const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
@@ -296,9 +308,7 @@ function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
     
-    // Assumes all strategies have same length (based on persona)
     const labels = Array.from({length: results[0].percentiles.p50.length}, (_, i) => i);
-    
     const datasets = [];
 
     results.forEach((res, index) => {
@@ -316,16 +326,13 @@ function renderChart(results) {
         });
 
         // Range (Fill)
-        // We push Upper first, then Lower, utilizing chart.js fill logic if needed.
-        // For multi-strategy, complex overlapping fills can be messy. 
-        // We will add them but make them very transparent.
         datasets.push({
             label: `${res.name} Range`,
             data: res.percentiles.p95,
             borderColor: 'transparent',
             backgroundColor: color.fill,
             pointRadius: 0,
-            fill: '+1' // fill to next dataset
+            fill: '+1' 
         });
         datasets.push({
             label: `${res.name} Lower`,
@@ -333,7 +340,7 @@ function renderChart(results) {
             borderColor: 'transparent',
             backgroundColor: 'transparent',
             pointRadius: 0,
-            fill: false // End of fill group
+            fill: false
         });
     });
 
@@ -348,7 +355,6 @@ function renderChart(results) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            // Only show tooltips for the Median lines to reduce clutter
                             if (context.dataset.label.includes('Range') || context.dataset.label.includes('Lower')) return null;
                             return context.dataset.label + ': £' + Math.round(context.raw).toLocaleString();
                         }
@@ -365,7 +371,8 @@ function renderChart(results) {
 
 function renderResultsTable(results) {
     const tbody = document.querySelector('#results-table tbody');
-    tbody.innerHTML = '';
+    if(!tbody) return;
+    tbody.innerHTML = ''; // Clear the "Run projection" message
 
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
@@ -386,7 +393,7 @@ function renderResultsTable(results) {
     });
 }
 
-// --- Basic Rendering (Asset Rows & Tables) ---
+// --- Basic Rendering (Tables) ---
 function renderAssetRows() {
     const tbody = document.querySelector('#cma-table tbody');
     if(!tbody) return;
@@ -462,10 +469,13 @@ window.addStrategyRow = function() {
 };
 
 function updateUIState(status) {
-    document.getElementById('status-text').innerText = status;
+    const statText = document.getElementById('status-text');
     const spinner = document.getElementById('loading-spinner');
-    if(status === 'Running...') spinner.classList.remove('d-none');
-    else spinner.classList.add('d-none');
+    if(statText) statText.innerText = status;
+    if(spinner) {
+        if(status === 'Running...') spinner.classList.remove('d-none');
+        else spinner.classList.add('d-none');
+    }
 }
 
 function setupEventListeners() {
