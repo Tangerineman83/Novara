@@ -1,4 +1,4 @@
-import { ASSET_CLASSES } from './config.js';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS } from './config.js';
 
 // --- State Management ---
 const state = {
@@ -10,7 +10,12 @@ const state = {
 document.addEventListener('DOMContentLoaded', () => {
     initWorker();
     renderAssetRows();
-    renderLifestyleTable();
+    initPresets();
+    
+    // Load defaults if table is empty
+    if(PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+    if(PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+    
     setupEventListeners();
 });
 
@@ -46,47 +51,120 @@ function renderAssetRows() {
     });
 }
 
-function renderLifestyleTable() {
-    const table = document.getElementById('lifestyle-table');
-    // Header
-    let headerHTML = '<th>Years to Ret</th>';
-    ASSET_CLASSES.forEach(ac => headerHTML += `<th>${ac.name.split(' ')[0]} %</th>`);
-    table.querySelector('thead tr').innerHTML = headerHTML;
+function initPresets() {
+    // Strategy Select
+    const stratSelect = document.getElementById('strategy-preset-select');
+    PRESET_STRATEGIES.forEach((preset, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.text = preset.name;
+        stratSelect.appendChild(opt);
+    });
+    stratSelect.addEventListener('change', (e) => {
+        if(e.target.value !== "") loadStrategyPreset(e.target.value);
+    });
 
-    // Default Rows (High Growth -> De-risking)
-    const defaults = [
-        { years: 30, weights: [80, 0, 0, 0, 0, 20, 0, 0] },
-        { years: 10, weights: [60, 0, 0, 0, 0, 40, 0, 0] },
-        { years: 0,  weights: [20, 0, 0, 0, 0, 60, 0, 20] }
-    ];
+    // Persona Select
+    const persSelect = document.getElementById('persona-preset-select');
+    PRESET_PERSONAS.forEach((preset, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.text = preset.name;
+        persSelect.appendChild(opt);
+    });
+    persSelect.addEventListener('change', (e) => {
+        if(e.target.value !== "") loadPersonaPreset(e.target.value);
+    });
+}
+
+function loadStrategyPreset(index) {
+    const preset = PRESET_STRATEGIES[index];
+    renderStrategyTable(preset.points);
+}
+
+function loadPersonaPreset(index) {
+    const p = PRESET_PERSONAS[index].data;
+    document.getElementById('p-age').value = p.age;
+    document.getElementById('p-retAge').value = p.retirementAge;
+    document.getElementById('p-pot').value = p.savings;
+    document.getElementById('p-salary').value = p.salary;
+    document.getElementById('p-contrib').value = p.contribution;
+    document.getElementById('p-growth').value = p.realSalaryGrowth;
+}
+
+function renderStrategyTable(points) {
+    const table = document.getElementById('strategy-table');
+    
+    // Build Header based on Assets
+    let headerHTML = '<th>Years to Ret</th>';
+    ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name} %</th>`);
+    headerHTML += '<th>Total %</th>'; // Validation column
+    table.querySelector('thead tr').innerHTML = headerHTML;
 
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     
-    defaults.forEach(row => {
+    points.forEach(row => {
         const tr = document.createElement('tr');
         let html = `<td><input type="number" class="form-control form-control-sm years-input" value="${row.years}"></td>`;
         
-        ASSET_CLASSES.forEach((ac, idx) => {
-            // Check if we have a default for this col, else 0
-            const val = row.weights[idx] || 0;
-            html += `<td><input type="number" class="form-control form-control-sm weight-input" data-key="${ac.key}" value="${val}"></td>`;
+        let rowSum = 0;
+        ASSET_CLASSES.forEach(ac => {
+            // Support both direct key access (old) and nested weights object (new)
+            let val = 0;
+            if(row.weights && row.weights[ac.key] !== undefined) val = row.weights[ac.key];
+            else if(row[ac.key] !== undefined) val = row[ac.key];
+            
+            // Convert decimal to percent for display if < 1, else assume percent
+            // The JSON provided has decimals (0.79). The UI inputs expect Percent (79).
+            const displayVal = val <= 1 ? (val * 100) : val;
+            rowSum += displayVal;
+
+            html += `<td><input type="number" class="form-control form-control-sm weight-input" data-key="${ac.key}" value="${Number(displayVal).toFixed(2)}"></td>`;
         });
+        
+        html += `<td class="fw-bold ${Math.abs(rowSum - 100) > 0.1 ? 'text-danger' : 'text-success'}">${rowSum.toFixed(0)}%</td>`;
         tr.innerHTML = html;
         tbody.appendChild(tr);
     });
+
+    // Attach listeners to update total on change
+    tbody.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', () => validateStrategyTable());
+    });
 }
 
-window.addLifestyleRow = function() {
-    const tbody = document.querySelector('#lifestyle-table tbody');
+window.addStrategyRow = function() {
+    const tbody = document.querySelector('#strategy-table tbody');
     const tr = document.createElement('tr');
-    let html = `<td><input type="number" class="form-control form-control-sm years-input" value="15"></td>`;
+    let html = `<td><input type="number" class="form-control form-control-sm years-input" value="10"></td>`;
     ASSET_CLASSES.forEach(ac => {
         html += `<td><input type="number" class="form-control form-control-sm weight-input" data-key="${ac.key}" value="0"></td>`;
     });
+    html += `<td class="fw-bold text-danger">0%</td>`;
     tr.innerHTML = html;
     tbody.appendChild(tr);
+    
+    // Re-attach listeners (simple approach)
+    tbody.querySelectorAll('input').forEach(inp => {
+        inp.oninput = validateStrategyTable;
+    });
 };
+
+function validateStrategyTable() {
+    const rows = document.querySelectorAll('#strategy-table tbody tr');
+    rows.forEach(row => {
+        let sum = 0;
+        row.querySelectorAll('.weight-input').forEach(inp => sum += parseFloat(inp.value) || 0);
+        const cell = row.lastElementChild;
+        cell.innerText = sum.toFixed(1) + '%';
+        if(Math.abs(sum - 100) > 0.1) {
+            cell.className = 'fw-bold text-danger';
+        } else {
+            cell.className = 'fw-bold text-success';
+        }
+    });
+}
 
 // --- Data Gathering ---
 
@@ -97,12 +175,12 @@ function getPersona() {
         savings: parseFloat(document.getElementById('p-pot').value),
         salary: parseFloat(document.getElementById('p-salary').value),
         contribution: parseFloat(document.getElementById('p-contrib').value),
-        realSalaryGrowth: 1.0 // Fixed for now
+        realSalaryGrowth: parseFloat(document.getElementById('p-growth').value)
     };
 }
 
-function getLifestylePoints() {
-    const rows = document.querySelectorAll('#lifestyle-table tbody tr');
+function getStrategyPoints() {
+    const rows = document.querySelectorAll('#strategy-table tbody tr');
     const points = [];
     rows.forEach(row => {
         const years = parseFloat(row.querySelector('.years-input').value);
@@ -112,19 +190,13 @@ function getLifestylePoints() {
         });
         points.push({ years, weights });
     });
-    return points.sort((a, b) => b.years - a.years); // Sort descending (30 years -> 0 years)
+    return points.sort((a, b) => b.years - a.years);
 }
 
 function interpolateWeights(points, totalMonths) {
     const monthlyWeights = [];
-    
     for (let m = 0; m < totalMonths; m++) {
-        // Convert month index to "Years to Retirement"
-        // Month 0 = Start (e.g. 30 years to go). Month Max = Retirement (0 years to go).
         const yearsRemaining = (totalMonths - m) / 12;
-        
-        // Find surrounding points
-        // Points are sorted descending: [30, 20, 10, 0]
         let p1 = points[0];
         let p2 = points[points.length - 1];
         
@@ -136,7 +208,6 @@ function interpolateWeights(points, totalMonths) {
             }
         }
         
-        // Linear Interpolation
         const range = p1.years - p2.years;
         const ratio = range === 0 ? 0 : (yearsRemaining - p2.years) / range;
         
@@ -172,11 +243,10 @@ function runSimulation() {
     updateUIState('Running...');
     const persona = getPersona();
     const cma = getCMA();
-    const lifestylePoints = getLifestylePoints();
+    const stratPoints = getStrategyPoints();
     const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
     
-    // Generate the full monthly weight map for the worker
-    const weightMap = interpolateWeights(lifestylePoints, months);
+    const weightMap = interpolateWeights(stratPoints, months);
 
     const payload = {
         cma,
@@ -185,7 +255,7 @@ function runSimulation() {
         settings: { simCount: 2000, inflation: 2.5 },
         strategies: [
             { 
-                name: "Custom Strategy", 
+                name: "Active Strategy", 
                 monthlyWeights: weightMap, 
                 implAdjustments: {} 
             }
@@ -203,7 +273,6 @@ function updateUIState(status) {
 }
 
 function setupEventListeners() {
-    // Tab Switching
     document.querySelectorAll('.list-group-item').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -215,10 +284,7 @@ function setupEventListeners() {
         });
     });
     
-    // Run Button
     document.getElementById('run-simulation-btn').addEventListener('click', runSimulation);
-    
-    // Sidebar Toggle
     document.getElementById("menu-toggle").onclick = function() {
         document.getElementById("wrapper").classList.toggle("toggled");
     };
