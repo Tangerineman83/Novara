@@ -125,8 +125,6 @@ function runMonteCarloPaths(data) {
 
 function calculateStats(allPaths, strategies, confidence) {
     const months = cachedMonths;
-    // Calc Percentiles
-    // Confidence 0.90 (90%) => alpha = 0.05 (5%) => pLower=0.05, pUpper=0.95
     const alpha = (1 - confidence) / 2;
     const pLower = alpha;
     const pUpper = 1 - alpha;
@@ -140,7 +138,7 @@ function calculateStats(allPaths, strategies, confidence) {
 
         for (let m = 0; m < months; m++) {
             const slices = paths.map(p => p[m]);
-            // Note: quantile sorts array in place, effectively consuming `slices`
+            // quantile() handles sorting internally
             percentiles.pLower.push(quantile(slices, pLower));
             percentiles.pMedian.push(quantile(slices, 0.50));
             percentiles.pUpper.push(quantile(slices, pUpper));
