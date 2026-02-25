@@ -1,5 +1,6 @@
 // js/config.js
 
+// 1. Asset Classes
 export const ASSET_CLASSES = [
     { key: "globalEq", name: "Global Equity", defaultR: 0.050, defaultV: 0.15 },
     { key: "privAssets", name: "Div. Private Assets", defaultR: 0.065, defaultV: 0.12 },
@@ -17,6 +18,7 @@ export const ASSET_CLASSES = [
     { key: "globalSov", name: "Global Sovereign", defaultR: 0.015, defaultV: 0.04 }
 ];
 
+// 2. Chart Colors
 export const CHART_COLORS = [
     { border: '#0d6efd', fill: '#0d6efd' }, // Blue
     { border: '#198754', fill: '#198754' }, // Green
@@ -24,6 +26,7 @@ export const CHART_COLORS = [
     { border: '#6f42c1', fill: '#6f42c1' }  // Purple
 ];
 
+// 3. CMA Presets
 export const PRESET_CMAS = [
     {
         name: "2026 Q1 Global Equilibrium",
@@ -65,6 +68,7 @@ export const PRESET_CMAS = [
     }
 ];
 
+// 4. Personas
 export const PRESET_PERSONAS = [
     {
         name: "Default (Age 25)",
@@ -80,6 +84,7 @@ export const PRESET_PERSONAS = [
     }
 ];
 
+// 5. Strategies
 export const PRESET_STRATEGIES = [
     {
         name: "Default Balanced",
