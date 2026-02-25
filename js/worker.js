@@ -1,5 +1,6 @@
 // js/worker.js
 
+// 1. Math Helpers
 function randn_bm() {
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
@@ -18,11 +19,13 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
+// 2. State Cache
 let cachedSimulationPaths = null; 
 let cachedStrategies = null;
 let cachedMonths = 0;
-let cachedStartAge = 30; 
+let cachedStartAge = 30; // Default
 
+// 3. Message Handler
 self.onmessage = function(e) {
     const { type, payload } = e.data;
 
