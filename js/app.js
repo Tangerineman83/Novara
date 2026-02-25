@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.2';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.3';
 
 const state = {
     worker: null,
@@ -12,10 +12,9 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v4.2 Loading...");
+console.log("Novara App v4.3 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. UI SETUP (Immediate)
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     
@@ -26,10 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 2. ATTACH NAVIGATION LISTENERS FIRST (Critical Fix)
     setupEventListeners();
 
-    // 3. Initialize Logic
     try {
         initWorker();
         renderAssetRows();
@@ -37,59 +34,46 @@ document.addEventListener('DOMContentLoaded', () => {
         initRunModelInputs();
         setupAutoRun();
         
-        // 4. Load Defaults (Protected Block)
-        // If this fails, navigation will still work
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
             
-            // Initial Run
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
         }
         
-        console.log("App Init Complete.");
-        
     } catch (err) {
         console.error("Critical Init Error:", err);
-        alert("App Error: " + err.message);
     }
 });
 
 function setupEventListeners() {
-    // Tab Navigation
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
-            
-            // Mobile Auto-Close
             const wrapper = document.getElementById("wrapper");
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
 
-            // UI Switching
             document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
             document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
             
             e.currentTarget.classList.add('active');
             const target = e.currentTarget.dataset.tab;
-            const targetSection = document.getElementById(`tab-${target}`);
-            if(targetSection) targetSection.classList.remove('d-none');
+            document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
     });
 
-    // Run Button
     const runBtn = document.getElementById('run-simulation-btn');
     if(runBtn) runBtn.addEventListener('click', runSimulation);
 
-    // Slider
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.addEventListener('input', updateConfidence);
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=4.2');
+    state.worker = new Worker('./js/worker.js?v=4.3');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -102,7 +86,6 @@ function initWorker() {
     };
 }
 
-// --- Auto Run ---
 function setupAutoRun() {
     const inputs = [
         'run-cma-select', 'run-persona-select', 
@@ -121,7 +104,6 @@ function setupAutoRun() {
     });
 }
 
-// --- Presets ---
 function initPresets() {
     const cmaSelect = document.getElementById('cma-preset-select');
     if (cmaSelect && PRESET_CMAS) {
@@ -222,7 +204,6 @@ function loadPersonaPreset(index) {
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
-// --- Data Getters ---
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
@@ -348,6 +329,7 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
+// --- VISUALIZATION LOGIC ---
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -355,36 +337,46 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
+    const isMulti = results.length > 1;
 
     const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        datasets.push({
-            label: `${res.name} Range`,
-            data: res.percentiles.pUpper,
-            borderColor: 'transparent',
-            backgroundColor: color.gradientStart, 
-            pointRadius: 0,
-            fill: '+2', 
-            tension: 0.1
-        });
-
+        // 1. Median
         datasets.push({
             label: res.name,
             data: res.percentiles.pMedian,
             borderColor: color.border,
-            backgroundColor: color.border,
+            backgroundColor: isMulti ? color.border : color.gradientStart,
             pointRadius: 0,
             borderWidth: 2.5,
             tension: 0.1
         });
 
+        // 2. Upper Bound
+        datasets.push({
+            label: `${res.name} Range`,
+            data: res.percentiles.pUpper,
+            // Logic: If Single, transparent line + fill. If Multi, colored dashed line + no fill
+            borderColor: isMulti ? color.border : 'transparent',
+            backgroundColor: isMulti ? 'transparent' : color.gradientStart, 
+            pointRadius: 0,
+            borderDash: isMulti ? [5,5] : [],
+            borderWidth: isMulti ? 1.5 : 0,
+            fill: isMulti ? false : '+2', 
+            tension: 0.1
+        });
+
+        // 3. Lower Bound
         datasets.push({
             label: `${res.name} Lower`,
             data: res.percentiles.pLower,
-            borderColor: 'transparent',
+            borderColor: isMulti ? color.border : 'transparent',
+            backgroundColor: 'transparent',
             pointRadius: 0,
+            borderDash: isMulti ? [5,5] : [],
+            borderWidth: isMulti ? 1.5 : 0,
             fill: false,
             tension: 0.1
         });
@@ -409,6 +401,7 @@ function renderChart(results) {
             scales: {
                 x: { 
                     display: true, 
+                    title: { display: true, text: 'Age' },
                     ticks: { callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null }
                 },
                 y: { display: true }
@@ -422,7 +415,13 @@ function renderResultsTable(results) {
     if(!tbody) return;
     tbody.innerHTML = '';
     
-    const baseMed = results[0].percentiles.pMedian[results[0].percentiles.pMedian.length - 1];
+    // Baseline is always index 0
+    const baseRes = results[0];
+    const lastIdx = baseRes.percentiles.pMedian.length - 1;
+    
+    const baseLow = baseRes.percentiles.pLower[lastIdx];
+    const baseMed = baseRes.percentiles.pMedian[lastIdx];
+    const baseHigh = baseRes.percentiles.pUpper[lastIdx];
 
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
@@ -432,49 +431,26 @@ function renderResultsTable(results) {
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
 
+        // Diff Calculator
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
-            return `<span class="small ${diff>=0?'text-success':'text-danger'}">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<br><span class="small ${diff>=0?'text-success':'text-danger'}" style="font-size:0.75rem">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
-        const sparkId = `spark-${index}`;
+        const lowStr = `£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}`;
+        const medStr = `£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}`;
+        const highStr = `£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}`;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="border-left: 4px solid ${color.border}; font-weight:600;">${res.name}</td>
-            <td><canvas id="${sparkId}" class="sparkline-canvas"></canvas></td>
-            <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}</td>
-            <td class="text-end col-median">£${Math.round(currMed).toLocaleString()} ${formatDiff(currMed, baseMed)}</td>
-            <td class="text-end text-secondary">£${Math.round(currHigh).toLocaleString()}</td>
+            <td class="text-end text-secondary">${lowStr}</td>
+            <td class="text-end col-median">${medStr}</td>
+            <td class="text-end text-secondary">${highStr}</td>
         `;
         tbody.appendChild(tr);
-
-        setTimeout(() => drawSparkline(sparkId, res.percentiles.pMedian, color.border), 0);
     });
-}
-
-function drawSparkline(id, data, color) {
-    const canvas = document.getElementById(id);
-    if(!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width = 80;
-    const height = canvas.height = 30;
-    
-    const min = Math.min(...data);
-    const max = Math.max(...data);
-    const range = max - min;
-    
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    
-    data.forEach((val, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - ((val - min) / range) * height;
-        if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
 }
 
 function renderAssetRows() {
