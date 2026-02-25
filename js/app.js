@@ -1,6 +1,4 @@
 // js/app.js
-
-// Standard Import - No hardcoded version. Versioning is now handled by index.html
 import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js';
 
 const state = {
@@ -8,19 +6,18 @@ const state = {
     chartInstance: null
 };
 
-console.log("Novara App v3.0 (Clean) Loading...");
+console.log("Novara App v3.1 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Sidebar Toggle
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
-    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
         };
     }
-
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
@@ -33,27 +30,29 @@ document.addEventListener('DOMContentLoaded', () => {
         initPresets();
         initRunModelInputs();
         
+        // --- LOAD DEFAULTS ---
+        // 1. Load default CMA (2026 Scenario)
+        if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
+        // 2. Load default Strategy
         if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+        // 3. Load default Persona
         if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
         
         setupEventListeners();
-        console.log("App Initialization Complete.");
+        console.log("App Init Complete");
     } catch (err) {
         console.error("App Init Error:", err);
     }
 });
 
 function initWorker() {
-    // Standard Worker - No hardcoded version
     state.worker = new Worker('./js/worker.js');
-    
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             const slider = document.getElementById('confidence-slider');
             if(slider) slider.disabled = false;
-            
             renderChart(payload);
             renderResultsTable(payload);
         } else if (type === 'ERROR') {
@@ -61,15 +60,26 @@ function initWorker() {
             alert('Error: ' + payload);
         }
     };
-    
-    state.worker.onerror = (e) => {
-        console.error("Worker Error:", e.message);
-        updateUIState('Worker Failed');
-    };
 }
 
 // --- Inputs & Populators ---
 function initPresets() {
+    // 1. CMA Preset Selector (NEW)
+    const cmaSelect = document.getElementById('cma-preset-select');
+    if (cmaSelect && PRESET_CMAS) {
+        cmaSelect.innerHTML = '<option value="">Load Preset...</option>';
+        PRESET_CMAS.forEach((preset, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.text = preset.name;
+            cmaSelect.appendChild(opt);
+        });
+        cmaSelect.addEventListener('change', (e) => {
+            if(e.target.value !== "") loadCMAPreset(e.target.value);
+        });
+    }
+
+    // 2. Strategy Selector
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect && PRESET_STRATEGIES) {
         stratSelect.innerHTML = '<option value="">Load Preset Strategy...</option>';
@@ -83,6 +93,7 @@ function initPresets() {
         });
     }
 
+    // 3. Persona Selector
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect && PRESET_PERSONAS) {
         persSelect.innerHTML = '<option value="">Load Preset Persona...</option>';
@@ -123,13 +134,35 @@ function initRunModelInputs() {
         if(sel && PRESET_STRATEGIES) {
             if(i === 0) sel.innerHTML = '<option value="custom">Use "Strategies" Tab Values</option>';
             else sel.innerHTML = '<option value="">None</option>';
-            
             PRESET_STRATEGIES.forEach((preset, index) => {
                 const opt = document.createElement('option');
                 opt.value = index; opt.text = preset.name;
                 sel.appendChild(opt);
             });
         }
+    });
+}
+
+// --- Loaders ---
+
+function loadCMAPreset(index) {
+    const data = PRESET_CMAS[index].data;
+    if(!data) return;
+
+    // Iterate over all rows in the CMA table
+    const rows = document.querySelectorAll('#cma-table tbody tr');
+    rows.forEach(tr => {
+        const inputs = tr.querySelectorAll('input');
+        inputs.forEach(inp => {
+            const key = inp.dataset.key; // e.g., "globalEq"
+            const field = inp.dataset.field; // "r", "v", "ce", "cc"
+            
+            if (data[field] && data[field][key] !== undefined) {
+                // Convert decimal to percent for display (0.05 -> 5.0)
+                const val = data[field][key] * 100;
+                inp.value = val.toFixed(2);
+            }
+        });
     });
 }
 
@@ -155,8 +188,7 @@ function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
         const r = {}, v = {}, ce = {}, cc = {};
-        const rows = document.querySelectorAll('#cma-table tbody tr');
-        rows.forEach(tr => {
+        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value) / 100;
@@ -193,7 +225,6 @@ function getActiveStrategies(months) {
     const processStrat = (selId) => {
         const sel = document.getElementById(selId);
         if(!sel || sel.value === "") return null;
-
         let name, points;
         if(sel.value === 'custom') {
             name = "Custom Strategy";
@@ -229,7 +260,6 @@ function getActiveStrategies(months) {
 
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
-    
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
@@ -256,7 +286,6 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
-    
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
@@ -286,12 +315,10 @@ function runSimulation() {
 function updateConfidence() {
     const slider = document.getElementById('confidence-slider');
     const val = parseInt(slider.value);
-    
     const alpha = (100 - val) / 2;
     const low = Math.round(alpha);
     const high = Math.round(100 - alpha);
     document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
-
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
@@ -312,7 +339,6 @@ function renderChart(results) {
     }
 
     const datasets = [];
-
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
@@ -325,7 +351,6 @@ function renderChart(results) {
             borderWidth: 2,
             tension: 0.1
         });
-
         datasets.push({
             label: `${res.name} Upper`,
             data: res.percentiles.pUpper,
@@ -336,7 +361,6 @@ function renderChart(results) {
             borderDash: [5, 5],
             tension: 0.1
         });
-
         datasets.push({
             label: `${res.name} Lower`,
             data: res.percentiles.pLower,
@@ -424,124 +448,4 @@ function renderResultsTable(results) {
 
         const formatDiff = (curr, base) => {
             if (index === 0 || base === 0) return '';
-            const diff = ((curr - base) / base) * 100;
-            const sign = diff >= 0 ? '+' : '';
-            const css = diff >= 0 ? 'text-success' : 'text-danger';
-            return `<br><span class="small ${css}">(${sign}${diff.toFixed(1)}%)</span>`;
-        };
-
-        const lowStr = `£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}`;
-        const medStr = `£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}`;
-        const highStr = `£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}`;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td style="border-left: 5px solid ${color.border}; font-weight: 500;">${res.name}</td>
-            <td>${lowStr}</td>
-            <td><strong>${medStr}</strong></td>
-            <td>${highStr}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderAssetRows() {
-    const tbody = document.querySelector('#cma-table tbody');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    ASSET_CLASSES.forEach(asset => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${asset.name}</td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="ce" value="${asset.key === 'globalEq' ? 100 : 50}"></td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="cc" value="${asset.key === 'igCredit' ? 100 : 20}"></td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderStrategyTable(points) {
-    const table = document.getElementById('strategy-table');
-    if(!table) return;
-    
-    let headerHTML = '<th>Years to Ret</th>';
-    ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name} %</th>`);
-    headerHTML += '<th>Total %</th>';
-    table.querySelector('thead tr').innerHTML = headerHTML;
-
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    points.forEach(row => {
-        const tr = document.createElement('tr');
-        let html = `<td><input type="number" class="form-control form-control-sm years-input" value="${row.years}"></td>`;
-        let rowSum = 0;
-        ASSET_CLASSES.forEach(ac => {
-            let val = 0;
-            if(row.weights && row.weights[ac.key] !== undefined) val = row.weights[ac.key];
-            else if(row[ac.key] !== undefined) val = row[ac.key];
-            const displayVal = val <= 1 ? (val * 100) : val;
-            rowSum += displayVal;
-            html += `<td><input type="number" class="form-control form-control-sm weight-input" data-key="${ac.key}" value="${Number(displayVal).toFixed(2)}"></td>`;
-        });
-        html += `<td class="fw-bold ${Math.abs(rowSum - 100) > 0.1 ? 'text-danger' : 'text-success'}">${rowSum.toFixed(0)}%</td>`;
-        tr.innerHTML = html;
-        tbody.appendChild(tr);
-    });
-    tbody.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => validateStrategyTable()));
-}
-
-function validateStrategyTable() {
-    const rows = document.querySelectorAll('#strategy-table tbody tr');
-    rows.forEach(row => {
-        let sum = 0;
-        row.querySelectorAll('.weight-input').forEach(inp => sum += parseFloat(inp.value) || 0);
-        const cell = row.lastElementChild;
-        cell.innerText = sum.toFixed(1) + '%';
-        cell.className = Math.abs(sum - 100) > 0.1 ? 'fw-bold text-danger' : 'fw-bold text-success';
-    });
-}
-
-window.addStrategyRow = function() {
-    const tbody = document.querySelector('#strategy-table tbody');
-    if(!tbody) return;
-    const tr = document.createElement('tr');
-    let html = `<td><input type="number" class="form-control form-control-sm years-input" value="10"></td>`;
-    ASSET_CLASSES.forEach(ac => html += `<td><input type="number" class="form-control form-control-sm weight-input" data-key="${ac.key}" value="0"></td>`);
-    html += `<td class="fw-bold text-danger">0%</td>`;
-    tr.innerHTML = html;
-    tbody.appendChild(tr);
-    tbody.querySelectorAll('input').forEach(inp => inp.oninput = validateStrategyTable);
-};
-
-function updateUIState(status) {
-    const statText = document.getElementById('status-text');
-    const spinner = document.getElementById('loading-spinner');
-    if(statText) statText.innerText = status;
-    if(spinner) {
-        if(status === 'Running...') spinner.classList.remove('d-none');
-        else spinner.classList.add('d-none');
-    }
-}
-
-function setupEventListeners() {
-    document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            e.currentTarget.classList.add('active');
-            const target = e.currentTarget.dataset.tab;
-            const targetSection = document.getElementById(`tab-${target}`);
-            if(targetSection) targetSection.classList.remove('d-none');
-        });
-    });
-    const runBtn = document.getElementById('run-simulation-btn');
-    if(runBtn) runBtn.addEventListener('click', runSimulation);
-    const slider = document.getElementById('confidence-slider');
-    if(slider) {
-        slider.addEventListener('input', updateConfidence);
-    }
-}
+            const diff = ((curr - base) / base
