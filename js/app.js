@@ -1,5 +1,7 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js';
+
+// CRITICAL: We use ?v=3.4 to force the browser to reload the config file
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=3.4';
 
 const state = {
     worker: null,
@@ -12,10 +14,10 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error(error);
 };
 
-console.log("Novara App v3.3 Loading...");
+console.log("Novara App v3.4 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle
+    // 1. Sidebar Toggle (Immediate Bind)
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) {
@@ -25,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Sidebar Auto-Close
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
@@ -32,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     try {
+        console.log("Starting Initialization...");
         initWorker();
         renderAssetRows();
         initPresets();
@@ -52,7 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js');
+    // Force reload worker with v3.4
+    state.worker = new Worker('./js/worker.js?v=3.4');
+    
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -95,7 +101,8 @@ function initPresets() {
         stratSelect.innerHTML = '<option value="">Load Preset Strategy...</option>';
         PRESET_STRATEGIES.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index; opt.text = preset.name;
+            opt.value = index;
+            opt.text = preset.name;
             stratSelect.appendChild(opt);
         });
         stratSelect.addEventListener('change', (e) => {
@@ -124,7 +131,8 @@ function initRunModelInputs() {
         cmaSelect.innerHTML = '<option value="custom">Use "Markets" Tab Values</option>';
         PRESET_CMAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index; opt.text = preset.name;
+            opt.value = index;
+            opt.text = preset.name;
             cmaSelect.appendChild(opt);
         });
     }
@@ -134,7 +142,8 @@ function initRunModelInputs() {
         persSelect.innerHTML = '<option value="custom">Use "Personas" Tab Values</option>';
         PRESET_PERSONAS.forEach((preset, index) => {
             const opt = document.createElement('option');
-            opt.value = index; opt.text = preset.name;
+            opt.value = index;
+            opt.text = preset.name;
             persSelect.appendChild(opt);
         });
     }
@@ -156,14 +165,20 @@ function initRunModelInputs() {
 function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
+    
     const rows = document.querySelectorAll('#cma-table tbody tr');
-    if (rows.length === 0) return;
+    // If CMA table is empty (unlikely with renderAssetRows called first), warn
+    if (rows.length === 0) {
+        console.warn("loadCMAPreset: Table empty");
+        return;
+    }
 
     rows.forEach(tr => {
         const inputs = tr.querySelectorAll('input');
         inputs.forEach(inp => {
             const key = inp.dataset.key; 
             const field = inp.dataset.field; 
+            
             if (data[field] && data[field][key] !== undefined) {
                 const val = data[field][key] * 100;
                 inp.value = val.toFixed(2);
@@ -292,12 +307,11 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
-    
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
     try {
-        // GET SETTINGS FROM MODAL
+        // Read Settings from Modal
         const simCountInput = document.getElementById('setting-sim-count');
         const inflationInput = document.getElementById('setting-inflation');
         const simCount = simCountInput ? parseInt(simCountInput.value) : 2000;
@@ -317,7 +331,7 @@ function runSimulation() {
         const payload = {
             cma, assetKeys: ASSET_CLASSES.map(a => a.key),
             persona, 
-            settings: { simCount: simCount, inflation: inflation }, 
+            settings: { simCount, inflation }, 
             strategies
         };
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
@@ -343,8 +357,9 @@ function renderChart(results) {
     
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
-    const labels = [];
     
+    // Labels for Chart.js
+    const labels = [];
     for(let i=0; i<months; i++) {
         if (i % 60 === 0 || i === months - 1) {
             labels.push(Math.floor(startAge + i/12));
@@ -565,7 +580,26 @@ function updateUIState(status) {
 }
 
 function setupEventListeners() {
+    // 1. Navigation Logic
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
-            document.querySelectorAll('.list-group-item').forEach(i => i
+            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
+            e.currentTarget.classList.add('active');
+            const target = e.currentTarget.dataset.tab;
+            const targetSection = document.getElementById(`tab-${target}`);
+            if(targetSection) targetSection.classList.remove('d-none');
+        });
+    });
+
+    // 2. Run Button
+    const runBtn = document.getElementById('run-simulation-btn');
+    if(runBtn) runBtn.addEventListener('click', runSimulation);
+
+    // 3. Slider Listener
+    const slider = document.getElementById('confidence-slider');
+    if(slider) {
+        slider.addEventListener('input', updateConfidence);
+    }
+}
