@@ -34,13 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js');
+    // IMPORTANT: ?v=2.5 forces the browser to reload the worker file
+    state.worker = new Worker('./js/worker.js?v=2.5');
+    
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             // Enable slider now that data is loaded
-            document.getElementById('confidence-slider').disabled = false;
+            const slider = document.getElementById('confidence-slider');
+            if(slider) slider.disabled = false;
+            
             renderChart(payload);
             renderResultsTable(payload);
         } else if (type === 'ERROR') {
@@ -229,7 +233,10 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
-    document.getElementById('confidence-slider').disabled = true;
+    
+    // Disable slider during fresh calculation
+    const slider = document.getElementById('confidence-slider');
+    if(slider) slider.disabled = true;
 
     const persona = getActivePersona();
     const cma = getActiveCMA();
@@ -276,9 +283,9 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // 1. Median (Solid)
+        // 1. Median (Solid) - Simplified Legend Label
         datasets.push({
-            label: res.name, // Simplified Name
+            label: res.name, 
             data: res.percentiles.pMedian,
             borderColor: color.border,
             backgroundColor: 'transparent',
@@ -322,7 +329,7 @@ function renderChart(results) {
                 filler: { propagate: false },
                 legend: {
                     labels: {
-                        // Filter out Upper/Lower from legend to keep it clean
+                        // Clean Legend: Only show the main strategy names
                         filter: function(item, chart) {
                             return !item.text.includes('Upper') && !item.text.includes('Lower');
                         }
@@ -349,7 +356,6 @@ function renderResultsTable(results) {
     if(!tbody) return;
     tbody.innerHTML = '';
     
-    // Update headers based on returned stats
     const stats = results[0].stats;
     document.getElementById('th-lower').innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
     document.getElementById('th-upper').innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
