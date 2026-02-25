@@ -6,16 +6,16 @@ const state = {
     chartInstance: null
 };
 
-// Global Error Handler for "Silent" Crashes
+// Global Error Handler
 window.onerror = function(message, source, lineno, colno, error) {
     alert(`System Error: ${message}\nLine: ${lineno}`);
     console.error(error);
 };
 
-console.log("Novara App v3.2 Loading...");
+console.log("Novara App v3.3 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle - Executed FIRST for responsiveness
+    // 1. Sidebar Toggle
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) {
@@ -25,39 +25,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Sidebar Auto-Close
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
         });
     });
 
-    // 2. Initialize Logic in Safe Blocks
     try {
-        console.log("Initializing Worker...");
         initWorker();
-        
-        console.log("Rendering Asset Rows...");
         renderAssetRows();
-        
-        console.log("Initializing Presets...");
         initPresets();
         initRunModelInputs();
         
         // --- LOAD DEFAULTS ---
-        if(PRESET_CMAS && PRESET_CMAS.length > 0) {
-            console.log("Loading CMA Default...");
-            loadCMAPreset(0); 
-        }
+        if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
         if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
         if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
         
         setupEventListeners();
-        console.log("App Init Complete. No Errors.");
+        console.log("App Init Complete.");
         
     } catch (err) {
         console.error("App Init Crash:", err);
-        alert("App Initialization Failed:\n" + err.message + "\n\nPlease refresh or check config.js.");
+        alert("App Initialization Failed:\n" + err.message);
     }
 });
 
@@ -166,20 +156,14 @@ function initRunModelInputs() {
 function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
-    
-    // Safety check for table rows
     const rows = document.querySelectorAll('#cma-table tbody tr');
-    if (rows.length === 0) {
-        console.warn("loadCMAPreset called but CMA table is empty.");
-        return;
-    }
+    if (rows.length === 0) return;
 
     rows.forEach(tr => {
         const inputs = tr.querySelectorAll('input');
         inputs.forEach(inp => {
             const key = inp.dataset.key; 
             const field = inp.dataset.field; 
-            
             if (data[field] && data[field][key] !== undefined) {
                 const val = data[field][key] * 100;
                 inp.value = val.toFixed(2);
@@ -308,10 +292,17 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
+    
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
     try {
+        // GET SETTINGS FROM MODAL
+        const simCountInput = document.getElementById('setting-sim-count');
+        const inflationInput = document.getElementById('setting-inflation');
+        const simCount = simCountInput ? parseInt(simCountInput.value) : 2000;
+        const inflation = inflationInput ? parseFloat(inflationInput.value) : 2.5;
+
         const persona = getActivePersona();
         const cma = getActiveCMA();
         const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
@@ -325,7 +316,9 @@ function runSimulation() {
 
         const payload = {
             cma, assetKeys: ASSET_CLASSES.map(a => a.key),
-            persona, settings: { simCount: 2000, inflation: 2.5 }, strategies
+            persona, 
+            settings: { simCount: simCount, inflation: inflation }, 
+            strategies
         };
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
     } catch(e) {
@@ -501,8 +494,8 @@ function renderAssetRows() {
             <td>${asset.name}</td>
             <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="cc" value="0"></td>
+            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="ce" value="${asset.key === 'globalEq' ? 100 : 50}"></td>
+            <td><input type="number" step="0.1" class="form-control form-control-sm" data-key="${asset.key}" data-field="cc" value="${asset.key === 'igCredit' ? 100 : 20}"></td>
         `;
         tbody.appendChild(tr);
     });
@@ -575,18 +568,4 @@ function setupEventListeners() {
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
-            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            e.currentTarget.classList.add('active');
-            const target = e.currentTarget.dataset.tab;
-            const targetSection = document.getElementById(`tab-${target}`);
-            if(targetSection) targetSection.classList.remove('d-none');
-        });
-    });
-    const runBtn = document.getElementById('run-simulation-btn');
-    if(runBtn) runBtn.addEventListener('click', runSimulation);
-    const slider = document.getElementById('confidence-slider');
-    if(slider) {
-        slider.addEventListener('input', updateConfidence);
-    }
-}
+            document.querySelectorAll('.list-group-item').forEach(i => i
