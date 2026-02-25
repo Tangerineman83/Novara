@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.3';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.4';
 
 const state = {
     worker: null,
@@ -12,11 +12,12 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v5.3 Loading...");
+console.log("Novara App v5.4 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
+    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+            
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -68,7 +70,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=5.3');
+    state.worker = new Worker('./js/worker.js?v=5.4');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -293,8 +295,19 @@ function interpolateWeights(points, totalMonths) {
 function runSimulation() {
     updateUIState('Running...');
     try {
-        const simCount = parseInt(document.getElementById('setting-sim-count').value) || 2000;
-        const inflation = parseFloat(document.getElementById('setting-inflation').value) || 2.5;
+        // FIX: Handle 0 properly
+        const simInput = document.getElementById('setting-sim-count');
+        const infInput = document.getElementById('setting-inflation');
+        
+        const simCount = simInput ? parseInt(simInput.value) : 2000;
+        
+        // Explicitly check for empty string, otherwise use 2.5 default
+        // This allows 0 to be passed as 0
+        let inflation = 2.5;
+        if(infInput && infInput.value !== "") {
+            inflation = parseFloat(infInput.value);
+        }
+
         const persona = getActivePersona();
         const cma = getActiveCMA();
         const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
@@ -371,7 +384,6 @@ function renderChart(results) {
                 tension: 0.1
             });
         } else {
-            // Fan Chart for single view
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
@@ -439,6 +451,7 @@ function renderResultsTable(results) {
     
     const baseRes = results[0];
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
+    
     const baseLow = baseRes.percentiles.pLower[lastIdx];
     const baseMed = baseRes.percentiles.pMedian[lastIdx];
     const baseHigh = baseRes.percentiles.pUpper[lastIdx];
@@ -446,6 +459,7 @@ function renderResultsTable(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         const last = res.percentiles.pMedian.length - 1;
+        
         const currLow = res.percentiles.pLower[last];
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
