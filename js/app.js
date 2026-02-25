@@ -1,76 +1,57 @@
 // js/app.js
-
-// FORCE NEW CONFIG LOAD v2.8
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.8';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.9';
 
 const state = {
     worker: null,
     chartInstance: null
 };
 
-console.log("Novara App v2.8 Loading...");
+console.log("Novara App v2.9 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle - Initialize IMMEDIATELY
+    // 1. Sidebar Toggle
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
-    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
         };
     }
-
-    // Sidebar Auto-Close on Mobile
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
         });
     });
 
-    // 2. Initialize App Logic
     try {
         initWorker();
         renderAssetRows();
         initPresets();
         initRunModelInputs();
-        
-        // Load Defaults
         if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
         if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-        
         setupEventListeners();
-        console.log("App Initialization Complete.");
+        console.log("App Init Complete");
     } catch (err) {
         console.error("App Init Error:", err);
-        alert("App failed to start. Please check console.");
     }
 });
 
 function initWorker() {
-    // Force new worker version v2.8
-    state.worker = new Worker('./js/worker.js?v=2.8');
-    
+    state.worker = new Worker('./js/worker.js?v=2.9');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
-            // Enable slider
             const slider = document.getElementById('confidence-slider');
             if(slider) slider.disabled = false;
-            
             renderChart(payload);
             renderResultsTable(payload);
         } else if (type === 'ERROR') {
             updateUIState('Error');
             alert('Error: ' + payload);
         }
-    };
-    
-    state.worker.onerror = (e) => {
-        console.error("Worker Error:", e.message);
-        updateUIState('Worker Failed');
     };
 }
 
@@ -127,10 +108,8 @@ function initRunModelInputs() {
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
         const sel = document.getElementById(id);
         if(sel && PRESET_STRATEGIES) {
-            // Strategy 1 default to Custom, others to None
             if(i === 0) sel.innerHTML = '<option value="custom">Use "Strategies" Tab Values</option>';
             else sel.innerHTML = '<option value="">None</option>';
-            
             PRESET_STRATEGIES.forEach((preset, index) => {
                 const opt = document.createElement('option');
                 opt.value = index; opt.text = preset.name;
@@ -162,8 +141,7 @@ function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
         const r = {}, v = {}, ce = {}, cc = {};
-        const rows = document.querySelectorAll('#cma-table tbody tr');
-        rows.forEach(tr => {
+        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value) / 100;
@@ -200,7 +178,6 @@ function getActiveStrategies(months) {
     const processStrat = (selId) => {
         const sel = document.getElementById(selId);
         if(!sel || sel.value === "") return null;
-
         let name, points;
         if(sel.value === 'custom') {
             name = "Custom Strategy";
@@ -236,7 +213,6 @@ function getActiveStrategies(months) {
 
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
-    
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
@@ -263,7 +239,6 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
-    
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
@@ -293,35 +268,47 @@ function runSimulation() {
 function updateConfidence() {
     const slider = document.getElementById('confidence-slider');
     const val = parseInt(slider.value);
-    
     const alpha = (100 - val) / 2;
     const low = Math.round(alpha);
     const high = Math.round(100 - alpha);
     document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
-
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
-    
-    const labels = Array.from({length: results[0].percentiles.pMedian.length}, (_, i) => i);
-    const datasets = [];
 
+    // X-Axis Age Calculations
+    const startAge = results[0].meta.startAge;
+    const months = results[0].percentiles.pMedian.length;
+    const labels = [];
+    
+    // Only generate a label every 60 months (5 years) to keep it clean
+    for(let i=0; i<months; i++) {
+        if (i % 60 === 0 || i === months - 1) {
+            labels.push(Math.floor(startAge + i/12));
+        } else {
+            labels.push(''); // Empty string for cleaner axis
+        }
+    }
+
+    const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
+        // 1. Median (Solid Line + Solid Box in Legend)
         datasets.push({
             label: res.name, 
             data: res.percentiles.pMedian,
             borderColor: color.border,
-            backgroundColor: 'transparent',
+            backgroundColor: color.fill, // Use solid fill for legend box
             pointRadius: 0,
             borderWidth: 2,
             tension: 0.1
         });
 
+        // 2. Upper (Dashed)
         datasets.push({
             label: `${res.name} Upper`,
             data: res.percentiles.pUpper,
@@ -333,6 +320,7 @@ function renderChart(results) {
             tension: 0.1
         });
 
+        // 3. Lower (Dashed)
         datasets.push({
             label: `${res.name} Lower`,
             data: res.percentiles.pLower,
@@ -347,14 +335,16 @@ function renderChart(results) {
 
     state.chartInstance = new Chart(ctx, {
         type: 'line',
-        data: { labels, datasets },
+        data: { labels: Array.from({length: months}, (_, i) => i), datasets }, // Raw index for X
         options: {
             responsive: true,
+            maintainAspectRatio: false, // CRITICAL FOR MOBILE LANDSCAPE
             interaction: { mode: 'index', intersect: false },
             plugins: { 
-                filler: { propagate: false },
                 legend: {
                     labels: {
+                        usePointStyle: false, // Use box
+                        boxWidth: 20,
                         filter: function(item) {
                             return !item.text.includes('Upper') && !item.text.includes('Lower');
                         }
@@ -362,6 +352,12 @@ function renderChart(results) {
                 },
                 tooltip: {
                     callbacks: {
+                        title: function(context) {
+                            // Convert Month Index to Age
+                            const monthIndex = context[0].dataIndex;
+                            const age = Math.floor(startAge + monthIndex/12);
+                            return `Age ${age}`;
+                        },
                         label: function(context) {
                             return context.dataset.label + ': £' + Math.round(context.raw).toLocaleString();
                         }
@@ -369,7 +365,18 @@ function renderChart(results) {
                 }
             },
             scales: {
-                x: { display: true, title: { display: true, text: 'Months' } },
+                x: { 
+                    display: true, 
+                    title: { display: true, text: 'Age' },
+                    ticks: {
+                        callback: function(val, index) {
+                            // Only show age if it's a whole year and div by 5
+                            const age = startAge + index/12;
+                            if (index % 60 === 0) return Math.floor(age);
+                            return null;
+                        }
+                    }
+                },
                 y: { display: true, title: { display: true, text: 'Pot Value (£)' } }
             }
         }
@@ -426,7 +433,6 @@ function renderAssetRows() {
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
     if(!table) return;
-    
     let headerHTML = '<th>Years to Ret</th>';
     ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name} %</th>`);
     headerHTML += '<th>Total %</th>';
@@ -488,28 +494,19 @@ function updateUIState(status) {
 }
 
 function setupEventListeners() {
-    // 1. Navigation Logic (TAB SWITCHING)
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
-            // Remove active from all tabs
             document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
-            // Hide all sections
             document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            
-            // Activate current
             e.currentTarget.classList.add('active');
             const target = e.currentTarget.dataset.tab;
             const targetSection = document.getElementById(`tab-${target}`);
             if(targetSection) targetSection.classList.remove('d-none');
         });
     });
-
-    // 2. Run Button
     const runBtn = document.getElementById('run-simulation-btn');
     if(runBtn) runBtn.addEventListener('click', runSimulation);
-
-    // 3. Slider Listener
     const slider = document.getElementById('confidence-slider');
     if(slider) {
         slider.addEventListener('input', updateConfidence);
