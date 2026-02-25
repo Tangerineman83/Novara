@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.1';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v5.0 Loading...");
+console.log("Novara App v5.1 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -71,12 +71,11 @@ function setupEventListeners() {
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.addEventListener('input', updateConfidence);
     
-    // Add Column Button (Global)
     window.addStrategyColumn = addStrategyColumn;
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=5.0');
+    state.worker = new Worker('./js/worker.js?v=5.1');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -249,24 +248,26 @@ function getActiveStrategies(months) {
         let name, points;
         if(sel.value === 'custom') {
             name = "Custom Strategy";
-            // NEW: Scrape Transposed Table
-            // 1. Get Years from Header
+            // Scrape Transposed Table
             const yearInputs = document.querySelectorAll('#strategy-table thead input.year-header');
             points = [];
             yearInputs.forEach((yInput, colIndex) => {
                 const years = parseFloat(yInput.value);
                 const weights = {};
-                // Iterate rows to get weight for this column
+                // Iterate rows to get weight for this column (using colIndex)
                 const rows = document.querySelectorAll('#strategy-table tbody tr');
                 rows.forEach(row => {
                     const inputs = row.querySelectorAll('input');
-                    const wInput = inputs[colIndex]; // Get cell corresponding to column
-                    const key = wInput.dataset.key;
-                    weights[key] = parseFloat(wInput.value) / 100;
+                    // Safety check if column exists
+                    if (inputs[colIndex]) {
+                        const wInput = inputs[colIndex]; 
+                        const key = wInput.dataset.key;
+                        weights[key] = parseFloat(wInput.value) / 100;
+                    }
                 });
                 points.push({ years, weights });
             });
-            points.sort((a, b) => b.years - a.years); // Sort Descending
+            points.sort((a, b) => b.years - a.years); 
         } else {
             const preset = PRESET_STRATEGIES[sel.value];
             name = preset.name; points = preset.points;
@@ -384,7 +385,7 @@ function renderChart(results) {
                 tension: 0.1
             });
         } else {
-            // Single Strategy: Fan Chart (Gradient Fill)
+            // Single Strategy: Fan Chart
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
@@ -450,7 +451,6 @@ function renderResultsTable(results) {
     if(!tbody) return;
     tbody.innerHTML = '';
     
-    // Baseline is always index 0
     const baseRes = results[0];
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
     
@@ -466,7 +466,6 @@ function renderResultsTable(results) {
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
 
-        // Format Diff Helper
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
@@ -488,7 +487,7 @@ function renderResultsTable(results) {
     });
 }
 
-// --- NEW STRATEGY TABLE LOGIC (Transposed) ---
+// FIX: Robust DOM-based Table Construction
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
     if(!table) return;
@@ -496,71 +495,75 @@ function renderStrategyTable(points) {
     const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
     
-    // 1. Build Header Row (Years)
-    let headHTML = '<tr><th class="bg-light text-start" style="width:200px;">Asset Allocation</th>';
+    // Clear existing
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    // 1. Build Header Row (Years) via DOM API
+    const headerRow = thead.insertRow();
+    
+    // First cell: "Asset Allocation" label
+    const labelTh = document.createElement('th');
+    labelTh.className = "bg-light text-start";
+    labelTh.style.width = "200px";
+    labelTh.innerText = "Asset Allocation";
+    headerRow.appendChild(labelTh);
+
+    // Columns for Years
     points.forEach((p, i) => {
-        headHTML += `<th>
+        const th = document.createElement('th');
+        // Input Group for Year
+        th.innerHTML = `
             <div class="input-group input-group-sm justify-content-center">
                 <input type="number" class="form-control text-center year-header fw-bold text-primary" 
                        value="${p.years}" style="max-width:60px;" data-col="${i}">
                 <span class="input-group-text border-0 bg-transparent px-1">Yrs</span>
-            </div>
-        </th>`;
+            </div>`;
+        headerRow.appendChild(th);
     });
-    headHTML += '</tr>';
-    thead.innerHTML = headHTML;
 
-    // 2. Build Body Rows (Assets)
-    tbody.innerHTML = '';
+    // 2. Build Body Rows (Assets) via DOM API
     ASSET_CLASSES.forEach(ac => {
-        let rowHTML = `<tr><td class="text-start fw-medium">${ac.name}</td>`;
+        const tr = tbody.insertRow();
         
+        // Asset Name
+        const nameCell = tr.insertCell();
+        nameCell.className = "text-start fw-medium";
+        nameCell.innerText = ac.name;
+
+        // Asset Weights
         points.forEach((p, i) => {
-            // Check weights - support both structure types
+            const td = tr.insertCell();
             let val = 0;
             if(p.weights && p.weights[ac.key] !== undefined) val = p.weights[ac.key];
             else if(p[ac.key] !== undefined) val = p[ac.key];
-            
             const displayVal = val <= 1 ? (val * 100) : val;
-            
-            rowHTML += `<td>
-                <input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" 
-                       data-key="${ac.key}" data-col="${i}" value="${Number(displayVal).toFixed(2)}">
-            </td>`;
+
+            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" 
+                       data-key="${ac.key}" data-col="${i}" value="${Number(displayVal).toFixed(2)}">`;
         });
-        
-        rowHTML += '</tr>';
-        tbody.appendChild(document.createRange().createContextualFragment(rowHTML));
     });
 }
 
 function addStrategyColumn() {
-    // Logic: Scrape current, add new point at 10 years, re-render
-    const strategies = getActiveStrategies(1).slice(0,1); // Just get first strategy structure
+    // Scrape current, add new point at 10 years, re-render
+    const strategies = getActiveStrategies(1).slice(0,1); 
     if(strategies.length === 0) return;
     
-    // Current points are implicitly scraped by the getActiveStrategies logic for 'custom'
-    // But here we are in the editing UI. We need to manually scrape UI to preserve edits.
     let points = scrapeStrategyUI();
-    
-    // Add new point
     points.push({ years: 10, weights: {} });
-    points.sort((a, b) => b.years - a.years); // Keep sorted
-    
+    points.sort((a, b) => b.years - a.years);
     renderStrategyTable(points);
 }
 
 function scrapeStrategyUI() {
     const yearInputs = document.querySelectorAll('#strategy-table thead input.year-header');
     const points = [];
-    
-    if(yearInputs.length === 0) return []; // Fallback
+    if(yearInputs.length === 0) return [];
 
     yearInputs.forEach((yInput, colIndex) => {
         const years = parseFloat(yInput.value) || 0;
         const weights = {};
-        
-        // Find all inputs for this column index
         const rowInputs = document.querySelectorAll(`#strategy-table tbody input[data-col="${colIndex}"]`);
         rowInputs.forEach(inp => {
             weights[inp.dataset.key] = parseFloat(inp.value) / 100;
