@@ -29,7 +29,6 @@ self.onmessage = function(e) {
     if (type === 'RUN_SIMULATION') {
         try {
             const paths = runMonteCarloPaths(payload);
-            
             cachedSimulationPaths = paths;
             cachedStrategies = payload.strategies;
             cachedMonths = paths[0].length > 0 ? paths[0][0].length : 0;
