@@ -1,12 +1,12 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.9';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.10';
 
 const state = {
     worker: null,
     chartInstance: null
 };
 
-console.log("Novara App v2.9 Loading...");
+console.log("Novara App v2.10 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Sidebar Toggle
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=2.9');
+    state.worker = new Worker('./js/worker.js?v=2.10');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -279,17 +279,15 @@ function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
 
-    // X-Axis Age Calculations
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = [];
     
-    // Only generate a label every 60 months (5 years) to keep it clean
     for(let i=0; i<months; i++) {
         if (i % 60 === 0 || i === months - 1) {
             labels.push(Math.floor(startAge + i/12));
         } else {
-            labels.push(''); // Empty string for cleaner axis
+            labels.push(''); 
         }
     }
 
@@ -297,18 +295,15 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // 1. Median (Solid Line + Solid Box in Legend)
         datasets.push({
             label: res.name, 
             data: res.percentiles.pMedian,
             borderColor: color.border,
-            backgroundColor: color.fill, // Use solid fill for legend box
+            backgroundColor: color.fill,
             pointRadius: 0,
             borderWidth: 2,
             tension: 0.1
         });
-
-        // 2. Upper (Dashed)
         datasets.push({
             label: `${res.name} Upper`,
             data: res.percentiles.pUpper,
@@ -319,8 +314,6 @@ function renderChart(results) {
             borderDash: [5, 5],
             tension: 0.1
         });
-
-        // 3. Lower (Dashed)
         datasets.push({
             label: `${res.name} Lower`,
             data: res.percentiles.pLower,
@@ -335,15 +328,15 @@ function renderChart(results) {
 
     state.chartInstance = new Chart(ctx, {
         type: 'line',
-        data: { labels: Array.from({length: months}, (_, i) => i), datasets }, // Raw index for X
+        data: { labels: Array.from({length: months}, (_, i) => i), datasets }, 
         options: {
             responsive: true,
-            maintainAspectRatio: false, // CRITICAL FOR MOBILE LANDSCAPE
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: { 
                 legend: {
                     labels: {
-                        usePointStyle: false, // Use box
+                        usePointStyle: false,
                         boxWidth: 20,
                         filter: function(item) {
                             return !item.text.includes('Upper') && !item.text.includes('Lower');
@@ -353,7 +346,6 @@ function renderChart(results) {
                 tooltip: {
                     callbacks: {
                         title: function(context) {
-                            // Convert Month Index to Age
                             const monthIndex = context[0].dataIndex;
                             const age = Math.floor(startAge + monthIndex/12);
                             return `Age ${age}`;
@@ -370,7 +362,6 @@ function renderChart(results) {
                     title: { display: true, text: 'Age' },
                     ticks: {
                         callback: function(val, index) {
-                            // Only show age if it's a whole year and div by 5
                             const age = startAge + index/12;
                             if (index % 60 === 0) return Math.floor(age);
                             return null;
@@ -394,20 +385,40 @@ function renderResultsTable(results) {
     if(lowerHeader) lowerHeader.innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
     if(upperHeader) upperHeader.innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
 
+    // BASELINE (Strategy 1)
+    const baseStrat = results[0];
+    const baseLastIdx = baseStrat.percentiles.pMedian.length - 1;
+    const baseLow = baseStrat.percentiles.pLower[baseLastIdx];
+    const baseMed = baseStrat.percentiles.pMedian[baseLastIdx];
+    const baseHigh = baseStrat.percentiles.pUpper[baseLastIdx];
+
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         const lastIdx = res.percentiles.pMedian.length - 1;
         
-        const low = Math.round(res.percentiles.pLower[lastIdx]).toLocaleString();
-        const med = Math.round(res.percentiles.pMedian[lastIdx]).toLocaleString();
-        const high = Math.round(res.percentiles.pUpper[lastIdx]).toLocaleString();
+        const currLow = res.percentiles.pLower[lastIdx];
+        const currMed = res.percentiles.pMedian[lastIdx];
+        const currHigh = res.percentiles.pUpper[lastIdx];
+
+        // Format Diff Function
+        const formatDiff = (curr, base) => {
+            if (index === 0 || base === 0) return '';
+            const diff = ((curr - base) / base) * 100;
+            const sign = diff >= 0 ? '+' : '';
+            const css = diff >= 0 ? 'text-success' : 'text-danger';
+            return `<br><span class="small ${css}">(${sign}${diff.toFixed(1)}%)</span>`;
+        };
+
+        const lowStr = `£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}`;
+        const medStr = `£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}`;
+        const highStr = `£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}`;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="border-left: 5px solid ${color.border}; font-weight: 500;">${res.name}</td>
-            <td>£${low}</td>
-            <td><strong>£${med}</strong></td>
-            <td>£${high}</td>
+            <td>${lowStr}</td>
+            <td><strong>${medStr}</strong></td>
+            <td>${highStr}</td>
         `;
         tbody.appendChild(tr);
     });
