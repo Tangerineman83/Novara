@@ -20,22 +20,22 @@ export const ASSET_CLASSES = [
 export const CHART_COLORS = [
     { 
         border: '#312E81', // Indigo-900
-        gradientStart: 'rgba(49, 46, 129, 0.3)', 
+        gradientStart: 'rgba(49, 46, 129, 0.4)', 
         gradientEnd: 'rgba(49, 46, 129, 0.0)' 
     }, 
     { 
         border: '#0D9488', // Teal-600
-        gradientStart: 'rgba(13, 148, 136, 0.3)', 
+        gradientStart: 'rgba(13, 148, 136, 0.4)', 
         gradientEnd: 'rgba(13, 148, 136, 0.0)' 
     },
     { 
         border: '#E11D48', // Rose-600
-        gradientStart: 'rgba(225, 29, 72, 0.3)', 
+        gradientStart: 'rgba(225, 29, 72, 0.4)', 
         gradientEnd: 'rgba(225, 29, 72, 0.0)' 
     },
     { 
         border: '#D97706', // Amber
-        gradientStart: 'rgba(217, 119, 6, 0.3)', 
+        gradientStart: 'rgba(217, 119, 6, 0.4)', 
         gradientEnd: 'rgba(217, 119, 6, 0.0)' 
     }
 ];
