@@ -1,23 +1,26 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.10';
+
+// Standard Import - No hardcoded version. Versioning is now handled by index.html
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js';
 
 const state = {
     worker: null,
     chartInstance: null
 };
 
-console.log("Novara App v2.10 Loading...");
+console.log("Novara App v3.0 (Clean) Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
+    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
         };
     }
+
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
@@ -29,29 +32,39 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAssetRows();
         initPresets();
         initRunModelInputs();
+        
         if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
         if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+        
         setupEventListeners();
-        console.log("App Init Complete");
+        console.log("App Initialization Complete.");
     } catch (err) {
         console.error("App Init Error:", err);
     }
 });
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=2.10');
+    // Standard Worker - No hardcoded version
+    state.worker = new Worker('./js/worker.js');
+    
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             const slider = document.getElementById('confidence-slider');
             if(slider) slider.disabled = false;
+            
             renderChart(payload);
             renderResultsTable(payload);
         } else if (type === 'ERROR') {
             updateUIState('Error');
             alert('Error: ' + payload);
         }
+    };
+    
+    state.worker.onerror = (e) => {
+        console.error("Worker Error:", e.message);
+        updateUIState('Worker Failed');
     };
 }
 
@@ -110,6 +123,7 @@ function initRunModelInputs() {
         if(sel && PRESET_STRATEGIES) {
             if(i === 0) sel.innerHTML = '<option value="custom">Use "Strategies" Tab Values</option>';
             else sel.innerHTML = '<option value="">None</option>';
+            
             PRESET_STRATEGIES.forEach((preset, index) => {
                 const opt = document.createElement('option');
                 opt.value = index; opt.text = preset.name;
@@ -141,7 +155,8 @@ function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
         const r = {}, v = {}, ce = {}, cc = {};
-        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        const rows = document.querySelectorAll('#cma-table tbody tr');
+        rows.forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value) / 100;
@@ -178,6 +193,7 @@ function getActiveStrategies(months) {
     const processStrat = (selId) => {
         const sel = document.getElementById(selId);
         if(!sel || sel.value === "") return null;
+
         let name, points;
         if(sel.value === 'custom') {
             name = "Custom Strategy";
@@ -213,6 +229,7 @@ function getActiveStrategies(months) {
 
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
+    
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
@@ -239,6 +256,7 @@ function runSimulation() {
     updateUIState('Running...');
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
+    
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
@@ -268,17 +286,19 @@ function runSimulation() {
 function updateConfidence() {
     const slider = document.getElementById('confidence-slider');
     const val = parseInt(slider.value);
+    
     const alpha = (100 - val) / 2;
     const low = Math.round(alpha);
     const high = Math.round(100 - alpha);
     document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
+
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
-
+    
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = [];
@@ -292,6 +312,7 @@ function renderChart(results) {
     }
 
     const datasets = [];
+
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
@@ -304,6 +325,7 @@ function renderChart(results) {
             borderWidth: 2,
             tension: 0.1
         });
+
         datasets.push({
             label: `${res.name} Upper`,
             data: res.percentiles.pUpper,
@@ -314,6 +336,7 @@ function renderChart(results) {
             borderDash: [5, 5],
             tension: 0.1
         });
+
         datasets.push({
             label: `${res.name} Lower`,
             data: res.percentiles.pLower,
@@ -385,7 +408,6 @@ function renderResultsTable(results) {
     if(lowerHeader) lowerHeader.innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
     if(upperHeader) upperHeader.innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
 
-    // BASELINE (Strategy 1)
     const baseStrat = results[0];
     const baseLastIdx = baseStrat.percentiles.pMedian.length - 1;
     const baseLow = baseStrat.percentiles.pLower[baseLastIdx];
@@ -400,7 +422,6 @@ function renderResultsTable(results) {
         const currMed = res.percentiles.pMedian[lastIdx];
         const currHigh = res.percentiles.pUpper[lastIdx];
 
-        // Format Diff Function
         const formatDiff = (curr, base) => {
             if (index === 0 || base === 0) return '';
             const diff = ((curr - base) / base) * 100;
@@ -444,6 +465,7 @@ function renderAssetRows() {
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
     if(!table) return;
+    
     let headerHTML = '<th>Years to Ret</th>';
     ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name} %</th>`);
     headerHTML += '<th>Total %</th>';
