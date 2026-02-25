@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.1';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.2';
 
 const state = {
     worker: null,
@@ -9,48 +9,87 @@ const state = {
 let debounceTimer;
 
 window.onerror = function(message, source, lineno, colno, error) {
-    console.error(error);
+    console.error("Sys Err:", error);
 };
 
-console.log("Novara App v4.1 Loading...");
+console.log("Novara App v4.2 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. UI SETUP (Immediate)
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
+    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
         };
     }
-    document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
-        link.addEventListener('click', () => {
-            if (window.innerWidth < 768) wrapper.classList.remove("toggled");
-        });
-    });
 
+    // 2. ATTACH NAVIGATION LISTENERS FIRST (Critical Fix)
+    setupEventListeners();
+
+    // 3. Initialize Logic
     try {
         initWorker();
         renderAssetRows();
         initPresets();
         initRunModelInputs();
+        setupAutoRun();
         
-        if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
-        if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
-        if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+        // 4. Load Defaults (Protected Block)
+        // If this fails, navigation will still work
+        try {
+            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
+            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+            if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+            
+            // Initial Run
+            setTimeout(runSimulation, 500);
+        } catch (dataErr) {
+            console.warn("Default Data Load Warning:", dataErr);
+        }
         
-        setupEventListeners();
-        setupAutoRun(); 
-        
-        setTimeout(runSimulation, 500);
+        console.log("App Init Complete.");
         
     } catch (err) {
-        console.error("Init Error:", err);
+        console.error("Critical Init Error:", err);
+        alert("App Error: " + err.message);
     }
 });
 
+function setupEventListeners() {
+    // Tab Navigation
+    document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Mobile Auto-Close
+            const wrapper = document.getElementById("wrapper");
+            if (window.innerWidth < 768) wrapper.classList.remove("toggled");
+
+            // UI Switching
+            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
+            
+            e.currentTarget.classList.add('active');
+            const target = e.currentTarget.dataset.tab;
+            const targetSection = document.getElementById(`tab-${target}`);
+            if(targetSection) targetSection.classList.remove('d-none');
+        });
+    });
+
+    // Run Button
+    const runBtn = document.getElementById('run-simulation-btn');
+    if(runBtn) runBtn.addEventListener('click', runSimulation);
+
+    // Slider
+    const slider = document.getElementById('confidence-slider');
+    if(slider) slider.addEventListener('input', updateConfidence);
+}
+
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=4.1');
+    state.worker = new Worker('./js/worker.js?v=4.2');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -63,13 +102,13 @@ function initWorker() {
     };
 }
 
+// --- Auto Run ---
 function setupAutoRun() {
     const inputs = [
         'run-cma-select', 'run-persona-select', 
         'run-strat-1', 'run-strat-2', 'run-strat-3',
         'setting-sim-count', 'setting-inflation'
     ];
-    
     inputs.forEach(id => {
         const el = document.getElementById(id);
         if(el) {
@@ -82,6 +121,7 @@ function setupAutoRun() {
     });
 }
 
+// --- Presets ---
 function initPresets() {
     const cmaSelect = document.getElementById('cma-preset-select');
     if (cmaSelect && PRESET_CMAS) {
@@ -182,6 +222,7 @@ function loadPersonaPreset(index) {
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
+// --- Data Getters ---
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
@@ -281,7 +322,10 @@ function runSimulation() {
         const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
         const strategies = getActiveStrategies(months);
 
-        if (strategies.length === 0) return;
+        if (strategies.length === 0) {
+            updateUIState('Ready');
+            return;
+        }
 
         const payload = {
             cma, assetKeys: ASSET_CLASSES.map(a => a.key),
@@ -290,6 +334,7 @@ function runSimulation() {
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
     } catch(e) {
         console.error("Run Error", e);
+        updateUIState('Error');
     }
 }
 
@@ -470,20 +515,4 @@ function updateUIState(status) {
     const spinner = document.getElementById('loading-spinner');
     if(text) text.innerText = status;
     if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
-}
-function setupEventListeners() {
-    document.querySelectorAll('.list-group-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            e.currentTarget.classList.add('active');
-            const t = e.currentTarget.dataset.tab;
-            document.getElementById(`tab-${t}`).classList.remove('d-none');
-        });
-    });
-    const runBtn = document.getElementById('run-simulation-btn');
-    if(runBtn) runBtn.addEventListener('click', runSimulation);
-    const slider = document.getElementById('confidence-slider');
-    if(slider) slider.addEventListener('input', updateConfidence);
 }
