@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.3';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=4.4';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v4.3 Loading...");
+console.log("Novara App v4.4 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -73,7 +73,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=4.3');
+    state.worker = new Worker('./js/worker.js?v=4.4');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -343,43 +343,70 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // 1. Median
-        datasets.push({
-            label: res.name,
-            data: res.percentiles.pMedian,
-            borderColor: color.border,
-            backgroundColor: isMulti ? color.border : color.gradientStart,
-            pointRadius: 0,
-            borderWidth: 2.5,
-            tension: 0.1
-        });
-
-        // 2. Upper Bound
-        datasets.push({
-            label: `${res.name} Range`,
-            data: res.percentiles.pUpper,
-            // Logic: If Single, transparent line + fill. If Multi, colored dashed line + no fill
-            borderColor: isMulti ? color.border : 'transparent',
-            backgroundColor: isMulti ? 'transparent' : color.gradientStart, 
-            pointRadius: 0,
-            borderDash: isMulti ? [5,5] : [],
-            borderWidth: isMulti ? 1.5 : 0,
-            fill: isMulti ? false : '+2', 
-            tension: 0.1
-        });
-
-        // 3. Lower Bound
-        datasets.push({
-            label: `${res.name} Lower`,
-            data: res.percentiles.pLower,
-            borderColor: isMulti ? color.border : 'transparent',
-            backgroundColor: 'transparent',
-            pointRadius: 0,
-            borderDash: isMulti ? [5,5] : [],
-            borderWidth: isMulti ? 1.5 : 0,
-            fill: false,
-            tension: 0.1
-        });
+        if (isMulti) {
+            // Multi Strategy: Dashed lines for Upper/Lower, No fill
+            datasets.push({
+                label: res.name,
+                data: res.percentiles.pMedian,
+                borderColor: color.border,
+                backgroundColor: color.border,
+                pointRadius: 0,
+                borderWidth: 2.5,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Range`,
+                data: res.percentiles.pUpper,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Lower`,
+                data: res.percentiles.pLower,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                tension: 0.1
+            });
+        } else {
+            // Single Strategy: Fan Chart (Gradient Fill)
+            // Order: Upper (fills to next), Lower (invisible), Median (on top)
+            datasets.push({
+                label: `${res.name} Range`,
+                data: res.percentiles.pUpper,
+                borderColor: 'transparent',
+                backgroundColor: color.gradientStart, 
+                pointRadius: 0,
+                fill: '+1', // Fills to next dataset (Lower)
+                tension: 0.1,
+                order: 2
+            });
+            datasets.push({
+                label: `${res.name} Lower`,
+                data: res.percentiles.pLower,
+                borderColor: 'transparent',
+                pointRadius: 0,
+                fill: false,
+                tension: 0.1,
+                order: 3
+            });
+            datasets.push({
+                label: res.name,
+                data: res.percentiles.pMedian,
+                borderColor: color.border,
+                backgroundColor: color.border,
+                pointRadius: 0,
+                borderWidth: 2.5,
+                tension: 0.1,
+                order: 1
+            });
+        }
     });
 
     state.chartInstance = new Chart(ctx, {
@@ -453,6 +480,36 @@ function renderResultsTable(results) {
     });
 }
 
+// FIX: Generate headers dynamically for the strategies table
+function renderStrategyTable(points) {
+    const table = document.getElementById('strategy-table');
+    if(!table) return;
+    
+    // Header
+    let headerHTML = '<th>Years to Ret</th>';
+    ASSET_CLASSES.forEach(ac => headerHTML += `<th style="min-width: 60px;">${ac.name.split(' ')[0]} %</th>`);
+    table.querySelector('thead').innerHTML = `<tr>${headerHTML}</tr>`;
+
+    // Body
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    points.forEach(row => {
+        const tr = document.createElement('tr');
+        let html = `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent years-input" value="${row.years}"></td>`;
+        
+        ASSET_CLASSES.forEach(ac => {
+            let val = 0;
+            if(row.weights && row.weights[ac.key] !== undefined) val = row.weights[ac.key];
+            else if(row[ac.key] !== undefined) val = row[ac.key];
+            const displayVal = val <= 1 ? (val * 100) : val;
+            html += `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" data-key="${ac.key}" value="${Number(displayVal).toFixed(2)}"></td>`;
+        });
+        
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+    });
+}
+
 function renderAssetRows() {
     const tbody = document.querySelector('#cma-table tbody');
     if(!tbody) return;
@@ -470,22 +527,17 @@ function renderAssetRows() {
     });
 }
 
-function renderStrategyTable(points) {
-    const tbody = document.querySelector('#strategy-table tbody');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    points.forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent years-input" value="${row.years}"></td>`;
-        tbody.appendChild(tr);
-    });
-}
 function addStrategyRow() {
     const tbody = document.querySelector('#strategy-table tbody');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent years-input" value="10"></td>`;
+    let html = `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent years-input" value="10"></td>`;
+    ASSET_CLASSES.forEach(ac => {
+        html += `<td><input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" data-key="${ac.key}" value="0"></td>`;
+    });
+    tr.innerHTML = html;
     tbody.appendChild(tr);
 }
+
 function updateUIState(status) {
     const text = document.getElementById('status-text');
     const spinner = document.getElementById('loading-spinner');
