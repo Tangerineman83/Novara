@@ -19,7 +19,7 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
-// 2. State Cache
+// 2. State Cache (Allows instant slider updates)
 let cachedSimulationPaths = null; 
 let cachedStrategies = null;
 let cachedMonths = 0;
@@ -32,6 +32,8 @@ self.onmessage = function(e) {
         try {
             // Full Run: Generate paths, cache them, return default stats (90% CI)
             const paths = runMonteCarloPaths(payload);
+            
+            // Cache results for slider interactions
             cachedSimulationPaths = paths;
             cachedStrategies = payload.strategies;
             cachedMonths = paths[0].length > 0 ? paths[0][0].length : 0;
@@ -43,7 +45,7 @@ self.onmessage = function(e) {
         }
     } 
     else if (type === 'RECALCULATE_STATS') {
-        // Fast Run: Use cached paths, just calc percentiles
+        // Fast Run: Use cached paths, just calc new percentiles
         if (!cachedSimulationPaths) return;
         
         try {
@@ -124,8 +126,7 @@ function runMonteCarloPaths(data) {
 function calculateStats(allPaths, strategies, confidence) {
     const months = cachedMonths;
     // Calc Percentiles
-    // Confidence 0.90 => alpha = 0.05 => p05 and p95
-    // Confidence 0.50 => alpha = 0.25 => p25 and p75
+    // Confidence 0.90 (90%) => alpha = 0.05 (5%) => pLower=0.05, pUpper=0.95
     const alpha = (1 - confidence) / 2;
     const pLower = alpha;
     const pUpper = 1 - alpha;
@@ -139,10 +140,7 @@ function calculateStats(allPaths, strategies, confidence) {
 
         for (let m = 0; m < months; m++) {
             const slices = paths.map(p => p[m]);
-            // Copy slice to sort without mutating? quantile sorts it.
-            // Slice() is heavy in loop.
-            // Optimization: quantile copies internally.
-            
+            // Note: quantile sorts array in place, effectively consuming `slices`
             percentiles.pLower.push(quantile(slices, pLower));
             percentiles.pMedian.push(quantile(slices, 0.50));
             percentiles.pUpper.push(quantile(slices, pUpper));
