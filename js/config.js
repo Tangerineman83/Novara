@@ -18,7 +18,7 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#0d6efd', fill: '#0d6efd' }, // Blue (Solid fill for legend)
+    { border: '#0d6efd', fill: '#0d6efd' }, // Blue
     { border: '#198754', fill: '#198754' }, // Green
     { border: '#fd7e14', fill: '#fd7e14' }, // Orange
     { border: '#6f42c1', fill: '#6f42c1' }  // Purple
