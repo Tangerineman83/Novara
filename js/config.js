@@ -1,6 +1,5 @@
 // js/config.js
 
-// 1. Asset Classes
 export const ASSET_CLASSES = [
     { key: "globalEq", name: "Global Equity", defaultR: 0.050, defaultV: 0.15 },
     { key: "privAssets", name: "Div. Private Assets", defaultR: 0.065, defaultV: 0.12 },
@@ -18,43 +17,37 @@ export const ASSET_CLASSES = [
     { key: "globalSov", name: "Global Sovereign", defaultR: 0.015, defaultV: 0.04 }
 ];
 
-// 2. Chart Colors
 export const CHART_COLORS = [
-    { border: '#0d6efd', fill: '#0d6efd' }, // Blue
-    { border: '#198754', fill: '#198754' }, // Green
-    { border: '#fd7e14', fill: '#fd7e14' }, // Orange
-    { border: '#6f42c1', fill: '#6f42c1' }  // Purple
+    { 
+        border: '#312E81', // Indigo-900
+        gradientStart: 'rgba(49, 46, 129, 0.3)', 
+        gradientEnd: 'rgba(49, 46, 129, 0.0)' 
+    }, 
+    { 
+        border: '#0D9488', // Teal-600
+        gradientStart: 'rgba(13, 148, 136, 0.3)', 
+        gradientEnd: 'rgba(13, 148, 136, 0.0)' 
+    },
+    { 
+        border: '#E11D48', // Rose-600
+        gradientStart: 'rgba(225, 29, 72, 0.3)', 
+        gradientEnd: 'rgba(225, 29, 72, 0.0)' 
+    },
+    { 
+        border: '#D97706', // Amber
+        gradientStart: 'rgba(217, 119, 6, 0.3)', 
+        gradientEnd: 'rgba(217, 119, 6, 0.0)' 
+    }
 ];
 
-// 3. CMA Presets
 export const PRESET_CMAS = [
     {
         name: "2026 Q1 Global Equilibrium",
         data: {
-            r: {
-                globalEq: 0.072, privAssets: 0.085, realEstate: 0.062, listedAlts: 0.068, 
-                emDebt: 0.075, igCredit: 0.052, sdCredit: 0.048, moneyMkt: 0.038, 
-                privEq: 0.105, infrastructure: 0.078, privCredit: 0.082, 
-                globalHighYield: 0.078, inflLinked: 0.045, globalSov: 0.042
-            },
-            v: {
-                globalEq: 0.16, privAssets: 0.15, realEstate: 0.14, listedAlts: 0.13, 
-                emDebt: 0.14, igCredit: 0.06, sdCredit: 0.04, moneyMkt: 0.01, 
-                privEq: 0.24, infrastructure: 0.12, privCredit: 0.10, 
-                globalHighYield: 0.11, inflLinked: 0.06, globalSov: 0.07
-            },
-            ce: {
-                globalEq: 1.0, privAssets: 0.75, realEstate: 0.55, listedAlts: 0.82, 
-                emDebt: 0.50, igCredit: 0.35, sdCredit: 0.25, moneyMkt: 0.0, 
-                privEq: 0.90, infrastructure: 0.45, privCredit: 0.45, 
-                globalHighYield: 0.65, inflLinked: 0.15, globalSov: -0.05
-            },
-            cc: {
-                globalEq: 0.45, privAssets: 0.40, realEstate: 0.35, listedAlts: 0.45, 
-                emDebt: 0.65, igCredit: 1.0, sdCredit: 0.85, moneyMkt: 0.15, 
-                privEq: 0.45, infrastructure: 0.40, privCredit: 0.88, 
-                globalHighYield: 0.85, inflLinked: 0.50, globalSov: 0.60
-            }
+            r: { globalEq: 0.072, privAssets: 0.085, realEstate: 0.062, listedAlts: 0.068, emDebt: 0.075, igCredit: 0.052, sdCredit: 0.048, moneyMkt: 0.038, privEq: 0.105, infrastructure: 0.078, privCredit: 0.082, globalHighYield: 0.078, inflLinked: 0.045, globalSov: 0.042 },
+            v: { globalEq: 0.16, privAssets: 0.15, realEstate: 0.14, listedAlts: 0.13, emDebt: 0.14, igCredit: 0.06, sdCredit: 0.04, moneyMkt: 0.01, privEq: 0.24, infrastructure: 0.12, privCredit: 0.10, globalHighYield: 0.11, inflLinked: 0.06, globalSov: 0.07 },
+            ce: { globalEq: 1.0, privAssets: 0.75, realEstate: 0.55, listedAlts: 0.82, emDebt: 0.50, igCredit: 0.35, sdCredit: 0.25, moneyMkt: 0.0, privEq: 0.90, infrastructure: 0.45, privCredit: 0.45, globalHighYield: 0.65, inflLinked: 0.15, globalSov: -0.05 },
+            cc: { globalEq: 0.45, privAssets: 0.40, realEstate: 0.35, listedAlts: 0.45, emDebt: 0.65, igCredit: 1.0, sdCredit: 0.85, moneyMkt: 0.15, privEq: 0.45, infrastructure: 0.40, privCredit: 0.88, globalHighYield: 0.85, inflLinked: 0.50, globalSov: 0.60 }
         }
     },
     {
@@ -68,7 +61,6 @@ export const PRESET_CMAS = [
     }
 ];
 
-// 4. Personas
 export const PRESET_PERSONAS = [
     {
         name: "Default (Age 25)",
@@ -84,7 +76,6 @@ export const PRESET_PERSONAS = [
     }
 ];
 
-// 5. Strategies
 export const PRESET_STRATEGIES = [
     {
         name: "Default Balanced",
