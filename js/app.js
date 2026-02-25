@@ -1,47 +1,69 @@
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js';
+// FORCE NEW CONFIG LOAD:
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.6';
 
 const state = {
     worker: null,
     chartInstance: null
 };
 
+// Log to console to prove file loaded
+console.log("Novara App v2.6 Loading...");
+
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Sidebar Toggle - Initialize IMMEDIATELY
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
+    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
             wrapper.classList.toggle("toggled");
+            console.log("Menu toggled"); // Debug log
         };
+    } else {
+        console.error("Menu button not found!");
     }
+
+    // Sidebar Auto-Close on Mobile
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
         });
     });
 
+    // 2. Initialize App Logic
     try {
+        console.log("Initializing Worker...");
         initWorker();
+        
+        console.log("Rendering Assets...");
         renderAssetRows();
+        
+        console.log("Initializing Presets...");
         initPresets();
         initRunModelInputs();
-        if(PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
-        if(PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+        
+        // Load Defaults
+        if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+        if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+        
         setupEventListeners();
+        console.log("App Initialization Complete.");
     } catch (err) {
         console.error("App Init Error:", err);
+        alert("App failed to start. Please clear your browser cache.");
     }
 });
 
 function initWorker() {
-    // IMPORTANT: ?v=2.5 forces the browser to reload the worker file
-    state.worker = new Worker('./js/worker.js?v=2.5');
+    // Force new worker version
+    state.worker = new Worker('./js/worker.js?v=2.6');
     
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
-            // Enable slider now that data is loaded
+            // Enable slider
             const slider = document.getElementById('confidence-slider');
             if(slider) slider.disabled = false;
             
@@ -52,12 +74,18 @@ function initWorker() {
             alert('Error: ' + payload);
         }
     };
+    
+    state.worker.onerror = (e) => {
+        console.error("Worker Error:", e.message);
+        updateUIState('Worker Failed');
+    };
 }
 
 // --- Inputs & Populators ---
 function initPresets() {
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect && PRESET_STRATEGIES) {
+        stratSelect.innerHTML = '<option value="">Load Preset Strategy...</option>'; // Reset
         PRESET_STRATEGIES.forEach((preset, index) => {
             const opt = document.createElement('option');
             opt.value = index; opt.text = preset.name;
@@ -70,6 +98,7 @@ function initPresets() {
 
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect && PRESET_PERSONAS) {
+        persSelect.innerHTML = '<option value="">Load Preset Persona...</option>'; // Reset
         PRESET_PERSONAS.forEach((preset, index) => {
             const opt = document.createElement('option');
             opt.value = index; opt.text = preset.name;
@@ -84,6 +113,7 @@ function initPresets() {
 function initRunModelInputs() {
     const cmaSelect = document.getElementById('run-cma-select');
     if(cmaSelect && PRESET_CMAS) {
+        cmaSelect.innerHTML = '<option value="custom">Use "Markets" Tab Values</option>';
         PRESET_CMAS.forEach((preset, index) => {
             const opt = document.createElement('option');
             opt.value = index; opt.text = preset.name;
@@ -93,6 +123,7 @@ function initRunModelInputs() {
 
     const persSelect = document.getElementById('run-persona-select');
     if(persSelect && PRESET_PERSONAS) {
+        persSelect.innerHTML = '<option value="custom">Use "Personas" Tab Values</option>';
         PRESET_PERSONAS.forEach((preset, index) => {
             const opt = document.createElement('option');
             opt.value = index; opt.text = preset.name;
@@ -100,9 +131,13 @@ function initRunModelInputs() {
         });
     }
 
-    ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach(id => {
+    ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
         const sel = document.getElementById(id);
         if(sel && PRESET_STRATEGIES) {
+            // Keep default "None" for 2 and 3, but "Custom" for 1
+            if(i === 0) sel.innerHTML = '<option value="custom">Use "Strategies" Tab Values</option>';
+            else sel.innerHTML = '<option value="">None</option>';
+            
             PRESET_STRATEGIES.forEach((preset, index) => {
                 const opt = document.createElement('option');
                 opt.value = index; opt.text = preset.name;
@@ -129,12 +164,15 @@ function loadPersonaPreset(index) {
     setVal('p-growth', p.realSalaryGrowth);
 }
 
-// --- Data Logic ---
+// --- Data Gathering ---
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
-    if (sel.value === 'custom') {
+    if (!sel || sel.value === 'custom') {
         const r = {}, v = {}, ce = {}, cc = {};
-        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        const rows = document.querySelectorAll('#cma-table tbody tr');
+        if(rows.length === 0) console.warn("CMA Table empty during run!");
+        
+        rows.forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value) / 100;
@@ -152,7 +190,7 @@ function getActiveCMA() {
 
 function getActivePersona() {
     const sel = document.getElementById('run-persona-select');
-    if (sel.value === 'custom') {
+    if (!sel || sel.value === 'custom') {
         return {
             age: parseFloat(document.getElementById('p-age').value),
             retirementAge: parseFloat(document.getElementById('p-retAge').value),
@@ -174,7 +212,7 @@ function getActiveStrategies(months) {
 
         let name, points;
         if(sel.value === 'custom') {
-            name = "Custom (Strategies Tab)";
+            name = "Custom Strategy";
             const rows = document.querySelectorAll('#strategy-table tbody tr');
             points = [];
             rows.forEach(row => {
@@ -206,6 +244,8 @@ function getActiveStrategies(months) {
 }
 
 function interpolateWeights(points, totalMonths) {
+    if(!points || points.length === 0) return [];
+    
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
@@ -234,26 +274,31 @@ function runSimulation() {
     const tbody = document.querySelector('#results-table tbody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Calculating...</td></tr>';
     
-    // Disable slider during fresh calculation
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.disabled = true;
 
-    const persona = getActivePersona();
-    const cma = getActiveCMA();
-    const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
-    const strategies = getActiveStrategies(months);
+    try {
+        const persona = getActivePersona();
+        const cma = getActiveCMA();
+        const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
+        const strategies = getActiveStrategies(months);
 
-    if (strategies.length === 0) {
-        alert("Please select at least one strategy.");
-        updateUIState('Ready');
-        return;
+        if (strategies.length === 0) {
+            alert("Please select at least one strategy.");
+            updateUIState('Ready');
+            return;
+        }
+
+        const payload = {
+            cma, assetKeys: ASSET_CLASSES.map(a => a.key),
+            persona, settings: { simCount: 2000, inflation: 2.5 }, strategies
+        };
+        state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
+    } catch(e) {
+        console.error("Run Error:", e);
+        alert("Run failed: " + e.message);
+        updateUIState('Error');
     }
-
-    const payload = {
-        cma, assetKeys: ASSET_CLASSES.map(a => a.key),
-        persona, settings: { simCount: 2000, inflation: 2.5 }, strategies
-    };
-    state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
 }
 
 function updateConfidence() {
@@ -266,7 +311,6 @@ function updateConfidence() {
     const high = Math.round(100 - alpha);
     document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
 
-    // Request new stats from worker (FAST)
     state.worker.postMessage({ 
         type: 'RECALCULATE_STATS', 
         payload: { confidence: val / 100 } 
@@ -283,7 +327,7 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // 1. Median (Solid) - Simplified Legend Label
+        // 1. Median
         datasets.push({
             label: res.name, 
             data: res.percentiles.pMedian,
@@ -329,7 +373,6 @@ function renderChart(results) {
                 filler: { propagate: false },
                 legend: {
                     labels: {
-                        // Clean Legend: Only show the main strategy names
                         filter: function(item, chart) {
                             return !item.text.includes('Upper') && !item.text.includes('Lower');
                         }
@@ -357,8 +400,10 @@ function renderResultsTable(results) {
     tbody.innerHTML = '';
     
     const stats = results[0].stats;
-    document.getElementById('th-lower').innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
-    document.getElementById('th-upper').innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
+    const lowerHeader = document.getElementById('th-lower');
+    const upperHeader = document.getElementById('th-upper');
+    if(lowerHeader) lowerHeader.innerText = `Lower (${stats.lowerBoundLabel}th %ile)`;
+    if(upperHeader) upperHeader.innerText = `Upper (${stats.upperBoundLabel}th %ile)`;
 
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
