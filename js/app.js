@@ -1,14 +1,17 @@
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.7';
+// js/app.js
+
+// FORCE NEW CONFIG LOAD v2.8
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=2.8';
 
 const state = {
     worker: null,
     chartInstance: null
 };
 
-console.log("Novara App v2.7 Loading...");
+console.log("Novara App v2.8 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Sidebar Toggle
+    // 1. Sidebar Toggle - Initialize IMMEDIATELY
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     
@@ -19,20 +22,21 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 2. Sidebar Auto-Close on Mobile/Interaction
+    // Sidebar Auto-Close on Mobile
     document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(link => {
         link.addEventListener('click', () => {
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
         });
     });
 
-    // 3. Initialize App
+    // 2. Initialize App Logic
     try {
         initWorker();
         renderAssetRows();
         initPresets();
         initRunModelInputs();
         
+        // Load Defaults
         if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
         if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
         
@@ -40,23 +44,33 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("App Initialization Complete.");
     } catch (err) {
         console.error("App Init Error:", err);
+        alert("App failed to start. Please check console.");
     }
 });
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=2.7');
+    // Force new worker version v2.8
+    state.worker = new Worker('./js/worker.js?v=2.8');
+    
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
+            // Enable slider
             const slider = document.getElementById('confidence-slider');
             if(slider) slider.disabled = false;
+            
             renderChart(payload);
             renderResultsTable(payload);
         } else if (type === 'ERROR') {
             updateUIState('Error');
             alert('Error: ' + payload);
         }
+    };
+    
+    state.worker.onerror = (e) => {
+        console.error("Worker Error:", e.message);
+        updateUIState('Worker Failed');
     };
 }
 
@@ -113,6 +127,7 @@ function initRunModelInputs() {
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
         const sel = document.getElementById(id);
         if(sel && PRESET_STRATEGIES) {
+            // Strategy 1 default to Custom, others to None
             if(i === 0) sel.innerHTML = '<option value="custom">Use "Strategies" Tab Values</option>';
             else sel.innerHTML = '<option value="">None</option>';
             
@@ -147,7 +162,8 @@ function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
         const r = {}, v = {}, ce = {}, cc = {};
-        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        const rows = document.querySelectorAll('#cma-table tbody tr');
+        rows.forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value) / 100;
@@ -220,6 +236,7 @@ function getActiveStrategies(months) {
 
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
+    
     const monthlyWeights = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
@@ -471,7 +488,7 @@ function updateUIState(status) {
 }
 
 function setupEventListeners() {
-    // 1. Navigation Logic (RESTORED)
+    // 1. Navigation Logic (TAB SWITCHING)
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
