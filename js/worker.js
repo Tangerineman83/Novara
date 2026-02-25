@@ -19,10 +19,11 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
-// 2. State Cache (Allows instant slider updates)
+// 2. State Cache
 let cachedSimulationPaths = null; 
 let cachedStrategies = null;
 let cachedMonths = 0;
+let cachedStartAge = 30; // Default
 
 // 3. Message Handler
 self.onmessage = function(e) {
@@ -30,13 +31,12 @@ self.onmessage = function(e) {
 
     if (type === 'RUN_SIMULATION') {
         try {
-            // Full Run: Generate paths, cache them, return default stats (90% CI)
             const paths = runMonteCarloPaths(payload);
             
-            // Cache results for slider interactions
             cachedSimulationPaths = paths;
             cachedStrategies = payload.strategies;
             cachedMonths = paths[0].length > 0 ? paths[0][0].length : 0;
+            cachedStartAge = payload.persona.age;
             
             const stats = calculateStats(paths, payload.strategies, 0.90);
             self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
@@ -45,9 +45,7 @@ self.onmessage = function(e) {
         }
     } 
     else if (type === 'RECALCULATE_STATS') {
-        // Fast Run: Use cached paths, just calc new percentiles
         if (!cachedSimulationPaths) return;
-        
         try {
             const confidence = payload.confidence || 0.90;
             const stats = calculateStats(cachedSimulationPaths, cachedStrategies, confidence);
@@ -63,7 +61,6 @@ function runMonteCarloPaths(data) {
     const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
     const simCount = settings.simCount || 1000;
     
-    // Pre-calculate factors
     const assetFactors = {};
     assetKeys.forEach(key => {
         const ce = cma.ce[key] || 0;
@@ -77,9 +74,8 @@ function runMonteCarloPaths(data) {
         };
     });
 
-    // Run Sim for each strategy
     const allStrategyPaths = strategies.map(strat => {
-        const paths = []; // Array of Float32Arrays
+        const paths = []; 
         const weightsMap = strat.monthlyWeights;
 
         for (let s = 0; s < simCount; s++) {
@@ -93,7 +89,6 @@ function runMonteCarloPaths(data) {
                 const z3 = randn_bm();
 
                 let monthlyReturn = 0;
-                
                 for (let i = 0; i < assetKeys.length; i++) {
                     const key = assetKeys[i];
                     const w = weightsMap[m][key] || 0;
@@ -108,7 +103,6 @@ function runMonteCarloPaths(data) {
                     monthlyReturn += w * rMonthly;
                 }
 
-                // Contributions & Growth
                 const contribution = (salary * (persona.contribution / 100)) / 12;
                 pot = (pot + contribution) * (1 + monthlyReturn);
                 salary *= Math.pow(1 + (persona.realSalaryGrowth + settings.inflation) / 100, 1/12);
@@ -131,14 +125,10 @@ function calculateStats(allPaths, strategies, confidence) {
 
     const strategyResults = strategies.map((strat, index) => {
         const paths = allPaths[index];
-        
-        const percentiles = {
-            pLower: [], pMedian: [], pUpper: []
-        };
+        const percentiles = { pLower: [], pMedian: [], pUpper: [] };
 
         for (let m = 0; m < months; m++) {
             const slices = paths.map(p => p[m]);
-            // quantile() handles sorting internally
             percentiles.pLower.push(quantile(slices, pLower));
             percentiles.pMedian.push(quantile(slices, 0.50));
             percentiles.pUpper.push(quantile(slices, pUpper));
@@ -147,6 +137,7 @@ function calculateStats(allPaths, strategies, confidence) {
         return {
             name: strat.name,
             percentiles: percentiles,
+            meta: { startAge: cachedStartAge },
             stats: {
                 confidence: confidence,
                 lowerBoundLabel: (pLower * 100).toFixed(0),
