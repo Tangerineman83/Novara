@@ -100,8 +100,7 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
-/* FIX: Ensure cells display properly in layout */
-.table { margin-bottom: 0; white-space: nowrap; display: table; width: 100%; }
+.table { margin-bottom: 0; white-space: nowrap; }
 .table thead th { background-color: #F1F5F9; color: var(--text-secondary); font-size: 0.8rem; }
 .table tbody td { vertical-align: middle; }
 .col-median { background-color: #F8FAFC; font-weight: 700; color: var(--brand-color); }
