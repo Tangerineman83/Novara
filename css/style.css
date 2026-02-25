@@ -18,10 +18,13 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
+    overflow-y: auto; /* Ensure vertical scrolling works */
 }
 
 #wrapper {
     overflow-x: hidden;
+    display: flex;
+    width: 100%;
 }
 
 #sidebar-wrapper {
@@ -30,6 +33,7 @@ body {
     transition: margin 0.25s ease-out;
     width: 16rem;
     background-color: #0F172A;
+    flex-shrink: 0;
 }
 
 #sidebar-wrapper .sidebar-heading {
@@ -64,6 +68,7 @@ body {
 
 #page-content-wrapper {
     min-width: 100vw;
+    width: 100%;
 }
 
 #wrapper.toggled #sidebar-wrapper {
@@ -123,14 +128,20 @@ label.form-label {
     display: block;
 }
 
-/* Section dividers inside unified card */
 .section-divider {
     border-top: 1px solid var(--border-subtle);
     margin: 1.5rem 0;
 }
 
+/* Table Refinements */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* iPad Smooth Scroll */
+}
+
 .table {
     margin-bottom: 0;
+    white-space: nowrap; /* Prevent wrapping on small screens */
 }
 
 .table thead th {
@@ -158,12 +169,6 @@ label.form-label {
     background-color: #F8FAFC;
     font-weight: 700;
     color: var(--brand-color);
-}
-
-.sparkline-canvas {
-    width: 80px;
-    height: 30px;
-    display: block;
 }
 
 .btn-primary {
