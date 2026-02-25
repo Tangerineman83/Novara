@@ -18,9 +18,9 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#0d6efd', fill: 'rgba(13, 110, 253, 0.15)' }, // Blue (Primary)
-    { border: '#198754', fill: 'rgba(25, 135, 84, 0.15)' },  // Green (Success)
-    { border: '#fd7e14', fill: 'rgba(253, 126, 20, 0.15)' }, // Orange (Warning)
+    { border: '#0d6efd', fill: 'rgba(13, 110, 253, 0.15)' }, // Blue
+    { border: '#198754', fill: 'rgba(25, 135, 84, 0.15)' },  // Green
+    { border: '#fd7e14', fill: 'rgba(253, 126, 20, 0.15)' }, // Orange
     { border: '#6f42c1', fill: 'rgba(111, 66, 193, 0.15)' }  // Purple
 ];
 
