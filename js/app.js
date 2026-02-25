@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.1';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.3';
 
 const state = {
     worker: null,
@@ -12,12 +12,11 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v5.1 Loading...");
+console.log("Novara App v5.3 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
-    
     if (menuBtn) {
         menuBtn.onclick = (e) => {
             e.preventDefault();
@@ -38,12 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-            
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
         }
-        
     } catch (err) {
         console.error("Critical Init Error:", err);
     }
@@ -55,19 +52,15 @@ function setupEventListeners() {
             e.preventDefault();
             const wrapper = document.getElementById("wrapper");
             if (window.innerWidth < 768) wrapper.classList.remove("toggled");
-
             document.querySelectorAll('.list-group-item').forEach(i => i.classList.remove('active'));
             document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
-            
             e.currentTarget.classList.add('active');
             const target = e.currentTarget.dataset.tab;
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
     });
-
     const runBtn = document.getElementById('run-simulation-btn');
     if(runBtn) runBtn.addEventListener('click', runSimulation);
-
     const slider = document.getElementById('confidence-slider');
     if(slider) slider.addEventListener('input', updateConfidence);
     
@@ -75,7 +68,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=5.1');
+    state.worker = new Worker('./js/worker.js?v=5.3');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -117,7 +110,6 @@ function initPresets() {
         });
         cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     }
-
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect && PRESET_STRATEGIES) {
         stratSelect.innerHTML = '<option value="">Load Preset Strategy...</option>';
@@ -128,7 +120,6 @@ function initPresets() {
         });
         stratSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
     }
-
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect && PRESET_PERSONAS) {
         persSelect.innerHTML = '<option value="">Load Preset Persona...</option>';
@@ -151,7 +142,6 @@ function initRunModelInputs() {
             cmaSelect.appendChild(opt);
         });
     }
-
     const persSelect = document.getElementById('run-persona-select');
     if(persSelect) {
         persSelect.innerHTML = '<option value="custom">Use "Personas" Tab</option>';
@@ -161,7 +151,6 @@ function initRunModelInputs() {
             persSelect.appendChild(opt);
         });
     }
-
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
         const sel = document.getElementById(id);
         if(sel) {
@@ -248,17 +237,14 @@ function getActiveStrategies(months) {
         let name, points;
         if(sel.value === 'custom') {
             name = "Custom Strategy";
-            // Scrape Transposed Table
             const yearInputs = document.querySelectorAll('#strategy-table thead input.year-header');
             points = [];
             yearInputs.forEach((yInput, colIndex) => {
                 const years = parseFloat(yInput.value);
                 const weights = {};
-                // Iterate rows to get weight for this column (using colIndex)
                 const rows = document.querySelectorAll('#strategy-table tbody tr');
                 rows.forEach(row => {
                     const inputs = row.querySelectorAll('input');
-                    // Safety check if column exists
                     if (inputs[colIndex]) {
                         const wInput = inputs[colIndex]; 
                         const key = wInput.dataset.key;
@@ -340,6 +326,7 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
+// --- VISUALIZATION ---
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -354,7 +341,6 @@ function renderChart(results) {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
         if (isMulti) {
-            // Multi Strategy: Dashed lines for Upper/Lower
             datasets.push({
                 label: res.name,
                 data: res.percentiles.pMedian,
@@ -385,7 +371,7 @@ function renderChart(results) {
                 tension: 0.1
             });
         } else {
-            // Single Strategy: Fan Chart
+            // Fan Chart for single view
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
@@ -453,7 +439,6 @@ function renderResultsTable(results) {
     
     const baseRes = results[0];
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
-    
     const baseLow = baseRes.percentiles.pLower[lastIdx];
     const baseMed = baseRes.percentiles.pMedian[lastIdx];
     const baseHigh = baseRes.percentiles.pUpper[lastIdx];
@@ -461,7 +446,6 @@ function renderResultsTable(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         const last = res.percentiles.pMedian.length - 1;
-        
         const currLow = res.percentiles.pLower[last];
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
@@ -472,47 +456,35 @@ function renderResultsTable(results) {
             return `<br><span class="small ${diff>=0?'text-success':'text-danger'}" style="font-size:0.75rem">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
-        const lowStr = `£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}`;
-        const medStr = `£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}`;
-        const highStr = `£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}`;
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="border-left: 4px solid ${color.border}; font-weight:600;">${res.name}</td>
-            <td class="text-end text-secondary">${lowStr}</td>
-            <td class="text-end col-median">${medStr}</td>
-            <td class="text-end text-secondary">${highStr}</td>
+            <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
+            <td class="text-end col-median">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
+            <td class="text-end text-secondary">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-// FIX: Robust DOM-based Table Construction
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
     if(!table) return;
     
     const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
-    
-    // Clear existing
     thead.innerHTML = '';
     tbody.innerHTML = '';
 
-    // 1. Build Header Row (Years) via DOM API
     const headerRow = thead.insertRow();
-    
-    // First cell: "Asset Allocation" label
     const labelTh = document.createElement('th');
     labelTh.className = "bg-light text-start";
     labelTh.style.width = "200px";
     labelTh.innerText = "Asset Allocation";
     headerRow.appendChild(labelTh);
 
-    // Columns for Years
     points.forEach((p, i) => {
         const th = document.createElement('th');
-        // Input Group for Year
         th.innerHTML = `
             <div class="input-group input-group-sm justify-content-center">
                 <input type="number" class="form-control text-center year-header fw-bold text-primary" 
@@ -522,16 +494,12 @@ function renderStrategyTable(points) {
         headerRow.appendChild(th);
     });
 
-    // 2. Build Body Rows (Assets) via DOM API
     ASSET_CLASSES.forEach(ac => {
         const tr = tbody.insertRow();
-        
-        // Asset Name
         const nameCell = tr.insertCell();
         nameCell.className = "text-start fw-medium";
         nameCell.innerText = ac.name;
 
-        // Asset Weights
         points.forEach((p, i) => {
             const td = tr.insertCell();
             let val = 0;
@@ -546,7 +514,6 @@ function renderStrategyTable(points) {
 }
 
 function addStrategyColumn() {
-    // Scrape current, add new point at 10 years, re-render
     const strategies = getActiveStrategies(1).slice(0,1); 
     if(strategies.length === 0) return;
     
