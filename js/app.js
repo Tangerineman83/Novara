@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=5.4';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=6.0';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v5.4 Loading...");
+console.log("Novara App v6.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-            
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -70,7 +69,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=5.4');
+    state.worker = new Worker('./js/worker.js?v=6.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -295,14 +294,10 @@ function interpolateWeights(points, totalMonths) {
 function runSimulation() {
     updateUIState('Running...');
     try {
-        // FIX: Handle 0 properly
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
         
         const simCount = simInput ? parseInt(simInput.value) : 2000;
-        
-        // Explicitly check for empty string, otherwise use 2.5 default
-        // This allows 0 to be passed as 0
         let inflation = 2.5;
         if(infInput && infInput.value !== "") {
             inflation = parseFloat(infInput.value);
@@ -339,7 +334,7 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
-// --- VISUALIZATION ---
+// --- CHART VISUALS (Hybrid Mode) ---
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -347,50 +342,28 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
-    const isMulti = results.length > 1;
+    
+    // New: Gradient Creator
+    const createGradient = (ctx, rgb) => {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, `rgba(${rgb}, 0.4)`);
+        gradient.addColorStop(1, `rgba(${rgb}, 0.0)`);
+        return gradient;
+    };
 
     const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        if (isMulti) {
-            datasets.push({
-                label: res.name,
-                data: res.percentiles.pMedian,
-                borderColor: color.border,
-                backgroundColor: color.border,
-                pointRadius: 0,
-                borderWidth: 2.5,
-                tension: 0.1
-            });
-            datasets.push({
-                label: `${res.name} Range`,
-                data: res.percentiles.pUpper,
-                borderColor: color.border,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                tension: 0.1
-            });
-            datasets.push({
-                label: `${res.name} Lower`,
-                data: res.percentiles.pLower,
-                borderColor: color.border,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                tension: 0.1
-            });
-        } else {
+        // Strategy 1 (Primary) = Gradient Area
+        if (index === 0) {
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
                 borderColor: 'transparent',
-                backgroundColor: color.gradientStart, 
+                backgroundColor: createGradient(ctx, color.rgb),
                 pointRadius: 0,
-                fill: '+1', 
+                fill: '+1', // Fills to Lower
                 tension: 0.1,
                 order: 2
             });
@@ -412,6 +385,40 @@ function renderChart(results) {
                 borderWidth: 2.5,
                 tension: 0.1,
                 order: 1
+            });
+        } 
+        // Strategies 2+ (Comparison) = Dashed Lines, No Fill
+        else {
+            datasets.push({
+                label: res.name,
+                data: res.percentiles.pMedian,
+                borderColor: color.border,
+                backgroundColor: color.border,
+                pointRadius: 0,
+                borderWidth: 2.5,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Range`,
+                data: res.percentiles.pUpper,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                fill: false,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Lower`,
+                data: res.percentiles.pLower,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                fill: false,
+                tension: 0.1
             });
         }
     });
@@ -464,6 +471,7 @@ function renderResultsTable(results) {
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
 
+        // Format Diff
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
