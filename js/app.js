@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=7.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=8.0';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v7.0 Loading...");
+console.log("Novara App v8.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -70,7 +70,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=7.0');
+    state.worker = new Worker('./js/worker.js?v=8.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -177,7 +177,9 @@ function loadCMAPreset(index) {
         inputs.forEach(inp => {
             const key = inp.dataset.key; const field = inp.dataset.field; 
             if (data[field] && data[field][key] !== undefined) {
-                inp.value = (data[field][key] * 100).toFixed(2);
+                // If field is 'k' (kurtosis), don't multiply by 100
+                const multiplier = field === 'k' ? 1 : 100;
+                inp.value = (data[field][key] * multiplier).toFixed(2);
             }
         });
     });
@@ -197,21 +199,26 @@ function loadPersonaPreset(index) {
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
+// UPDATED: Reads 'k' field
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
-        const r = {}, v = {}, ce = {}, cc = {};
+        const r = {}, v = {}, k = {}, ce = {}, cc = {};
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
-                const val = parseFloat(inp.value) / 100;
-                if(inp.dataset.field === 'r') r[inp.dataset.key] = val;
-                if(inp.dataset.field === 'v') v[inp.dataset.key] = val;
-                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val;
-                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val;
+                const val = parseFloat(inp.value);
+                // Convert percent to decimal for R, V, CE, CC. Keep K as is.
+                const decimalVal = inp.dataset.field === 'k' ? val : val / 100;
+                
+                if(inp.dataset.field === 'r') r[inp.dataset.key] = decimalVal;
+                if(inp.dataset.field === 'v') v[inp.dataset.key] = decimalVal;
+                if(inp.dataset.field === 'k') k[inp.dataset.key] = decimalVal;
+                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = decimalVal;
+                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = decimalVal;
             });
         });
-        return { r, v, ce, cc };
+        return { r, v, k, ce, cc };
     }
     return PRESET_CMAS[sel.value].data;
 }
@@ -342,16 +349,13 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
-    
-    // NEW GRADIENT GENERATOR
+    const isMulti = results.length > 1;
+
     const createGradient = (ctx, colorHex) => {
-        // Convert Hex to RGB for opacity control
-        // Simple hex-to-rgb conversion for demo (assuming full 6-digit hex)
         const hex = colorHex.replace('#', '');
         const r = parseInt(hex.substring(0,2), 16);
         const g = parseInt(hex.substring(2,4), 16);
         const b = parseInt(hex.substring(4,6), 16);
-        
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.3)`);
         gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
@@ -362,15 +366,44 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // Primary Strategy (Index 0) gets the Fancy Gradient
-        if (index === 0) {
+        if (isMulti) {
+            datasets.push({
+                label: res.name,
+                data: res.percentiles.pMedian,
+                borderColor: color.border,
+                backgroundColor: color.border,
+                pointRadius: 0,
+                borderWidth: 2.5,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Range`,
+                data: res.percentiles.pUpper,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                tension: 0.1
+            });
+            datasets.push({
+                label: `${res.name} Lower`,
+                data: res.percentiles.pLower,
+                borderColor: color.border,
+                backgroundColor: 'transparent',
+                pointRadius: 0,
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                tension: 0.1
+            });
+        } else {
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
                 borderColor: 'transparent',
                 backgroundColor: createGradient(ctx, color.border),
                 pointRadius: 0,
-                fill: '+1', // Fills to Lower
+                fill: '+1', 
                 tension: 0.1,
                 order: 2
             });
@@ -389,43 +422,9 @@ function renderChart(results) {
                 borderColor: color.border,
                 backgroundColor: color.border,
                 pointRadius: 0,
-                borderWidth: 3,
+                borderWidth: 2.5,
                 tension: 0.1,
                 order: 1
-            });
-        } 
-        // Comparisons get Dashed Lines
-        else {
-            datasets.push({
-                label: res.name,
-                data: res.percentiles.pMedian,
-                borderColor: color.border,
-                backgroundColor: color.border,
-                pointRadius: 0,
-                borderWidth: 2.5,
-                tension: 0.1
-            });
-            datasets.push({
-                label: `${res.name} Range`,
-                data: res.percentiles.pUpper,
-                borderColor: color.border,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                fill: false,
-                tension: 0.1
-            });
-            datasets.push({
-                label: `${res.name} Lower`,
-                data: res.percentiles.pLower,
-                borderColor: color.border,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
-                borderDash: [5, 5],
-                borderWidth: 1.5,
-                fill: false,
-                tension: 0.1
             });
         }
     });
@@ -438,21 +437,8 @@ function renderChart(results) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { 
-                    labels: { 
-                        usePointStyle: true, 
-                        boxWidth: 8,
-                        font: { family: "'Inter', sans-serif", size: 12 },
-                        filter: item => !item.text.includes('Range') && !item.text.includes('Lower') 
-                    } 
-                },
+                legend: { labels: { usePointStyle: true, filter: item => !item.text.includes('Range') && !item.text.includes('Lower') } },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    titleColor: '#1F2937',
-                    bodyColor: '#4B5563',
-                    borderColor: '#E5E7EB',
-                    borderWidth: 1,
-                    padding: 10,
                     callbacks: {
                         title: (ctx) => `Age ${Math.floor(startAge + ctx[0].dataIndex/12)}`,
                         label: (ctx) => ctx.dataset.label.includes('Range') || ctx.dataset.label.includes('Lower') ? null : `${ctx.dataset.label}: £${Math.round(ctx.raw).toLocaleString()}`
@@ -460,20 +446,8 @@ function renderChart(results) {
                 }
             },
             scales: {
-                x: { 
-                    grid: { display: false },
-                    display: true, 
-                    title: { display: true, text: 'Age', color: '#9CA3AF' },
-                    ticks: { 
-                        color: '#9CA3AF',
-                        callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null 
-                    }
-                },
-                y: { 
-                    grid: { color: '#F3F4F6' },
-                    display: true,
-                    ticks: { color: '#9CA3AF' }
-                }
+                x: { display: true, title: { display: true, text: 'Age' }, ticks: { callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null } },
+                y: { display: true }
             }
         }
     });
@@ -483,10 +457,8 @@ function renderResultsTable(results) {
     const tbody = document.querySelector('#results-table tbody');
     if(!tbody) return;
     tbody.innerHTML = '';
-    
     const baseRes = results[0];
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
-    
     const baseLow = baseRes.percentiles.pLower[lastIdx];
     const baseMed = baseRes.percentiles.pMedian[lastIdx];
     const baseHigh = baseRes.percentiles.pUpper[lastIdx];
@@ -494,23 +466,39 @@ function renderResultsTable(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         const last = res.percentiles.pMedian.length - 1;
-        
         const currLow = res.percentiles.pLower[last];
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
-
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
             return `<br><span class="small ${diff>=0?'text-success':'text-danger'}" style="font-size:0.75rem">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="border-left: 4px solid ${color.border}; font-weight:600; padding-left: 1.5rem;">${res.name}</td>
+            <td style="border-left: 4px solid ${color.border}; font-weight:600; padding-left:1.5rem;">${res.name}</td>
             <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
             <td class="text-end col-median">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
-            <td class="text-end text-secondary" style="padding-right: 1.5rem;">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
+            <td class="text-end text-secondary" style="padding-right:1.5rem;">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// UPDATED: Includes 'k' column
+function renderAssetRows() {
+    const tbody = document.querySelector('#cma-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    ASSET_CLASSES.forEach(asset => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
+            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
         `;
         tbody.appendChild(tr);
     });
@@ -519,45 +507,26 @@ function renderResultsTable(results) {
 function renderStrategyTable(points) {
     const table = document.getElementById('strategy-table');
     if(!table) return;
-    
     const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
-    thead.innerHTML = '';
-    tbody.innerHTML = '';
-
+    thead.innerHTML = ''; tbody.innerHTML = '';
     const headerRow = thead.insertRow();
     const labelTh = document.createElement('th');
-    labelTh.className = "bg-light text-start ps-3";
-    labelTh.style.width = "200px";
-    labelTh.innerText = "Asset Allocation";
+    labelTh.className = "bg-light text-start ps-3"; labelTh.style.width = "200px"; labelTh.innerText = "Asset Allocation";
     headerRow.appendChild(labelTh);
-
     points.forEach((p, i) => {
         const th = document.createElement('th');
-        th.innerHTML = `
-            <div class="input-group input-group-sm justify-content-center">
-                <input type="number" class="form-control text-center year-header fw-bold text-primary" 
-                       value="${p.years}" style="max-width:60px;" data-col="${i}">
-                <span class="input-group-text border-0 bg-transparent px-1">Yrs</span>
-            </div>`;
+        th.innerHTML = `<div class="input-group input-group-sm justify-content-center"><input type="number" class="form-control text-center year-header fw-bold text-primary" value="${p.years}" style="max-width:60px;" data-col="${i}"><span class="input-group-text border-0 bg-transparent px-1">Yrs</span></div>`;
         headerRow.appendChild(th);
     });
-
     ASSET_CLASSES.forEach(ac => {
         const tr = tbody.insertRow();
-        const nameCell = tr.insertCell();
-        nameCell.className = "text-start fw-medium ps-3";
-        nameCell.innerText = ac.name;
-
+        const nameCell = tr.insertCell(); nameCell.className = "text-start fw-medium ps-3"; nameCell.innerText = ac.name;
         points.forEach((p, i) => {
             const td = tr.insertCell();
-            let val = 0;
-            if(p.weights && p.weights[ac.key] !== undefined) val = p.weights[ac.key];
-            else if(p[ac.key] !== undefined) val = p[ac.key];
+            let val = 0; if(p.weights && p.weights[ac.key] !== undefined) val = p.weights[ac.key]; else if(p[ac.key] !== undefined) val = p[ac.key];
             const displayVal = val <= 1 ? (val * 100) : val;
-
-            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" 
-                       data-key="${ac.key}" data-col="${i}" value="${Number(displayVal).toFixed(2)}">`;
+            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" data-key="${ac.key}" data-col="${i}" value="${Number(displayVal).toFixed(2)}">`;
         });
     });
 }
@@ -579,29 +548,10 @@ function scrapeStrategyUI() {
         const years = parseFloat(yInput.value) || 0;
         const weights = {};
         const rowInputs = document.querySelectorAll(`#strategy-table tbody input[data-col="${colIndex}"]`);
-        rowInputs.forEach(inp => {
-            weights[inp.dataset.key] = parseFloat(inp.value) / 100;
-        });
+        rowInputs.forEach(inp => { weights[inp.dataset.key] = parseFloat(inp.value) / 100; });
         points.push({ years, weights });
     });
     return points;
-}
-
-function renderAssetRows() {
-    const tbody = document.querySelector('#cma-table tbody');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    ASSET_CLASSES.forEach(asset => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
-        `;
-        tbody.appendChild(tr);
-    });
 }
 
 function updateUIState(status) {
