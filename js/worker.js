@@ -57,22 +57,23 @@ function runMonteCarloPaths(data) {
     const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
     const simCount = settings.simCount || 1000;
     
+    // Inflation Variables
     const coreInflation = settings.inflation; 
     const realSalaryGrowth = persona.realSalaryGrowth;
     
+    // Monthly Factors
     const monthlyInflationRate = Math.pow(1 + coreInflation / 100, 1/12);
     const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1/12);
 
-    // UNPACK ASSETS & KURTOSIS
+    // Prepare Asset Factors (including Kurtosis)
     const assetFactors = {};
     assetKeys.forEach(key => {
         const ce = cma.ce[key] || 0;
         const cc = cma.cc[key] || 0;
-        const k = cma.k[key] || 0; // EXCESS KURTOSIS
+        const k = cma.k[key] || 0; // Excess Kurtosis
         const resid = Math.sqrt(Math.max(0, 1 - ce ** 2 - cc ** 2));
         
-        // Variance Correction Factor for Cornish-Fisher
-        // Var(Z_cf) ~= 1 + k^2/96. We must divide by sqrt(1 + k^2/96) to standardize.
+        // Variance Correction for Cornish-Fisher
         const drift = Math.sqrt(1 + (k*k)/96);
 
         assetFactors[key] = {
@@ -108,11 +109,10 @@ function runMonteCarloPaths(data) {
                     const fac = assetFactors[key];
                     const imp = strat.implAdjustments[key] || 0; 
                     
-                    // 1. Generate Correlated Gaussian Z
+                    // 1. Correlated Gaussian Z
                     const zGauss = (fac.ce * z1 + fac.cc * z2 + fac.resid * z3);
                     
-                    // 2. Apply Cornish-Fisher Expansion for Kurtosis
-                    // Z_cf = Z + (k/24)(Z^3 - 3Z)
+                    // 2. Cornish-Fisher Expansion (Kurtosis)
                     const zCF = zGauss + (fac.k / 24) * (Math.pow(zGauss, 3) - 3 * zGauss);
                     
                     // 3. Re-standardize Variance
@@ -124,10 +124,15 @@ function runMonteCarloPaths(data) {
                     monthlyReturn += w * rMonthly;
                 }
 
+                // Nominal Pot Logic
                 const contribution = (salary * (persona.contribution / 100)) / 12;
                 pot = (pot + contribution) * (1 + monthlyReturn);
+                
+                // Advance Inflation/Salary
                 salary *= monthlySalaryGrowthRate;
                 cumulativeInflation *= monthlyInflationRate;
+                
+                // Store Real Value
                 path[m] = pot / cumulativeInflation;
             }
             paths.push(path);
