@@ -19,22 +19,22 @@ export const ASSET_CLASSES = [
 
 export const CHART_COLORS = [
     { 
-        border: '#3B82F6', 
+        border: '#3B82F6', // Blue
         gradientStart: 'rgba(59, 130, 246, 0.4)', 
         gradientEnd: 'rgba(59, 130, 246, 0.0)' 
     }, 
     { 
-        border: '#10B981', 
+        border: '#10B981', // Green
         gradientStart: 'rgba(16, 185, 129, 0.4)', 
         gradientEnd: 'rgba(16, 185, 129, 0.0)' 
     },
     { 
-        border: '#F59E0B', 
+        border: '#F59E0B', // Orange
         gradientStart: 'rgba(245, 158, 11, 0.4)', 
         gradientEnd: 'rgba(245, 158, 11, 0.0)' 
     },
     { 
-        border: '#8B5CF6', 
+        border: '#8B5CF6', // Purple
         gradientStart: 'rgba(139, 92, 246, 0.4)', 
         gradientEnd: 'rgba(139, 92, 246, 0.0)' 
     }
@@ -90,4 +90,14 @@ export const PRESET_STRATEGIES = [
         points: [
             { years: 50, weights: { globalEq: 0.6975, privAssets: 0.25, realEstate: 0.015, listedAlts: 0.0375 } },
             { years: 15, weights: { globalEq: 0.6975, privAssets: 0.25, realEstate: 0.015, listedAlts: 0.0375 } },
-            { years: 0,  weights: { globalEq
+            { years: 0,  weights: { globalEq: 0.35, realEstate: 0.02, listedAlts: 0.08, emDebt: 0.1, igCredit: 0.2, sdCredit: 0.25 } }
+        ]
+    },
+    {
+        name: "Simple Glidepath",
+        points: [
+            { years: 40, weights: { globalEq: 0.8, igCredit: 0.2 } },
+            { years: 0,  weights: { globalEq: 0.2, igCredit: 0.8 } }
+        ]
+    }
+];
