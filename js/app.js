@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js';
 
 const state = {
     worker: null,
@@ -10,11 +10,10 @@ let debounceTimer;
 
 window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
-    // Alert only on critical config failures
     if(message.includes("import")) alert("Config Loading Error. Please clear cache.");
 };
 
-console.log("Novara App v13.0 Loading...");
+console.log("Novara App v14.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -71,7 +70,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=13.0');
+    state.worker = new Worker('./js/worker.js');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -329,10 +328,10 @@ function runSimulation() {
 function updateConfidence() {
     const slider = document.getElementById('confidence-slider');
     const val = parseInt(slider.value);
-    const alpha = (100 - val) / 2;
-    const low = Math.round(alpha);
-    const high = Math.round(100 - alpha);
-    document.getElementById('confidence-label').innerText = `Confidence: ${val}% (${low}th - ${high}th)`;
+    
+    // UI Fix: Only show the percentage value per user request
+    document.getElementById('confidence-label').innerText = `${val}%`;
+    
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
