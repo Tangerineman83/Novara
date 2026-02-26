@@ -63,16 +63,23 @@ function runMonteCarloPaths(data) {
     const monthlyInflationRate = Math.pow(1 + coreInflation / 100, 1/12);
     const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1/12);
 
+    // UNPACK ASSETS & KURTOSIS
     const assetFactors = {};
     assetKeys.forEach(key => {
         const ce = cma.ce[key] || 0;
         const cc = cma.cc[key] || 0;
+        const k = cma.k[key] || 0; // EXCESS KURTOSIS
         const resid = Math.sqrt(Math.max(0, 1 - ce ** 2 - cc ** 2));
         
+        // Variance Correction Factor for Cornish-Fisher
+        // Var(Z_cf) ~= 1 + k^2/96. We must divide by sqrt(1 + k^2/96) to standardize.
+        const drift = Math.sqrt(1 + (k*k)/96);
+
         assetFactors[key] = {
             mean: (cma.r[key] || 0), 
             vol: (cma.v[key] || 0) / Math.sqrt(12),
-            ce: ce, cc: cc, resid: resid
+            ce: ce, cc: cc, resid: resid,
+            k: k, drift: drift
         };
     });
 
@@ -101,8 +108,18 @@ function runMonteCarloPaths(data) {
                     const fac = assetFactors[key];
                     const imp = strat.implAdjustments[key] || 0; 
                     
+                    // 1. Generate Correlated Gaussian Z
+                    const zGauss = (fac.ce * z1 + fac.cc * z2 + fac.resid * z3);
+                    
+                    // 2. Apply Cornish-Fisher Expansion for Kurtosis
+                    // Z_cf = Z + (k/24)(Z^3 - 3Z)
+                    const zCF = zGauss + (fac.k / 24) * (Math.pow(zGauss, 3) - 3 * zGauss);
+                    
+                    // 3. Re-standardize Variance
+                    const zFinal = zCF / fac.drift;
+
                     const rMonthly = (Math.pow(1 + fac.mean + imp, 1/12) - 1) + 
-                                     fac.vol * (fac.ce * z1 + fac.cc * z2 + fac.resid * z3);
+                                     fac.vol * zFinal;
                     
                     monthlyReturn += w * rMonthly;
                 }
