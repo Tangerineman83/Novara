@@ -6,7 +6,7 @@
     <title>Novara Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=8.0">
+    <link rel="stylesheet" href="css/style.css?v=10.0">
 </head>
 <body>
 
@@ -21,6 +21,7 @@
             <a href="#" class="list-group-item" data-tab="strategy"><i class="fas fa-chart-pie me-3"></i>Strategies</a>
             <a href="#" class="list-group-item" data-tab="persona"><i class="fas fa-user-circle me-3"></i>Personas</a>
             <a href="#" class="list-group-item" data-tab="model"><i class="fas fa-play-circle me-3"></i>Run Model</a>
+            <a href="#" class="list-group-item mt-4" data-tab="docs"><i class="fas fa-book me-3"></i>Documentation</a>
         </div>
     </div>
 
@@ -205,6 +206,67 @@
                 </div>
             </div>
 
+            <div id="tab-docs" class="view-section d-none">
+                <div class="row justify-content-center">
+                    <div class="col-lg-10">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3 class="fw-bold m-0 text-dark">Technical Documentation</h3>
+                            <span class="badge bg-white text-secondary border px-3 py-2">Version 10.0</span>
+                        </div>
+
+                        <div class="card mb-4">
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-calculator me-2 text-primary"></i> Modelling Methodology</h5></div>
+                            <div class="card-body">
+                                <p class="text-secondary">This model employs a stochastic (Monte Carlo) simulation engine to project future wealth outcomes.</p>
+                                <ul class="list-group list-group-flush small">
+                                    <li class="list-group-item px-0">
+                                        <strong>Simulation Engine:</strong> Runs 2,000 independent trials (paths) per strategy using Geometric Brownian Motion logic.
+                                    </li>
+                                    <li class="list-group-item px-0">
+                                        <strong>Correlation Matrix:</strong> Asset class returns are correlated using a simplified factor model (Equity Correlation & Credit Correlation) derived from Cholesky decomposition logic.
+                                    </li>
+                                    <li class="list-group-item px-0">
+                                        <strong>Non-Normal Distributions:</strong> Returns are adjusted for Excess Kurtosis using the <strong>Cornish-Fisher Expansion</strong>. This accurately models "fat tails" (extreme market events) that standard Gaussian models miss.
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="card mb-4">
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-globe me-2 text-success"></i> Economic Assumptions</h5></div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="small-header text-primary">Asset Returns</h6>
+                                        <p class="small text-secondary">Capital Market Assumptions (CMAs) are derived from the "2026 Q1 Scenario". Returns are nominal, annualized arithmetic means. Volatility is annualized standard deviation.</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="small-header text-primary">Inflation & Salary</h6>
+                                        <ul class="list-unstyled small text-secondary">
+                                            <li class="mb-2"><strong>Core Inflation:</strong> Used as the deflator for "Real Terms" output.</li>
+                                            <li><strong>Salary Growth:</strong> Calculated as <em>Core Inflation + Real Salary Growth</em>. This drives nominal contribution increases.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i> Limitations & Governance</h5></div>
+                            <div class="card-body">
+                                <p class="small text-secondary">This model is for illustrative planning purposes only and does not constitute financial advice.</p>
+                                <div class="alert alert-light border small text-secondary">
+                                    <strong>Taxation:</strong> The model assumes a tax-free wrapper (e.g., Pension/ISA). No allowance is made for LTA charges or income tax on withdrawal.<br><br>
+                                    <strong>Costs:</strong> Returns are Gross of Fees unless net inputs are manually entered.<br><br>
+                                    <strong>Sequence Risk:</strong> While volatility drag is mathematically accounted for, specific sequence of return risks in drawdown are not explicitly modeled in the accumulation phase summary.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -235,6 +297,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=8.0"></script>
+<script type="module" src="js/app.js?v=10.0"></script>
 </body>
 </html>
