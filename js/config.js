@@ -100,34 +100,88 @@ export const PRESET_PERSONAS = [
 
 export const PRESET_STRATEGIES = [
     {
-        name: "Default Balanced",
+        name: "Sustainable Multi-Asset (Balanced)",
         points: [
-            { years: 50, weights: { equityNorthAm: 0.40, equityUK: 0.05, equityEuropeExUK: 0.10, equityJapan: 0.05, equityEM: 0.05, globalREITs: 0.05, infraGlobal: 0.05, creditIGGlobal: 0.15, creditHYGlobal: 0.10 } },
-            { years: 15, weights: { equityNorthAm: 0.40, equityUK: 0.05, equityEuropeExUK: 0.10, equityJapan: 0.05, equityEM: 0.05, globalREITs: 0.05, infraGlobal: 0.05, creditIGGlobal: 0.15, creditHYGlobal: 0.10 } },
-            { years: 0,  weights: { equityNorthAm: 0.20, equityUK: 0.05, equityEuropeExUK: 0.05, creditIGGlobal: 0.30, sovBondsGlobal: 0.20, inflLinkedGlobal: 0.10, moneyMktGlobal: 0.10 } }
+            { 
+                years: 50, 
+                weights: { 
+                    equityNorthAm: 0.45, equityUK: 0.05, equityEuropeExUK: 0.12, equityJapan: 0.05, equityEM: 0.08, 
+                    globalREITs: 0.05, infraGlobal: 0.05, 
+                    creditIGGlobal: 0.10, creditHYGlobal: 0.05 
+                } 
+            },
+            { 
+                years: 15, 
+                weights: { 
+                    equityNorthAm: 0.45, equityUK: 0.05, equityEuropeExUK: 0.12, equityJapan: 0.05, equityEM: 0.08, 
+                    globalREITs: 0.05, infraGlobal: 0.05, 
+                    creditIGGlobal: 0.10, creditHYGlobal: 0.05 
+                } 
+            },
+            { 
+                years: 0, 
+                weights: { 
+                    equityNorthAm: 0.20, equityUK: 0.05, equityEuropeExUK: 0.05, 
+                    creditIGGlobal: 0.30, sovBondsGlobal: 0.20, inflLinkedGlobal: 0.10, moneyMktGlobal: 0.10 
+                } 
+            }
         ]
     },
     {
-        name: "100% Growth",
+        name: "100% Growth (Pure Equity/Real Assets)",
         points: [
-            { years: 50, weights: { equityNorthAm: 0.50, equityUK: 0.05, equityEuropeExUK: 0.10, equityJapan: 0.05, equityAsiaPacExJapan: 0.05, equityEM: 0.10, globalREITs: 0.05, listedRealAssets: 0.05, digitalAssets: 0.05 } },
-            { years: 15, weights: { equityNorthAm: 0.50, equityUK: 0.05, equityEuropeExUK: 0.10, equityJapan: 0.05, equityAsiaPacExJapan: 0.05, equityEM: 0.10, globalREITs: 0.05, listedRealAssets: 0.05, digitalAssets: 0.05 } },
-            { years: 0,  weights: { equityNorthAm: 0.20, equityUK: 0.05, equityEuropeExUK: 0.05, creditIGGlobal: 0.30, sovBondsGlobal: 0.20, inflLinkedGlobal: 0.10, moneyMktGlobal: 0.10 } }
+            { 
+                years: 50, 
+                weights: { 
+                    equityNorthAm: 0.55, equityUK: 0.05, equityEuropeExUK: 0.15, equityJapan: 0.05, equityEM: 0.10, 
+                    globalREITs: 0.05, infraGlobal: 0.05 
+                } 
+            },
+            { 
+                years: 15, 
+                weights: { 
+                    equityNorthAm: 0.55, equityUK: 0.05, equityEuropeExUK: 0.15, equityJapan: 0.05, equityEM: 0.10, 
+                    globalREITs: 0.05, infraGlobal: 0.05 
+                } 
+            },
+            { 
+                years: 0, 
+                weights: { 
+                    equityNorthAm: 0.20, equityUK: 0.05, equityEuropeExUK: 0.05, 
+                    creditIGGlobal: 0.30, sovBondsGlobal: 0.20, inflLinkedGlobal: 0.10, moneyMktGlobal: 0.10 
+                } 
+            }
         ]
     },
     {
-        name: "Institutional Private Assets",
+        name: "Institutional Alts (75% Balanced / 25% Private)",
         points: [
-            { years: 50, weights: { equityNorthAm: 0.30, equityUK: 0.05, privEquityBuyout: 0.20, privCreditDirect: 0.15, realEstateCore: 0.10, infraGlobal: 0.10, creditIGGlobal: 0.10 } },
-            { years: 15, weights: { equityNorthAm: 0.30, equityUK: 0.05, privEquityBuyout: 0.20, privCreditDirect: 0.15, realEstateCore: 0.10, infraGlobal: 0.10, creditIGGlobal: 0.10 } },
-            { years: 0,  weights: { equityNorthAm: 0.20, equityUK: 0.05, equityEuropeExUK: 0.05, creditIGGlobal: 0.30, sovBondsGlobal: 0.20, inflLinkedGlobal: 0.10, moneyMktGlobal: 0.10 } }
-        ]
-    },
-    {
-        name: "Simple Glidepath",
-        points: [
-            { years: 40, weights: { equityNorthAm: 0.50, equityUK: 0.10, equityEuropeExUK: 0.10, equityEM: 0.10, creditIGGlobal: 0.20 } },
-            { years: 0,  weights: { equityNorthAm: 0.10, equityUK: 0.05, creditIGGlobal: 0.60, sovBondsGlobal: 0.25 } }
+            { 
+                years: 50, 
+                weights: { 
+                    equityNorthAm: 0.3375, equityUK: 0.0375, equityEuropeExUK: 0.09, equityJapan: 0.0375, equityEM: 0.06, 
+                    globalREITs: 0.0375, infraGlobal: 0.1208, 
+                    creditIGGlobal: 0.075, creditHYGlobal: 0.0375,
+                    privEquityBuyout: 0.0833, privCreditDirect: 0.0833
+                } 
+            },
+            { 
+                years: 15, 
+                weights: { 
+                    equityNorthAm: 0.3375, equityUK: 0.0375, equityEuropeExUK: 0.09, equityJapan: 0.0375, equityEM: 0.06, 
+                    globalREITs: 0.0375, infraGlobal: 0.1208, 
+                    creditIGGlobal: 0.075, creditHYGlobal: 0.0375,
+                    privEquityBuyout: 0.0833, privCreditDirect: 0.0833
+                } 
+            },
+            { 
+                years: 0, 
+                weights: { 
+                    equityNorthAm: 0.15, equityUK: 0.0375, equityEuropeExUK: 0.0375, 
+                    creditIGGlobal: 0.225, sovBondsGlobal: 0.15, inflLinkedGlobal: 0.075, moneyMktGlobal: 0.075,
+                    privEquityBuyout: 0.0833, privCreditDirect: 0.0833, infraGlobal: 0.0833
+                } 
+            }
         ]
     }
 ];
