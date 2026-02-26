@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=11.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.0';
 
 const state = {
     worker: null,
@@ -10,9 +10,11 @@ let debounceTimer;
 
 window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
+    // Alert only on critical config failures
+    if(message.includes("import")) alert("Config Loading Error. Please clear cache.");
 };
 
-console.log("Novara App v11.0 Loading...");
+console.log("Novara App v13.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -40,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
-            console.warn("Default Data Load Warning:", dataErr);
+            console.warn("Data Load Warning:", dataErr);
         }
     } catch (err) {
         console.error("Critical Init Error:", err);
@@ -69,7 +71,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=11.0');
+    state.worker = new Worker('./js/worker.js?v=13.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -206,7 +208,6 @@ function getActiveCMA() {
             inputs.forEach(inp => {
                 const val = parseFloat(inp.value);
                 const decimalVal = inp.dataset.field === 'k' ? val : val / 100;
-                
                 if(inp.dataset.field === 'r') r[inp.dataset.key] = decimalVal;
                 if(inp.dataset.field === 'v') v[inp.dataset.key] = decimalVal;
                 if(inp.dataset.field === 'k') k[inp.dataset.key] = decimalVal;
@@ -300,12 +301,9 @@ function runSimulation() {
     try {
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
-        
         const simCount = simInput ? parseInt(simInput.value) : 2000;
         let inflation = 2.5;
-        if(infInput && infInput.value !== "") {
-            inflation = parseFloat(infInput.value);
-        }
+        if(infInput && infInput.value !== "") inflation = parseFloat(infInput.value);
 
         const persona = getActivePersona();
         const cma = getActiveCMA();
@@ -345,8 +343,7 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
-    const isMulti = results.length > 1;
-
+    
     const createGradient = (ctx, colorHex) => {
         const hex = colorHex.replace('#', '');
         const r = parseInt(hex.substring(0,2), 16);
@@ -458,20 +455,8 @@ function renderChart(results) {
                 }
             },
             scales: {
-                x: { 
-                    grid: { display: false },
-                    display: true, 
-                    title: { display: true, text: 'Age', color: '#9CA3AF' },
-                    ticks: { 
-                        color: '#9CA3AF',
-                        callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null 
-                    }
-                },
-                y: { 
-                    grid: { color: '#F3F4F6' },
-                    display: true,
-                    ticks: { color: '#9CA3AF' }
-                }
+                x: { grid: { display: false }, display: true, title: { display: true, text: 'Age', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null } },
+                y: { grid: { color: '#F3F4F6' }, display: true, ticks: { color: '#9CA3AF' } }
             }
         }
     });
@@ -504,6 +489,24 @@ function renderResultsTable(results) {
             <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
             <td class="text-end col-median">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
             <td class="text-end text-secondary" style="padding-right:1.5rem;">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderAssetRows() {
+    const tbody = document.querySelector('#cma-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    ASSET_CLASSES.forEach(asset => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
+            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
         `;
         tbody.appendChild(tr);
     });
@@ -557,24 +560,6 @@ function scrapeStrategyUI() {
         points.push({ years, weights });
     });
     return points;
-}
-
-function renderAssetRows() {
-    const tbody = document.querySelector('#cma-table tbody');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    ASSET_CLASSES.forEach(asset => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
-        `;
-        tbody.appendChild(tr);
-    });
 }
 
 function updateUIState(status) {
