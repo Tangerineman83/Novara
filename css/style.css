@@ -1,22 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-    /* "Fresh" Palette */
     --bg-app: #F3F4F6;
     --bg-card: #FFFFFF;
-    
     --text-primary: #1F2937;
     --text-secondary: #6B7280;
     --text-tertiary: #9CA3AF;
-    
     --brand-primary: #3B82F6;
     --brand-dark: #2563EB;
-    
     --border-light: #E5E7EB;
-    
     --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
     --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-    
     --radius-card: 16px;
     --radius-input: 10px;
 }
@@ -219,7 +213,6 @@ body {
     font-weight: 700;
 }
 
-/* SMALL HEADER UTIL */
 .small-header {
     text-transform: uppercase;
     font-size: 0.75rem;
