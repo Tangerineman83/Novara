@@ -57,14 +57,10 @@ function runMonteCarloPaths(data) {
     const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
     const simCount = settings.simCount || 1000;
     
-    // Explicit Variables for Clarity
     const coreInflation = settings.inflation; 
     const realSalaryGrowth = persona.realSalaryGrowth;
     
-    // 1. Deflator: Based purely on Core Inflation to get "Real Terms"
     const monthlyInflationRate = Math.pow(1 + coreInflation / 100, 1/12);
-    
-    // 2. Salary Growth: Core Inflation + Real Growth
     const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1/12);
 
     const assetFactors = {};
@@ -111,17 +107,10 @@ function runMonteCarloPaths(data) {
                     monthlyReturn += w * rMonthly;
                 }
 
-                // Nominal Pot Calculation
                 const contribution = (salary * (persona.contribution / 100)) / 12;
                 pot = (pot + contribution) * (1 + monthlyReturn);
-                
-                // Nominal Salary Growth = Inflation + Real Growth
                 salary *= monthlySalaryGrowthRate;
-                
-                // Real Terms Deflator = Inflation Only
                 cumulativeInflation *= monthlyInflationRate;
-
-                // Store Real Value
                 path[m] = pot / cumulativeInflation;
             }
             paths.push(path);
