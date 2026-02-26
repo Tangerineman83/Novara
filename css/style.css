@@ -2,19 +2,18 @@
 
 :root {
     /* "Fresh" Palette */
-    --bg-app: #F3F4F6;           /* Very light cool gray */
+    --bg-app: #F3F4F6;
     --bg-card: #FFFFFF;
     
-    --text-primary: #1F2937;     /* Gray 900 */
-    --text-secondary: #6B7280;   /* Gray 500 */
-    --text-tertiary: #9CA3AF;    /* Gray 400 */
+    --text-primary: #1F2937;
+    --text-secondary: #6B7280;
+    --text-tertiary: #9CA3AF;
     
-    --brand-primary: #3B82F6;    /* Bright Blue */
+    --brand-primary: #3B82F6;
     --brand-dark: #2563EB;
     
-    --border-light: #E5E7EB;     /* Gray 200 */
+    --border-light: #E5E7EB;
     
-    /* Shadows - Key to the "Floating" look */
     --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
     --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
     
@@ -36,19 +35,18 @@ body {
     width: 100%;
 }
 
-/* SIDEBAR - Clean & White/Light (Light Mode style) */
+/* SIDEBAR */
 #sidebar-wrapper {
     min-height: 100vh;
     margin-left: -17rem;
     transition: margin 0.25s ease-out;
     width: 17rem;
-    background-color: var(--bg-card); /* White sidebar */
+    background-color: var(--bg-card);
     border-right: 1px solid var(--border-light);
     flex-shrink: 0;
     z-index: 1000;
 }
 
-/* LOGO SECTION */
 #sidebar-wrapper .sidebar-heading {
     padding: 2rem 1.5rem 1.5rem;
     font-size: 1.4rem;
@@ -59,7 +57,6 @@ body {
     align-items: center;
 }
 
-/* The 'N' Icon Style */
 .brand-icon {
     width: 32px;
     height: 32px;
@@ -74,7 +71,6 @@ body {
     box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
 }
 
-/* MENU ITEMS */
 .list-group-item {
     background: transparent;
     color: var(--text-secondary);
@@ -93,24 +89,21 @@ body {
 }
 
 .list-group-item.active {
-    background-color: #EFF6FF !important; /* Light blue tint */
+    background-color: #EFF6FF !important;
     color: var(--brand-primary) !important;
     box-shadow: none;
 }
 
-/* PAGE CONTENT */
 #page-content-wrapper {
     min-width: 100vw;
     width: 100%;
 }
 
-#wrapper.toggled #sidebar-wrapper {
-    margin-left: 0;
-}
+#wrapper.toggled #sidebar-wrapper { margin-left: 0; }
 
-/* CARDS - Floating Style */
+/* CARDS */
 .card {
-    border: none; /* No border for the soft look */
+    border: none;
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-soft);
     background: var(--bg-card);
@@ -120,7 +113,7 @@ body {
 
 .card-header {
     background-color: var(--bg-card);
-    border-bottom: 1px solid var(--bg-app); /* Very subtle divider */
+    border-bottom: 1px solid var(--bg-app);
     padding: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -129,9 +122,9 @@ body {
 
 .card-body { padding: 1.5rem; }
 
-/* INPUT CARDS (Run Model Sidebar) */
+/* INPUT CARDS */
 .input-card {
-    background: #F9FAFB; /* Gray 50 */
+    background: #F9FAFB;
     border: 1px solid transparent;
     border-radius: 12px;
     padding: 12px 16px;
@@ -165,7 +158,6 @@ body {
     cursor: pointer;
 }
 
-/* STANDARD INPUTS */
 .form-control, .form-select {
     border-radius: var(--radius-input);
     border: 1px solid var(--border-light);
@@ -178,7 +170,6 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* BUTTONS */
 .btn-primary {
     background: linear-gradient(145deg, #3B82F6, #2563EB);
     border: none;
@@ -186,7 +177,7 @@ body {
     padding: 0.75rem 1.5rem;
     font-weight: 600;
     font-size: 0.95rem;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); /* Colored shadow */
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
     transition: transform 0.15s, box-shadow 0.15s;
 }
 
@@ -195,16 +186,13 @@ body {
     box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
-.btn-primary:active {
-    transform: translateY(0);
-}
+.btn-primary:active { transform: translateY(0); }
 
 .btn-outline-secondary {
     border-color: var(--border-light);
     color: var(--text-secondary);
 }
 
-/* TABLE */
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -226,16 +214,21 @@ body {
     font-weight: 500;
 }
 .col-median { 
-    background-color: #F0FDF4; /* Very light green hint for positive feel */
-    color: #059669; /* Emerald 600 */
+    background-color: #F0FDF4; 
+    color: #059669; 
     font-weight: 700;
 }
 
-/* SCROLLBAR */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+/* SMALL HEADER UTIL */
+.small-header {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: block;
+}
 
 @media (min-width: 768px) {
     #sidebar-wrapper { margin-left: 0; }
