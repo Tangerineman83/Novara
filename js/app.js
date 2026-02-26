@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=11.0';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v10.0 Loading...");
+console.log("Novara App v11.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -69,7 +69,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=10.0');
+    state.worker = new Worker('./js/worker.js?v=11.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -338,7 +338,6 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
-// --- VISUALIZATION (Hybrid) ---
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -346,7 +345,8 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
-    
+    const isMulti = results.length > 1;
+
     const createGradient = (ctx, colorHex) => {
         const hex = colorHex.replace('#', '');
         const r = parseInt(hex.substring(0,2), 16);
@@ -362,7 +362,6 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // PRIMARY STRATEGY (Index 0): ALWAYS GRADIENT
         if (index === 0) {
             datasets.push({
                 label: `${res.name} Range`,
@@ -370,7 +369,7 @@ function renderChart(results) {
                 borderColor: 'transparent',
                 backgroundColor: createGradient(ctx, color.border),
                 pointRadius: 0,
-                fill: '+1', // Fills to Lower
+                fill: '+1', 
                 tension: 0.1,
                 order: 2
             });
@@ -394,7 +393,6 @@ function renderChart(results) {
                 order: 1
             });
         } 
-        // COMPARISON STRATEGIES: ALWAYS DASHED
         else {
             datasets.push({
                 label: res.name,
@@ -466,4 +464,122 @@ function renderChart(results) {
                     title: { display: true, text: 'Age', color: '#9CA3AF' },
                     ticks: { 
                         color: '#9CA3AF',
-                        callback: (val, i) => i % 60 === 0 ? Math.floor
+                        callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null 
+                    }
+                },
+                y: { 
+                    grid: { color: '#F3F4F6' },
+                    display: true,
+                    ticks: { color: '#9CA3AF' }
+                }
+            }
+        }
+    });
+}
+
+function renderResultsTable(results) {
+    const tbody = document.querySelector('#results-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    const baseRes = results[0];
+    const lastIdx = baseRes.percentiles.pMedian.length - 1;
+    const baseLow = baseRes.percentiles.pLower[lastIdx];
+    const baseMed = baseRes.percentiles.pMedian[lastIdx];
+    const baseHigh = baseRes.percentiles.pUpper[lastIdx];
+
+    results.forEach((res, index) => {
+        const color = CHART_COLORS[index % CHART_COLORS.length];
+        const last = res.percentiles.pMedian.length - 1;
+        const currLow = res.percentiles.pLower[last];
+        const currMed = res.percentiles.pMedian[last];
+        const currHigh = res.percentiles.pUpper[last];
+        const formatDiff = (val, base) => {
+            if(index === 0) return '';
+            const diff = ((val - base)/base)*100;
+            return `<br><span class="small ${diff>=0?'text-success':'text-danger'}" style="font-size:0.75rem">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+        };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="border-left: 4px solid ${color.border}; font-weight:600; padding-left:1.5rem;">${res.name}</td>
+            <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
+            <td class="text-end col-median">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
+            <td class="text-end text-secondary" style="padding-right:1.5rem;">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderStrategyTable(points) {
+    const table = document.getElementById('strategy-table');
+    if(!table) return;
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+    thead.innerHTML = ''; tbody.innerHTML = '';
+    const headerRow = thead.insertRow();
+    const labelTh = document.createElement('th');
+    labelTh.className = "bg-light text-start ps-3"; labelTh.style.width = "200px"; labelTh.innerText = "Asset Allocation";
+    headerRow.appendChild(labelTh);
+    points.forEach((p, i) => {
+        const th = document.createElement('th');
+        th.innerHTML = `<div class="input-group input-group-sm justify-content-center"><input type="number" class="form-control text-center year-header fw-bold text-primary" value="${p.years}" style="max-width:60px;" data-col="${i}"><span class="input-group-text border-0 bg-transparent px-1">Yrs</span></div>`;
+        headerRow.appendChild(th);
+    });
+    ASSET_CLASSES.forEach(ac => {
+        const tr = tbody.insertRow();
+        const nameCell = tr.insertCell(); nameCell.className = "text-start fw-medium ps-3"; nameCell.innerText = ac.name;
+        points.forEach((p, i) => {
+            const td = tr.insertCell();
+            let val = 0; if(p.weights && p.weights[ac.key] !== undefined) val = p.weights[ac.key]; else if(p[ac.key] !== undefined) val = p[ac.key];
+            const displayVal = val <= 1 ? (val * 100) : val;
+            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center border-0 bg-transparent weight-input" data-key="${ac.key}" data-col="${i}" value="${Number(displayVal).toFixed(2)}">`;
+        });
+    });
+}
+
+function addStrategyColumn() {
+    const strategies = getActiveStrategies(1).slice(0,1); 
+    if(strategies.length === 0) return;
+    let points = scrapeStrategyUI();
+    points.push({ years: 10, weights: {} });
+    points.sort((a, b) => b.years - a.years);
+    renderStrategyTable(points);
+}
+
+function scrapeStrategyUI() {
+    const yearInputs = document.querySelectorAll('#strategy-table thead input.year-header');
+    const points = [];
+    if(yearInputs.length === 0) return [];
+    yearInputs.forEach((yInput, colIndex) => {
+        const years = parseFloat(yInput.value) || 0;
+        const weights = {};
+        const rowInputs = document.querySelectorAll(`#strategy-table tbody input[data-col="${colIndex}"]`);
+        rowInputs.forEach(inp => { weights[inp.dataset.key] = parseFloat(inp.value) / 100; });
+        points.push({ years, weights });
+    });
+    return points;
+}
+
+function renderAssetRows() {
+    const tbody = document.querySelector('#cma-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    ASSET_CLASSES.forEach(asset => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
+            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function updateUIState(status) {
+    const text = document.getElementById('status-text');
+    const spinner = document.getElementById('loading-spinner');
+    if(text) text.innerText = status;
+    if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
+}
