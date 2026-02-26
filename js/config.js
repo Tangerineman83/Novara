@@ -17,23 +17,31 @@ export const ASSET_CLASSES = [
     { key: "globalSov", name: "Global Sovereign", defaultR: 0.015, defaultV: 0.04 }
 ];
 
+// REFINED PALETTE FROM REFERENCE IMAGE
 export const CHART_COLORS = [
     { 
-        border: '#312E81', // Indigo-900 (Primary)
-        // RGB values for gradient construction in app.js
-        rgb: '49, 46, 129'
+        // Strategy 1 (Blue)
+        border: '#3B82F6', 
+        gradientStart: 'rgba(59, 130, 246, 0.4)', 
+        gradientEnd: 'rgba(59, 130, 246, 0.0)' 
     }, 
     { 
-        border: '#059669', // Emerald-600 (Secondary)
-        rgb: '5, 150, 105'
+        // Strategy 2 (Green)
+        border: '#10B981', 
+        gradientStart: 'rgba(16, 185, 129, 0.4)', 
+        gradientEnd: 'rgba(16, 185, 129, 0.0)' 
     },
     { 
-        border: '#D97706', // Amber-600 (Tertiary)
-        rgb: '217, 119, 6'
+        // Strategy 3 (Orange)
+        border: '#F59E0B', 
+        gradientStart: 'rgba(245, 158, 11, 0.4)', 
+        gradientEnd: 'rgba(245, 158, 11, 0.0)' 
     },
     { 
-        border: '#7C3AED', // Violet-600
-        rgb: '124, 58, 237'
+        // Strategy 4 (Purple - Backup)
+        border: '#8B5CF6', 
+        gradientStart: 'rgba(139, 92, 246, 0.4)', 
+        gradientEnd: 'rgba(139, 92, 246, 0.0)' 
     }
 ];
 
