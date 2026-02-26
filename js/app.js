@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=6.0';
+import { ASSET_CLASSES, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=7.0';
 
 const state = {
     worker: null,
@@ -12,7 +12,7 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error("Sys Err:", error);
 };
 
-console.log("Novara App v6.0 Loading...");
+console.log("Novara App v7.0 Loading...");
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
+            
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -69,7 +70,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=6.0');
+    state.worker = new Worker('./js/worker.js?v=7.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -334,7 +335,6 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
-// --- CHART VISUALS (Hybrid Mode) ---
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -343,11 +343,18 @@ function renderChart(results) {
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
     
-    // New: Gradient Creator
-    const createGradient = (ctx, rgb) => {
+    // NEW GRADIENT GENERATOR
+    const createGradient = (ctx, colorHex) => {
+        // Convert Hex to RGB for opacity control
+        // Simple hex-to-rgb conversion for demo (assuming full 6-digit hex)
+        const hex = colorHex.replace('#', '');
+        const r = parseInt(hex.substring(0,2), 16);
+        const g = parseInt(hex.substring(2,4), 16);
+        const b = parseInt(hex.substring(4,6), 16);
+        
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, `rgba(${rgb}, 0.4)`);
-        gradient.addColorStop(1, `rgba(${rgb}, 0.0)`);
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.3)`);
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
         return gradient;
     };
 
@@ -355,13 +362,13 @@ function renderChart(results) {
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
-        // Strategy 1 (Primary) = Gradient Area
+        // Primary Strategy (Index 0) gets the Fancy Gradient
         if (index === 0) {
             datasets.push({
                 label: `${res.name} Range`,
                 data: res.percentiles.pUpper,
                 borderColor: 'transparent',
-                backgroundColor: createGradient(ctx, color.rgb),
+                backgroundColor: createGradient(ctx, color.border),
                 pointRadius: 0,
                 fill: '+1', // Fills to Lower
                 tension: 0.1,
@@ -382,12 +389,12 @@ function renderChart(results) {
                 borderColor: color.border,
                 backgroundColor: color.border,
                 pointRadius: 0,
-                borderWidth: 2.5,
+                borderWidth: 3,
                 tension: 0.1,
                 order: 1
             });
         } 
-        // Strategies 2+ (Comparison) = Dashed Lines, No Fill
+        // Comparisons get Dashed Lines
         else {
             datasets.push({
                 label: res.name,
@@ -431,8 +438,21 @@ function renderChart(results) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { labels: { usePointStyle: true, filter: item => !item.text.includes('Range') && !item.text.includes('Lower') } },
+                legend: { 
+                    labels: { 
+                        usePointStyle: true, 
+                        boxWidth: 8,
+                        font: { family: "'Inter', sans-serif", size: 12 },
+                        filter: item => !item.text.includes('Range') && !item.text.includes('Lower') 
+                    } 
+                },
                 tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    titleColor: '#1F2937',
+                    bodyColor: '#4B5563',
+                    borderColor: '#E5E7EB',
+                    borderWidth: 1,
+                    padding: 10,
                     callbacks: {
                         title: (ctx) => `Age ${Math.floor(startAge + ctx[0].dataIndex/12)}`,
                         label: (ctx) => ctx.dataset.label.includes('Range') || ctx.dataset.label.includes('Lower') ? null : `${ctx.dataset.label}: £${Math.round(ctx.raw).toLocaleString()}`
@@ -441,11 +461,19 @@ function renderChart(results) {
             },
             scales: {
                 x: { 
+                    grid: { display: false },
                     display: true, 
-                    title: { display: true, text: 'Age' },
-                    ticks: { callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null }
+                    title: { display: true, text: 'Age', color: '#9CA3AF' },
+                    ticks: { 
+                        color: '#9CA3AF',
+                        callback: (val, i) => i % 60 === 0 ? Math.floor(startAge + i/12) : null 
+                    }
                 },
-                y: { display: true }
+                y: { 
+                    grid: { color: '#F3F4F6' },
+                    display: true,
+                    ticks: { color: '#9CA3AF' }
+                }
             }
         }
     });
@@ -471,7 +499,6 @@ function renderResultsTable(results) {
         const currMed = res.percentiles.pMedian[last];
         const currHigh = res.percentiles.pUpper[last];
 
-        // Format Diff
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
@@ -480,10 +507,10 @@ function renderResultsTable(results) {
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="border-left: 4px solid ${color.border}; font-weight:600;">${res.name}</td>
+            <td style="border-left: 4px solid ${color.border}; font-weight:600; padding-left: 1.5rem;">${res.name}</td>
             <td class="text-end text-secondary">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
             <td class="text-end col-median">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
-            <td class="text-end text-secondary">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
+            <td class="text-end text-secondary" style="padding-right: 1.5rem;">£${Math.round(currHigh).toLocaleString()}${formatDiff(currHigh, baseHigh)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -500,7 +527,7 @@ function renderStrategyTable(points) {
 
     const headerRow = thead.insertRow();
     const labelTh = document.createElement('th');
-    labelTh.className = "bg-light text-start";
+    labelTh.className = "bg-light text-start ps-3";
     labelTh.style.width = "200px";
     labelTh.innerText = "Asset Allocation";
     headerRow.appendChild(labelTh);
@@ -519,7 +546,7 @@ function renderStrategyTable(points) {
     ASSET_CLASSES.forEach(ac => {
         const tr = tbody.insertRow();
         const nameCell = tr.insertCell();
-        nameCell.className = "text-start fw-medium";
+        nameCell.className = "text-start fw-medium ps-3";
         nameCell.innerText = ac.name;
 
         points.forEach((p, i) => {
@@ -538,7 +565,6 @@ function renderStrategyTable(points) {
 function addStrategyColumn() {
     const strategies = getActiveStrategies(1).slice(0,1); 
     if(strategies.length === 0) return;
-    
     let points = scrapeStrategyUI();
     points.push({ years: 10, weights: {} });
     points.sort((a, b) => b.years - a.years);
@@ -549,7 +575,6 @@ function scrapeStrategyUI() {
     const yearInputs = document.querySelectorAll('#strategy-table thead input.year-header');
     const points = [];
     if(yearInputs.length === 0) return [];
-
     yearInputs.forEach((yInput, colIndex) => {
         const years = parseFloat(yInput.value) || 0;
         const weights = {};
@@ -569,11 +594,11 @@ function renderAssetRows() {
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="fw-medium">${asset.name}</td>
+            <td class="fw-medium" style="padding-left: 1.5rem;">${asset.name}</td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
+            <td class="text-end" style="padding-right: 1.5rem;"><input type="number" step="0.1" class="form-control form-control-sm text-end border-0 bg-transparent" data-key="${asset.key}" data-field="cc" value="0"></td>
         `;
         tbody.appendChild(tr);
     });
