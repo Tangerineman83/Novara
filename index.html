@@ -6,7 +6,10 @@
     <title>Novara Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=13.0">
+    <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 
@@ -150,7 +153,7 @@
                             <div class="input-card mt-3">
                                 <div class="d-flex justify-content-between mb-1">
                                     <label>Confidence</label>
-                                    <span id="confidence-label" class="badge bg-white text-dark border">90%</span>
+                                    <span id="confidence-label" class="badge bg-white text-dark border fw-bold text-primary">90%</span>
                                 </div>
                                 <input type="range" class="form-range" id="confidence-slider" min="50" max="100" step="5" value="90">
                             </div>
@@ -161,6 +164,7 @@
                             </div>
                         </div>
                     </div>
+
                     <div class="col-lg-8 col-xl-9">
                         <div class="card mb-4" style="min-height: 450px;">
                             <div class="card-header border-0 pt-4 px-4 pb-0 bg-white">
@@ -197,44 +201,89 @@
                 </div>
             </div>
 
-            <div id="tab-docs" class="view-section d-none">
+            <div id="tab-docs" class="view-section d-none pb-5">
                 <div class="row justify-content-center">
                     <div class="col-lg-10">
+                        
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h3 class="fw-bold m-0 text-dark">Technical Documentation</h3>
-                            <span class="badge bg-white text-secondary border px-3 py-2">Version 13.0</span>
-                        </div>
-                        <div class="card mb-4">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-calculator me-2 text-primary"></i> Methodology</h5></div>
-                            <div class="card-body">
-                                <p class="text-secondary">This model uses a stochastic (Monte Carlo) engine to project wealth outcomes.</p>
-                                <ul class="list-group list-group-flush small">
-                                    <li class="list-group-item px-0"><strong>Simulation:</strong> 2,000 trials using Geometric Brownian Motion.</li>
-                                    <li class="list-group-item px-0"><strong>Distributions:</strong> Uses <strong>Cornish-Fisher Expansion</strong> to model excess kurtosis (fat tails).</li>
-                                </ul>
+                            <div>
+                                <h3 class="fw-bold m-0 text-dark">Technical Documentation</h3>
+                                <p class="text-secondary mb-0 mt-1">Actuarial methodology, assumptions, and reliances.</p>
                             </div>
+                            <span class="badge bg-white text-secondary border px-3 py-2">Version 14.0</span>
                         </div>
+
                         <div class="card mb-4">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-globe me-2 text-success"></i> Assumptions</h5></div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <h6 class="small-header text-primary">Assets</h6>
-                                        <p class="small text-secondary">Returns are nominal, annualized arithmetic means. Volatility is annualized.</p>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h6 class="small-header text-primary">Inflation</h6>
-                                        <p class="small text-secondary">Real Terms calculated using Core Inflation deflator. Salary grows at Inflation + Real Growth.</p>
-                                    </div>
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-calculator me-2 text-primary"></i> 1. Mathematical Methodology</h5></div>
+                            <div class="card-body text-secondary">
+                                <p>This application utilizes a discrete-time stochastic Monte Carlo simulation engine. Asset paths are projected using <strong>Geometric Brownian Motion (GBM)</strong> principles, adapted to support non-normal distributions (fat tails).</p>
+                                
+                                <h6 class="text-dark mt-4 mb-2">1.1 Asset Path Generation</h6>
+                                <p>For each asset class $i$, the simulated monthly return $R_{i,t}$ is calculated as:</p>
+                                <div class="math-block">
+                                    $$ R_{i,t} = \left( (1 + \mu_i)^{1/12} - 1 \right) + \frac{\sigma_i}{\sqrt{12}} Z_{i,t}^{cf} $$
+                                </div>
+                                <p class="small">Where $\mu_i$ is the arithmetic mean annual return, $\sigma_i$ is the annual volatility, and $Z_{i,t}^{cf}$ is the correlated, kurtosis-adjusted standard normal variable.</p>
+
+                                <h6 class="text-dark mt-4 mb-2">1.2 Correlation Structure</h6>
+                                <p>To model dependencies, random variables are correlated using a two-factor (Equity/Credit) loading model derived from Cholesky decomposition. For independent standard normal variables $z_1, z_2, z_3 \sim N(0,1)$:</p>
+                                <div class="math-block">
+                                    $$ Z_{i,t}^{gauss} = c_{eq} z_1 + c_{cr} z_2 + \sqrt{\max(0, 1 - c_{eq}^2 - c_{cr}^2)} z_3 $$
+                                </div>
+                                
+                                <h6 class="text-dark mt-4 mb-2">1.3 Fat-Tail Adjustment (Cornish-Fisher)</h6>
+                                <p>Standard models systematically underestimate market crashes. To correct this, the Gaussian variable $Z_{i,t}^{gauss}$ is transformed using the <strong>Cornish-Fisher Expansion</strong> based on the specified Excess Kurtosis $K_i$:</p>
+                                <div class="math-block">
+                                    $$ Z_{cf\_raw} = Z_{gauss} + \frac{K_i}{24} \left( Z_{gauss}^3 - 3 Z_{gauss} \right) $$
+                                </div>
+                                <p>To ensure this transformation does not inadvertently inflate the target volatility, the variable is re-standardized by its analytical drift variance factor $\sqrt{1 + K_i^2/96}$:</p>
+                                <div class="math-block">
+                                    $$ Z_{i,t}^{cf} = \frac{Z_{cf\_raw}}{\sqrt{1 + \frac{K_i^2}{96}}} $$
                                 </div>
                             </div>
                         </div>
-                        <div class="card">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i> Limitations</h5></div>
-                            <div class="card-body">
-                                <p class="small text-secondary">Illustrative only. Gross of fees/tax. Past performance is not a guide to future performance.</p>
+
+                        <div class="card mb-4">
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-subscript me-2 text-success"></i> 2. Example Calculation</h5></div>
+                            <div class="card-body text-secondary">
+                                <p>To illustrate the accumulation and discounting logic, assume a single contribution of <strong>£10,000</strong> invested for exactly <strong>12 months</strong> in a hypothetical asset.</p>
+                                <ul>
+                                    <li><strong>Core Inflation ($i$):</strong> $2.5\%$ per annum.</li>
+                                    <li><strong>Realized Nominal Return ($r_{nom}$):</strong> $6.5\%$ for the 12-month period.</li>
+                                </ul>
+                                
+                                <h6 class="text-dark mt-3 mb-2">Step 1: Nominal Growth</h6>
+                                <p>The portfolio simply grows at the simulated nominal rate:</p>
+                                <div class="math-block">
+                                    $$ \text{Pot}_{nom} = £10,000 \times (1 + 0.065) = £10,650 $$
+                                </div>
+
+                                <h6 class="text-dark mt-3 mb-2">Step 2: Real Terms Discounting</h6>
+                                <p>To convert the future sum into 'today's money' (purchasing power), it is deflated by cumulative core inflation over time $T$ (where $T=1$ year):</p>
+                                <div class="math-block">
+                                    $$ \text{Pot}_{real} = \frac{£10,650}{(1 + 0.025)^1} \approx £10,390.24 $$
+                                </div>
+                                <p class="small mb-0"><strong>Note on Contributions:</strong> Salary-based contributions are modeled to grow nominally at $(1 + \text{Core Inflation}) \times (1 + \text{Real Salary Growth}) - 1$ to preserve wage purchasing power over the accumulation phase.</p>
                             </div>
                         </div>
+
+                        <div class="card">
+                            <div class="card-header"><h5 class="m-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i> 3. Reliances & Limitations</h5></div>
+                            <div class="card-body text-secondary">
+                                <p>Users of this model must be aware of its boundaries. Projections generated do not constitute formal financial advice.</p>
+                                
+                                <div class="alert alert-light border small text-secondary mt-3">
+                                    <ul class="mb-0 ps-3" style="line-height: 1.6;">
+                                        <li class="mb-2"><strong>Parameter Risk:</strong> Capital Market Assumptions (CMAs) are point-in-time, forward-looking estimates. Historical correlations and tail risks may break down in future macroeconomic regimes.</li>
+                                        <li class="mb-2"><strong>Frictionless Environment:</strong> Output values are broadly stated <strong>Gross of Fees</strong>. They do not account for platform administration charges, underlying fund OCFs, or transaction costs (bid/offer spreads) unless explicitly modeled by the user via negative return adjustments.</li>
+                                        <li class="mb-2"><strong>Taxation Assumptions:</strong> The model projects a gross capital pot and assumes a tax-advantaged wrapper (e.g., Pension or ISA). It makes no allowances for Income Tax on withdrawal, Capital Gains Tax, or Lifetime Allowance (LTA) surcharges.</li>
+                                        <li class="mb-2"><strong>Sequence of Returns Risk:</strong> While the model correctly penalizes geometric compounding via volatility drag during the accumulation phase, it is not currently calibrated to assess <em>pound-cost ravaging</em> during the decumulation/drawdown phase.</li>
+                                        <li><strong>Behavioral Independence:</strong> The simulation assumes strict adherence to the glidepath and continuous rebalancing. Real-world behavioral risks, such as panic selling during drawdowns or pausing contributions, are excluded.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -269,6 +318,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=13.0"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
