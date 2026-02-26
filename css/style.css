@@ -107,7 +107,7 @@ body {
 
 .card-header {
     background-color: var(--bg-card);
-    border-bottom: 1px solid var(--bg-app);
+    border-bottom: 1px solid var(--border-light);
     padding: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
@@ -150,6 +150,15 @@ body {
     color: var(--text-primary);
     box-shadow: none;
     cursor: pointer;
+}
+
+/* Fix for Range Slider Visibility */
+.input-card .form-range {
+    width: 100%;
+    height: 1.5rem;
+    padding: 0;
+    background: transparent;
+    accent-color: var(--brand-primary); /* Forces visible track/thumb color */
 }
 
 .form-control, .form-select {
@@ -221,6 +230,16 @@ body {
     font-weight: 700;
     margin-bottom: 1rem;
     display: block;
+}
+
+/* Documentation Content Styling */
+.math-block {
+    background-color: #F8FAFC;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--brand-primary);
+    overflow-x: auto;
+    margin-bottom: 1rem;
 }
 
 @media (min-width: 768px) {
