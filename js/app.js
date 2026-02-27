@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.1';
 
 const state = {
     worker: null,
@@ -62,7 +62,7 @@ function setupEventListeners() {
             const target = e.currentTarget.dataset.tab;
             if (target === 'strategy') {
                 refreshPortfolioDropdowns();
-                setTimeout(renderStrategyChart, 50); // Ensure DOM is visible before chart draw
+                setTimeout(renderStrategyChart, 50); 
             }
             if (target === 'portfolio') {
                 setTimeout(() => {
@@ -79,7 +79,6 @@ function setupEventListeners() {
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
     document.getElementById('auto-update-toggle')?.addEventListener('change', (e) => { state.autoRun = e.target.checked; });
     
-    // Portfolio Builders
     document.getElementById('portfolio-cma-select')?.addEventListener('change', () => {
         const leftId = document.getElementById('port-select-left').value;
         const rightId = document.getElementById('port-select-right').value;
@@ -94,7 +93,6 @@ function setupEventListeners() {
         document.getElementById('port-inputs-right-container').classList.toggle('d-none');
     });
 
-    // Strategy Builders
     document.getElementById('toggle-strategy-inputs')?.addEventListener('click', () => {
         document.getElementById('strategy-table-container').classList.toggle('d-none');
     });
@@ -104,7 +102,6 @@ function setupEventListeners() {
     window.createNewPortfolio = createNewPortfolio;
 }
 
-// --- DISTRIBUTION CHARTS (MARKETS) ---
 function drawDistributionChart(assetKey, r, v) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -112,7 +109,7 @@ function drawDistributionChart(assetKey, r, v) {
     const width = canvas.width; const height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
-    const minX = -0.4; const maxX = 0.4; // Fixed -40% to +40% for visual comparability
+    const minX = -0.4; const maxX = 0.4; 
     const points = [];
     let maxY = 0;
     
@@ -128,7 +125,7 @@ function drawDistributionChart(assetKey, r, v) {
     ctx.moveTo(0, height);
     points.forEach(p => {
         const cx = ((p.x - minX) / (maxX - minX)) * width;
-        const cy = height - (p.y / Math.max(maxY, 2.5)) * height * 0.9; // normalized to a max height
+        const cy = height - (p.y / Math.max(maxY, 2.5)) * height * 0.9; 
         ctx.lineTo(cx, cy);
     });
     ctx.lineTo(width, height);
@@ -140,7 +137,6 @@ function drawDistributionChart(assetKey, r, v) {
     ctx.fillStyle = grad; ctx.fill();
     ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 1.5; ctx.stroke();
     
-    // Mean line
     const meanCx = ((r - minX) / (maxX - minX)) * width;
     ctx.beginPath(); ctx.moveTo(meanCx, 0); ctx.lineTo(meanCx, height);
     ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
@@ -162,7 +158,6 @@ function renderAssetRows() {
         `;
         tbody.appendChild(tr);
         
-        // Attach listener for real-time dist draw
         const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"]');
         inputs.forEach(inp => {
             inp.addEventListener('input', () => {
@@ -171,13 +166,10 @@ function renderAssetRows() {
                 drawDistributionChart(asset.key, r, v);
             });
         });
-        
-        // Initial draw
         setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV), 0);
     });
 }
 
-// --- PORTFOLIO & STRATEGY PRESETS/UI ---
 function buildSharedLegend() {
     const container = document.getElementById('shared-portfolio-legend');
     if(!container) return;
@@ -190,7 +182,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=9.0');
+    state.worker = new Worker('./js/worker.js?v=9.1');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -199,17 +191,6 @@ function initWorker() {
             renderResultsTable(payload);
         } else if (type === 'ERROR') { updateUIState('Error'); }
     };
-}
-
-function setupAutoRun() {
-    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
-    inputs.forEach(id => {
-        document.getElementById(id)?.addEventListener('change', () => {
-            if(!state.autoRun) return;
-            updateUIState('Updating...');
-            clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); 
-        });
-    });
 }
 
 function initPresets() {
@@ -265,7 +246,7 @@ function loadCMAPreset(index) {
             const key = inp.dataset.key; const field = inp.dataset.field; 
             if (data[field] && data[field][key] !== undefined) {
                 inp.value = (data[field][key] * 100).toFixed(2);
-                inp.dispatchEvent(new Event('input')); // trigger dist chart update
+                inp.dispatchEvent(new Event('input')); 
             }
         });
     });
@@ -406,7 +387,7 @@ function updatePortfolioVisuals(side, portId) {
         if(w > 0.001) {
             labels.push(ac.name);
             data.push((w*100).toFixed(1));
-            bgColors.push(PIE_COLORS[idx % PIE_COLORS.length]); // Use consistent color index
+            bgColors.push(PIE_COLORS[idx % PIE_COLORS.length]); 
         }
     });
 
@@ -434,22 +415,19 @@ function calcDeterministicStats(weights, cma) {
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
-// --- STRATEGY CHART (GLIDEPATH) ---
 function renderStrategyChart() {
     const ctx = document.getElementById('strategyChart');
     if(!ctx) return;
     if (state.strategyChartInstance) state.strategyChartInstance.destroy();
 
     const isAssetView = document.getElementById('strat-view-toggle')?.checked;
-    
-    // X Axis Labels (Years descending)
     const years = [...state.strategyYears].sort((a,b)=>b-a);
     const labels = years.map(y => y + " Yrs");
 
     let datasets = [];
 
     if (isAssetView) {
-        const resolvedPoints = scrapeAndResolveStrategy(); // Ordered b-a
+        const resolvedPoints = scrapeAndResolveStrategy(); 
         ASSET_CLASSES.forEach((ac, idx) => {
             const data = resolvedPoints.map(pt => (pt.weights[ac.key] || 0) * 100);
             if(data.some(d => d > 0)) {
@@ -474,7 +452,7 @@ function renderStrategyChart() {
             datasets.push({
                 label: pName,
                 data: data,
-                backgroundColor: PIE_COLORS[(idx * 3) % PIE_COLORS.length], // Scatter colors a bit
+                backgroundColor: PIE_COLORS[(idx * 3) % PIE_COLORS.length], 
                 borderColor: 'transparent',
                 fill: true,
                 tension: 0.1
@@ -532,7 +510,7 @@ function renderStrategyTable() {
 
     table.querySelectorAll('input, select').forEach(el => {
         el.addEventListener('change', () => {
-            renderStrategyChart(); // Update glidepath visual
+            renderStrategyChart(); 
             if(!state.autoRun) return;
             updateUIState('Updating...');
             clearTimeout(debounceTimer);
