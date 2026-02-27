@@ -32,7 +32,6 @@ body {
 
 #wrapper { overflow-x: hidden; display: flex; width: 100%; }
 
-/* --- SIDEBAR --- */
 #sidebar-wrapper {
     min-height: 100vh; margin-left: -16rem; transition: margin 0.25s ease-out;
     width: 16rem; background-color: var(--bg-surface); flex-shrink: 0;
@@ -63,7 +62,6 @@ body {
 
 nav.navbar { background-color: transparent !important; border: none !important; box-shadow: none !important; padding-top: 1.5rem; }
 
-/* --- CARDS & SURFACES --- */
 .card {
     border: 1px solid var(--border-light); border-radius: var(--radius-lg); 
     box-shadow: var(--shadow-soft); background: var(--bg-surface); 
@@ -72,31 +70,19 @@ nav.navbar { background-color: transparent !important; border: none !important; 
 .card-header { background-color: var(--bg-surface); border-bottom: 1px solid var(--border-light); padding: 1.25rem 1.5rem; font-weight: 700; font-size: 1.05rem; }
 .card-body { padding: 1.5rem; }
 
-/* --- INPUTS --- */
 .form-control, .form-select { 
     border-radius: var(--radius-md); border: 1px solid var(--border-light); 
     background-color: var(--bg-input); font-size: 0.9rem; padding: 0.6rem 1rem;
     color: var(--text-main); font-weight: 500; box-shadow: none; transition: all 0.2s;
 }
 
-/* Dropdown Truncation Fix */
 .form-select {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-right: 2rem; /* Ensure arrow doesn't overlap text */
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 2rem;
 }
-.form-select option {
-    white-space: normal; /* Allows full text to show when dropdown is opened */
-}
-
-.form-control:focus, .form-select:focus {
-    background-color: #FFFFFF; border-color: var(--accent-blue);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-}
+.form-select option { white-space: normal; }
+.form-control:focus, .form-select:focus { background-color: #FFFFFF; border-color: var(--accent-blue); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
 label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem; }
 
-/* --- BUTTONS --- */
 .btn-primary { 
     background: linear-gradient(135deg, var(--accent-blue) 0%, #60A5FA 100%);
     border: none; border-radius: var(--radius-pill); padding: 0.7rem 1.5rem; 
@@ -104,27 +90,37 @@ label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted
 }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 25px -4px rgba(59, 130, 246, 0.5); }
 
-/* --- TABLES --- */
 .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table { margin-bottom: 0; white-space: nowrap; color: var(--text-main); }
 .table thead th { background-color: var(--bg-input); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: none; }
 .table tbody td { vertical-align: middle; border-bottom: 1px solid var(--border-light); font-weight: 500; }
 .col-median { background-color: #F8FAFC; font-weight: 700; color: var(--text-main); }
 
-/* --- CUSTOM COMPONENTS --- */
+/* Custom Info Tooltip */
+.info-icon { cursor: help; color: #94A3B8; margin-left: 4px; font-size: 0.9em; position: relative; }
+.info-icon:hover::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: 150%; left: 50%; transform: translateX(-50%);
+    background: #1E293B; color: #fff; padding: 8px 12px; border-radius: 6px;
+    font-size: 0.75rem; white-space: normal; width: max-content; max-width: 220px;
+    z-index: 1000; font-weight: 500; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-transform: none;
+}
+.info-icon:hover::before {
+    content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: #1E293B;
+}
+
 .stats-badge { background-color: var(--bg-input); border-radius: var(--radius-md); padding: 12px; text-align: center; border: none; }
-.stats-badge .lbl { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 4px; }
+.stats-badge .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 4px; }
 .stats-badge .val { font-size: 1.2rem; color: var(--text-main); font-weight: 800; }
 
 .pie-container { height: 200px; position: relative; margin: 0 auto; width: 100%; display: flex; justify-content: center; }
 .strat-chart-container { height: 250px; width: 100%; position: relative; }
 
-/* Dashboard Layout for Projections */
 .dashboard-container { display: flex; flex-direction: column; height: calc(100vh - 80px); }
 .chart-card-wrapper { flex-grow: 1; display: flex; flex-direction: column; min-height: 350px; }
 .chart-canvas-wrapper { flex-grow: 1; position: relative; width: 100%; min-height: 250px; }
 
-/* Horizontal Inputs Bar */
 .input-ribbon { background-color: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border-light); padding: 1rem 1.5rem; box-shadow: var(--shadow-soft); }
 .ribbon-col { border-right: 1px solid var(--border-light); padding-right: 1rem; }
 .ribbon-col:last-child { border-right: none; padding-right: 0; }
@@ -136,7 +132,6 @@ label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted
 .shared-legend-item { display: inline-flex; align-items: center; margin-right: 12px; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
 .shared-legend-color { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 
-/* Distribution Chart Canvas */
 .dist-canvas { display: block; width: 80px; height: 30px; }
 
 @media (min-width: 768px) {
