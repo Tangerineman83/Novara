@@ -19,99 +19,46 @@ body {
     overflow-y: auto;
 }
 
-#wrapper {
-    overflow-x: hidden;
-    display: flex;
-    width: 100%;
-}
+#wrapper { overflow-x: hidden; display: flex; width: 100%; }
 
 #sidebar-wrapper {
-    min-height: 100vh;
-    margin-left: -16rem;
-    transition: margin 0.25s ease-out;
-    width: 16rem;
-    background-color: #0F172A;
-    flex-shrink: 0;
+    min-height: 100vh; margin-left: -16rem; transition: margin 0.25s ease-out;
+    width: 16rem; background-color: #0F172A; flex-shrink: 0;
 }
 
 #sidebar-wrapper .sidebar-heading {
-    padding: 1.5rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: white;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: 1.5rem; font-size: 1.25rem; font-weight: 700; color: white; border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
-.list-group-item {
-    background: transparent;
-    color: #94A3B8;
-    border: none;
-    padding: 0.875rem 1.5rem;
-    font-weight: 500;
-}
+.list-group-item { background: transparent; color: #94A3B8; border: none; padding: 0.875rem 1.5rem; font-weight: 500; }
+.list-group-item:hover { color: white; background-color: rgba(255,255,255,0.05); }
+.list-group-item.active { background-color: rgba(79, 70, 229, 0.2) !important; color: #818CF8 !important; border-left: 3px solid #818CF8 !important; }
 
-.list-group-item:hover {
-    color: white;
-    background-color: rgba(255,255,255,0.05);
-}
-
-.list-group-item.active {
-    background-color: rgba(79, 70, 229, 0.2) !important;
-    color: #818CF8 !important;
-    border-left: 3px solid #818CF8 !important;
-}
-
-#page-content-wrapper {
-    min-width: 100vw;
-    width: 100%;
-}
-
-#wrapper.toggled #sidebar-wrapper {
-    margin-left: 0;
-}
+#page-content-wrapper { min-width: 100vw; width: 100%; }
+#wrapper.toggled #sidebar-wrapper { margin-left: 0; }
 
 .card {
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-    background: var(--surface-white);
-    margin-bottom: 1.5rem;
-    overflow: hidden;
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+    background: var(--surface-white); margin-bottom: 1.5rem; overflow: hidden;
 }
-
-.card-header {
-    background-color: var(--surface-white);
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 1rem 1.5rem;
-    font-weight: 600;
-}
-
+.card-header { background-color: var(--surface-white); border-bottom: 1px solid var(--border-subtle); padding: 1rem 1.5rem; font-weight: 600; }
 .card-body { padding: 1.5rem; }
 
-.form-control, .form-select {
-    border-radius: 8px;
-    border: 1px solid #CBD5E1;
-    font-size: 0.9rem;
-    box-shadow: var(--shadow-sm);
-}
+.form-control, .form-select { border-radius: 8px; border: 1px solid #CBD5E1; font-size: 0.9rem; box-shadow: var(--shadow-sm); }
 
-.table-responsive {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.table { margin-bottom: 0; white-space: nowrap; display: table; width: 100%; }
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table { margin-bottom: 0; white-space: nowrap; }
 .table thead th { background-color: #F1F5F9; color: var(--text-secondary); font-size: 0.8rem; }
 .table tbody td { vertical-align: middle; }
 .col-median { background-color: #F8FAFC; font-weight: 700; color: var(--brand-color); }
 
-.btn-primary {
-    background-color: var(--brand-color);
-    border: none;
-    border-radius: 8px;
-    padding: 0.6rem 1.2rem;
-    font-weight: 600;
-}
+.btn-primary { background-color: var(--brand-color); border: none; border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 600; }
+
+.stats-badge { background-color: #F1F5F9; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid var(--border-subtle); }
+.stats-badge .lbl { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; display: block; }
+.stats-badge .val { font-size: 1.1rem; color: var(--text-primary); font-weight: 700; }
+
+.pie-container { height: 220px; position: relative; margin: 1rem auto; width: 100%; display: flex; justify-content: center; }
 
 @media (min-width: 768px) {
     #sidebar-wrapper { margin-left: 0; }
