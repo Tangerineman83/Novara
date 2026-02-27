@@ -20,7 +20,6 @@ export const ASSET_CLASSES = [
     { key: "globalSov", name: "Global Sovereign", defaultR: 0.025, defaultV: 0.05 }
 ];
 
-// PALETTE MATCHING THE DESIGN MOCKUP
 export const CHART_COLORS = [
     { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },  // Blue
     { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },  // Green
