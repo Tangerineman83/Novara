@@ -76,26 +76,20 @@ function runMonteCarloPaths(data) {
         };
     });
 
-    // Initialize the master array to hold paths for each strategy
     const allStrategyPaths = strategies.map(() => []); 
 
     for (let s = 0; s < simCount; s++) {
-        // Create simultaneous state trackers for each strategy
         let pots = strategies.map(() => persona.savings);
         let salaries = strategies.map(() => persona.salary);
         let cumulativeInflation = 1.0; 
         
-        // Temporary arrays to hold this specific simulation's month-by-month path
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            // 1. Generate MARKET CONDITIONS ONCE for this month
-            // This ensures all strategies experience the exact same "market reality"
             const z1 = randn_bm();
             const z2 = randn_bm();
             const z3 = randn_bm();
 
-            // 2. Calculate the random component for each Asset Class ONCE
             const assetRandomness = {};
             for (let i = 0; i < assetKeys.length; i++) {
                 const key = assetKeys[i];
@@ -105,7 +99,6 @@ function runMonteCarloPaths(data) {
 
             cumulativeInflation *= monthlyInflationRate;
 
-            // 3. Apply these identical market conditions to each strategy
             for (let stratIdx = 0; stratIdx < strategies.length; stratIdx++) {
                 const strat = strategies[stratIdx];
                 const weightsMap = strat.monthlyWeights[m];
@@ -120,22 +113,18 @@ function runMonteCarloPaths(data) {
                     const fac = assetFactors[key];
                     const imp = strat.implAdjustments[key] || 0; 
                     
-                    // Base Expected Return + The Shared Random Shock
                     const expectedReturn = (Math.pow(1 + fac.mean + imp, 1/12) - 1);
                     monthlyReturn += w * (expectedReturn + assetRandomness[key]);
                 }
 
-                // Grow Pots and Salaries
                 const contribution = (salaries[stratIdx] * (persona.contribution / 100)) / 12;
                 pots[stratIdx] = (pots[stratIdx] + contribution) * (1 + monthlyReturn);
                 salaries[stratIdx] *= monthlySalaryGrowthRate;
                 
-                // Store Real Value
                 currentSimPaths[stratIdx][m] = pots[stratIdx] / cumulativeInflation;
             }
         }
         
-        // Push the completed 40-year paths into the master storage
         for (let stratIdx = 0; stratIdx < strategies.length; stratIdx++) {
             allStrategyPaths[stratIdx].push(currentSimPaths[stratIdx]);
         }
