@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.2';
 
 const state = {
     worker: null,
@@ -118,7 +118,15 @@ function syncPortfolioInputsVisibility() {
     });
 }
 
-function drawDistributionChart(assetKey, r, v) {
+// Converts HEX to RGBA for the charts
+function hexToRgba(hex, alpha) {
+    let r = parseInt(hex.slice(1, 3), 16);
+    let g = parseInt(hex.slice(3, 5), 16);
+    let b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function drawDistributionChart(assetKey, r, v, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -147,15 +155,16 @@ function drawDistributionChart(assetKey, r, v) {
     ctx.lineTo(width, height);
     ctx.closePath();
     
+    // Use the specific Asset Class Color
     const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, 'rgba(59, 130, 246, 0.6)');
-    grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+    grad.addColorStop(0, hexToRgba(colorHex, 0.6));
+    grad.addColorStop(1, hexToRgba(colorHex, 0.0));
     ctx.fillStyle = grad; ctx.fill();
-    ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = colorHex; ctx.lineWidth = 1.5; ctx.stroke();
     
     const meanCx = ((r - minX) / (maxX - minX)) * width;
     ctx.beginPath(); ctx.moveTo(meanCx, 0); ctx.lineTo(meanCx, height);
-    ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.3)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
 }
 
 function renderAssetRows() {
@@ -165,7 +174,10 @@ function renderAssetRows() {
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="fw-medium text-muted">${asset.name}</td>
+            <td class="fw-medium text-muted">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${asset.color}; margin-right:6px;"></span>
+                ${asset.name}
+            </td>
             <td class="text-center"><canvas id="dist-${asset.key}" class="dist-canvas" width="80" height="30"></canvas></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
@@ -179,10 +191,10 @@ function renderAssetRows() {
             inp.addEventListener('input', () => {
                 const r = parseFloat(tr.querySelector('input[data-field="r"]').value)/100 || 0;
                 const v = parseFloat(tr.querySelector('input[data-field="v"]').value)/100 || 0;
-                drawDistributionChart(asset.key, r, v);
+                drawDistributionChart(asset.key, r, v, asset.color);
             });
         });
-        setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV), 0);
+        setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV, asset.color), 0);
     });
 }
 
@@ -197,7 +209,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=10.1'); 
+    state.worker = new Worker('./js/worker.js?v=10.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -782,17 +794,17 @@ function renderChart(results) {
     const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
-        const isPrimary = (index === 0);
         
-        // FIX: Remove inline breaks to fix formatting, ensure primary has gradient.
-        if (!isPrimary) {
-            datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4 });
-            datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
-            datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
-        } else {
+        if (index === 0) {
+            // Strategy 1 (Baseline) ALWAYS gets solid line and gradient fill
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: 'transparent', backgroundColor: color.gradientStart, pointRadius: 0, fill: '+1', tension: 0.4, order: 2 });
             datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: 'transparent', pointRadius: 0, fill: false, tension: 0.4, order: 3 });
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4, order: 1 });
+        } else {
+            // Comparisons ALWAYS get dashed lines to differentiate from baseline
+            datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, borderDash: [5, 5], tension: 0.4 });
+            datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [2, 4], borderWidth: 1.5, tension: 0.4 });
+            datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [2, 4], borderWidth: 1.5, tension: 0.4 });
         }
     });
 
@@ -836,6 +848,7 @@ function renderResultsTable(results) {
         };
 
         const tr = document.createElement('tr');
+        // FIX: padding-right added (pe-4) to prevent cutoff
         tr.innerHTML = `
             <td style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light);">
                 <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${color.border}; margin-right:8px;"></span>
@@ -843,7 +856,7 @@ function renderResultsTable(results) {
             </td>
             <td class="text-end text-muted border-bottom border-light">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
             <td class="text-end col-median border-bottom border-light">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
-            <td class="text-end text-muted border-bottom border-light">£${Math.round(currHigh).toLocaleString()}</td>
+            <td class="text-end text-muted border-bottom border-light pe-4">£${Math.round(currHigh).toLocaleString()}</td>
         `;
         tbody.appendChild(tr);
     });
