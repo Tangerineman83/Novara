@@ -3,35 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Novara Pro</title>
+    <title>Novara Pro Modeller</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="stylesheet" href="css/style.css?v=5.5">
 </head>
 <body>
 
 <div class="d-flex" id="wrapper">
     <div id="sidebar-wrapper">
         <div class="sidebar-heading">
-            <div class="brand-icon">N</div>
-            <span>NOVARA</span>
+            <i class="fas fa-layer-group me-2"></i> NOVARA
         </div>
         <div class="list-group list-group-flush my-3">
-            <a href="#" class="list-group-item active" data-tab="cma"><i class="fas fa-globe me-3"></i>Assumptions</a>
-            <a href="#" class="list-group-item" data-tab="strategy"><i class="fas fa-chart-pie me-3"></i>Strategies</a>
+            <a href="#" class="list-group-item active" data-tab="cma"><i class="fas fa-chart-pie me-3"></i>Capital Market Assumptions</a>
+            <a href="#" class="list-group-item" data-tab="strategy"><i class="fas fa-chess-knight me-3"></i>Strategies</a>
             <a href="#" class="list-group-item" data-tab="persona"><i class="fas fa-user-circle me-3"></i>Personas</a>
             <a href="#" class="list-group-item" data-tab="model"><i class="fas fa-play-circle me-3"></i>Run Model</a>
-            <a href="#" class="list-group-item mt-4" data-tab="docs"><i class="fas fa-book me-3"></i>Documentation</a>
         </div>
     </div>
 
     <div id="page-content-wrapper">
-        <nav class="navbar navbar-expand-lg navbar-light bg-transparent py-3 px-4">
-            <div class="container-fluid p-0">
-                <button class="btn btn-outline-secondary btn-sm bg-white" id="menu-toggle"><i class="fas fa-bars"></i></button>
+        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+            <div class="container-fluid">
+                <button class="btn btn-outline-secondary btn-sm" id="menu-toggle"><i class="fas fa-bars"></i></button>
                 <div id="status-indicator" class="ms-auto text-success fw-bold small">
                     <span id="status-text">Ready</span> 
                     <div class="spinner-border spinner-border-sm text-primary d-none ms-2" id="loading-spinner" role="status"></div>
@@ -39,30 +34,32 @@
             </div>
         </nav>
 
-        <div class="container-fluid px-4">
+        <div class="container-fluid px-4 mt-4">
             
             <div id="tab-cma" class="view-section">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="fw-bold m-0 text-dark">Assumptions</h3>
-                    <select id="cma-preset-select" class="form-select form-select-sm" style="width: 250px;">
-                        <option value="">Load Preset...</option>
-                    </select>
+                    <h3 class="fw-bold m-0">Capital Market Assumptions</h3>
+                    <div class="d-flex gap-2">
+                        <select id="cma-preset-select" class="form-select form-select-sm" style="width: 250px;">
+                            <option value="">Load Preset...</option>
+                        </select>
+                    </div>
                 </div>
+                
                 <div class="card">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle" id="cma-table">
                                 <thead>
                                     <tr>
-                                        <th style="padding-left: 1.5rem;">Asset Class</th>
+                                        <th>Asset Class</th>
                                         <th class="text-end">Return (%)</th>
                                         <th class="text-end">Vol (%)</th>
-                                        <th class="text-end">Kurtosis (Excess)</th>
                                         <th class="text-end">Corr w/ Eq</th>
-                                        <th class="text-end" style="padding-right: 1.5rem;">Corr w/ Cred</th>
+                                        <th class="text-end">Corr w/ Cred</th>
                                     </tr>
                                 </thead>
-                                <tbody style="padding-left: 1.5rem;"></tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
                     </div>
@@ -71,22 +68,25 @@
 
             <div id="tab-strategy" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="fw-bold m-0 text-dark">Strategies</h3>
-                    <div class="d-flex gap-2">
+                    <h3 class="fw-bold m-0">Strategies</h3>
+                    <div class="d-flex gap-2 align-items-center">
                         <select id="strategy-preset-select" class="form-select form-select-sm" style="width: 250px;">
                             <option value="">Load Preset...</option>
                         </select>
                         <button class="btn btn-sm btn-primary" onclick="addStrategyColumn()">
-                            <i class="fas fa-plus me-1"></i> Time Point
+                            <i class="fas fa-plus me-1"></i> Add Time Point
                         </button>
                     </div>
                 </div>
+                
                 <div class="card">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-bordered text-center mb-0" id="strategy-table">
-                                <thead class="bg-light"></thead>
-                                <tbody></tbody>
+                                <thead class="bg-light">
+                                    </thead>
+                                <tbody>
+                                    </tbody>
                             </table>
                         </div>
                     </div>
@@ -94,24 +94,42 @@
             </div>
 
             <div id="tab-persona" class="view-section d-none">
-                <h3 class="fw-bold mb-4 text-dark">Personas</h3>
+                <h3 class="fw-bold mb-4">Member Personas</h3>
                 <div class="row">
-                    <div class="col-md-7 col-lg-5">
+                    <div class="col-md-6 col-lg-5">
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
-                                <span>Member Details</span>
-                                <select id="persona-preset-select" class="form-select form-select-sm" style="min-width: 200px;">
+                                <span>Details</span>
+                                <select id="persona-preset-select" class="form-select form-select-sm" style="min-width: 220px;">
                                     <option value="">Load Preset...</option>
                                 </select>
                             </div>
                             <div class="card-body">
                                 <div class="row g-3">
-                                    <div class="col-6"><label class="form-label">Current Age</label><input type="number" id="p-age" class="form-control" value="30"></div>
-                                    <div class="col-6"><label class="form-label">Retirement Age</label><input type="number" id="p-retAge" class="form-control" value="65"></div>
-                                    <div class="col-6"><label class="form-label">Salary (£)</label><input type="number" id="p-salary" class="form-control" value="50000"></div>
-                                    <div class="col-6"><label class="form-label">Current Pot (£)</label><input type="number" id="p-pot" class="form-control" value="25000"></div>
-                                    <div class="col-6"><label class="form-label">Contribution (%)</label><input type="number" id="p-contrib" class="form-control" value="10"></div>
-                                    <div class="col-6"><label class="form-label">Real Growth (%)</label><input type="number" id="p-growth" class="form-control" value="1.0"></div>
+                                    <div class="col-6">
+                                        <label class="form-label">Current Age</label>
+                                        <input type="number" id="p-age" class="form-control" value="30">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Retirement Age</label>
+                                        <input type="number" id="p-retAge" class="form-control" value="65">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Salary (£)</label>
+                                        <input type="number" id="p-salary" class="form-control" value="50000">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Current Pot (£)</label>
+                                        <input type="number" id="p-pot" class="form-control" value="25000">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Contribution (%)</label>
+                                        <input type="number" id="p-contrib" class="form-control" value="10">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Real Salary Growth (%)</label>
+                                        <input type="number" id="p-growth" class="form-control" value="1.0">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -121,55 +139,65 @@
 
             <div id="tab-model" class="view-section d-none">
                 <div class="row g-4">
+                    
                     <div class="col-lg-4 col-xl-3">
-                        <div class="card h-100 border-0 shadow-none bg-transparent">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold m-0 text-dark">Model Inputs</h5>
-                                <button class="btn btn-sm btn-link text-secondary p-0" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                        <div class="card h-100">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                <span class="fw-bold"><i class="fas fa-sliders-h me-2 text-secondary"></i> Configuration</span>
+                                <button class="btn btn-sm btn-link text-secondary p-0" data-bs-toggle="modal" data-bs-target="#settingsModal" title="Advanced Settings">
                                     <i class="fas fa-cog"></i>
                                 </button>
                             </div>
-                            <div class="input-card">
-                                <label><i class="fas fa-globe me-2 text-primary"></i>Assumptions</label>
-                                <select id="run-cma-select" class="form-select"></select>
-                            </div>
-                            <div class="input-card">
-                                <label><i class="fas fa-user me-2 text-primary"></i>Persona</label>
-                                <select id="run-persona-select" class="form-select"></select>
-                            </div>
-                            <div class="my-4 border-bottom"></div>
-                            <div class="input-card" style="border-left: 3px solid #3B82F6;">
-                                <label class="text-dark"><i class="fas fa-star me-2 text-warning"></i>Primary Strategy</label>
-                                <select id="run-strat-1" class="form-select"></select>
-                            </div>
-                            <div class="input-card">
-                                <label><i class="fas fa-chart-line me-2 text-secondary"></i>Comparison 1</label>
-                                <select id="run-strat-2" class="form-select"></select>
-                            </div>
-                            <div class="input-card">
-                                <label><i class="fas fa-chart-line me-2 text-secondary"></i>Comparison 2</label>
-                                <select id="run-strat-3" class="form-select"></select>
-                            </div>
-                            <div class="input-card mt-3">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <label>Confidence</label>
-                                    <span id="confidence-label" class="badge bg-white text-dark border fw-bold text-primary">90%</span>
+                            <div class="card-body">
+                                <h6 class="small-header">Global Settings</h6>
+                                <div class="mb-3">
+                                    <label class="form-label">Capital Markets</label>
+                                    <select id="run-cma-select" class="form-select"></select>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Member Persona</label>
+                                    <select id="run-persona-select" class="form-select"></select>
+                                </div>
+
+                                <div class="section-divider"></div>
+
+                                <h6 class="small-header">Comparison</h6>
+                                <div class="mb-3">
+                                    <label class="form-label text-primary fw-bold">Primary Strategy</label>
+                                    <select id="run-strat-1" class="form-select border-primary border-2"></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary">Scenario 2</label>
+                                    <select id="run-strat-2" class="form-select"></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary">Scenario 3</label>
+                                    <select id="run-strat-3" class="form-select"></select>
+                                </div>
+
+                                <div class="section-divider"></div>
+
+                                <h6 class="small-header">Analysis</h6>
+                                <label class="form-label d-flex justify-content-between">
+                                    <span>Confidence Interval</span>
+                                    <span id="confidence-label" class="badge bg-light text-dark border">90%</span>
+                                </label>
                                 <input type="range" class="form-range" id="confidence-slider" min="50" max="100" step="5" value="90">
-                            </div>
-                            <div class="mt-4">
-                                <button class="btn btn-primary text-white w-100 py-3 shadow-lg" id="run-simulation-btn">
-                                    Run Projection
-                                </button>
+
+                                <div class="d-grid mt-4">
+                                    <button class="btn btn-primary fw-bold" id="run-simulation-btn">
+                                        <i class="fas fa-sync-alt me-2"></i> Run Projection
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="col-lg-8 col-xl-9">
                         <div class="card mb-4" style="min-height: 450px;">
-                            <div class="card-header border-0 pt-4 px-4 pb-0 bg-white">
-                                <h5 class="fw-bold text-dark m-0">Projected Outcomes</h5>
-                                <p class="text-secondary small mb-0">Projected pot value (Real Terms)</p>
+                            <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                                <h5 class="fw-bold text-dark m-0">Projected Outcomes (Real Terms)</h5>
+                                <p class="text-muted small mb-0">Projected pot value in today's money</p>
                             </div>
                             <div class="card-body px-4 pb-4">
                                 <div style="height: 400px; position: relative;">
@@ -177,113 +205,27 @@
                                 </div>
                             </div>
                         </div>
+
                         <div class="card">
-                            <div class="card-header border-0 pt-4 px-4 bg-white">
-                                <h6 class="fw-bold text-dark">Outcomes at Retirement</h6>
+                            <div class="card-header bg-white border-0 pt-4 px-4">
+                                <h6 class="fw-bold">Outcomes at Retirement</h6>
                             </div>
                             <div class="table-responsive">
                                 <table class="table align-middle" id="results-table">
                                     <thead>
                                         <tr>
-                                            <th style="width: 35%; padding-left: 1.5rem;">Strategy</th>
-                                            <th class="text-end">Lower</th>
+                                            <th style="width: 35%;">Strategy</th>
+                                            <th class="text-end" id="th-lower">Lower</th>
                                             <th class="text-end col-median">Median</th>
-                                            <th class="text-end" style="padding-right: 1.5rem;">Upper</th>
+                                            <th class="text-end" id="th-upper">Upper</th>
                                         </tr>
                                     </thead>
-                                    <tbody style="padding-left: 1.5rem;">
+                                    <tbody>
                                         <tr><td colspan="4" class="text-center text-muted py-4">Waiting for inputs...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tab-docs" class="view-section d-none pb-5">
-                <div class="row justify-content-center">
-                    <div class="col-lg-10">
-                        
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <div>
-                                <h3 class="fw-bold m-0 text-dark">Technical Documentation</h3>
-                                <p class="text-secondary mb-0 mt-1">Actuarial methodology, assumptions, and reliances.</p>
-                            </div>
-                            <span class="badge bg-white text-secondary border px-3 py-2">Version 14.0</span>
-                        </div>
-
-                        <div class="card mb-4">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-calculator me-2 text-primary"></i> 1. Mathematical Methodology</h5></div>
-                            <div class="card-body text-secondary">
-                                <p>This application utilizes a discrete-time stochastic Monte Carlo simulation engine. Asset paths are projected using <strong>Geometric Brownian Motion (GBM)</strong> principles, adapted to support non-normal distributions (fat tails).</p>
-                                
-                                <h6 class="text-dark mt-4 mb-2">1.1 Asset Path Generation</h6>
-                                <p>For each asset class $i$, the simulated monthly return $R_{i,t}$ is calculated as:</p>
-                                <div class="math-block">
-                                    $$ R_{i,t} = \left( (1 + \mu_i)^{1/12} - 1 \right) + \frac{\sigma_i}{\sqrt{12}} Z_{i,t}^{cf} $$
-                                </div>
-                                <p class="small">Where $\mu_i$ is the arithmetic mean annual return, $\sigma_i$ is the annual volatility, and $Z_{i,t}^{cf}$ is the correlated, kurtosis-adjusted standard normal variable.</p>
-
-                                <h6 class="text-dark mt-4 mb-2">1.2 Correlation Structure</h6>
-                                <p>To model dependencies, random variables are correlated using a two-factor (Equity/Credit) loading model derived from Cholesky decomposition. For independent standard normal variables $z_1, z_2, z_3 \sim N(0,1)$:</p>
-                                <div class="math-block">
-                                    $$ Z_{i,t}^{gauss} = c_{eq} z_1 + c_{cr} z_2 + \sqrt{\max(0, 1 - c_{eq}^2 - c_{cr}^2)} z_3 $$
-                                </div>
-                                
-                                <h6 class="text-dark mt-4 mb-2">1.3 Fat-Tail Adjustment (Cornish-Fisher)</h6>
-                                <p>Standard models systematically underestimate market crashes. To correct this, the Gaussian variable $Z_{i,t}^{gauss}$ is transformed using the <strong>Cornish-Fisher Expansion</strong> based on the specified Excess Kurtosis $K_i$:</p>
-                                <div class="math-block">
-                                    $$ Z_{cf\_raw} = Z_{gauss} + \frac{K_i}{24} \left( Z_{gauss}^3 - 3 Z_{gauss} \right) $$
-                                </div>
-                                <p>To ensure this transformation does not inadvertently inflate the target volatility, the variable is re-standardized by its analytical drift variance factor $\sqrt{1 + K_i^2/96}$:</p>
-                                <div class="math-block">
-                                    $$ Z_{i,t}^{cf} = \frac{Z_{cf\_raw}}{\sqrt{1 + \frac{K_i^2}{96}}} $$
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card mb-4">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-subscript me-2 text-success"></i> 2. Example Calculation</h5></div>
-                            <div class="card-body text-secondary">
-                                <p>To illustrate the accumulation and discounting logic, assume a single contribution of <strong>£10,000</strong> invested for exactly <strong>12 months</strong> in a hypothetical asset.</p>
-                                <ul>
-                                    <li><strong>Core Inflation ($i$):</strong> $2.5\%$ per annum.</li>
-                                    <li><strong>Realized Nominal Return ($r_{nom}$):</strong> $6.5\%$ for the 12-month period.</li>
-                                </ul>
-                                
-                                <h6 class="text-dark mt-3 mb-2">Step 1: Nominal Growth</h6>
-                                <p>The portfolio simply grows at the simulated nominal rate:</p>
-                                <div class="math-block">
-                                    $$ \text{Pot}_{nom} = £10,000 \times (1 + 0.065) = £10,650 $$
-                                </div>
-
-                                <h6 class="text-dark mt-3 mb-2">Step 2: Real Terms Discounting</h6>
-                                <p>To convert the future sum into 'today's money' (purchasing power), it is deflated by cumulative core inflation over time $T$ (where $T=1$ year):</p>
-                                <div class="math-block">
-                                    $$ \text{Pot}_{real} = \frac{£10,650}{(1 + 0.025)^1} \approx £10,390.24 $$
-                                </div>
-                                <p class="small mb-0"><strong>Note on Contributions:</strong> Salary-based contributions are modeled to grow nominally at $(1 + \text{Core Inflation}) \times (1 + \text{Real Salary Growth}) - 1$ to preserve wage purchasing power over the accumulation phase.</p>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="card-header"><h5 class="m-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i> 3. Reliances & Limitations</h5></div>
-                            <div class="card-body text-secondary">
-                                <p>Users of this model must be aware of its boundaries. Projections generated do not constitute formal financial advice.</p>
-                                
-                                <div class="alert alert-light border small text-secondary mt-3">
-                                    <ul class="mb-0 ps-3" style="line-height: 1.6;">
-                                        <li class="mb-2"><strong>Parameter Risk:</strong> Capital Market Assumptions (CMAs) are point-in-time, forward-looking estimates. Historical correlations and tail risks may break down in future macroeconomic regimes.</li>
-                                        <li class="mb-2"><strong>Frictionless Environment:</strong> Output values are broadly stated <strong>Gross of Fees</strong>. They do not account for platform administration charges, underlying fund OCFs, or transaction costs (bid/offer spreads) unless explicitly modeled by the user via negative return adjustments.</li>
-                                        <li class="mb-2"><strong>Taxation Assumptions:</strong> The model projects a gross capital pot and assumes a tax-advantaged wrapper (e.g., Pension or ISA). It makes no allowances for Income Tax on withdrawal, Capital Gains Tax, or Lifetime Allowance (LTA) surcharges.</li>
-                                        <li class="mb-2"><strong>Sequence of Returns Risk:</strong> While the model correctly penalizes geometric compounding via volatility drag during the accumulation phase, it is not currently calibrated to assess <em>pound-cost ravaging</em> during the decumulation/drawdown phase.</li>
-                                        <li><strong>Behavioral Independence:</strong> The simulation assumes strict adherence to the glidepath and continuous rebalancing. Real-world behavioral risks, such as panic selling during drawdowns or pausing contributions, are excluded.</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -296,7 +238,7 @@
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title fw-bold">Settings</h6>
+                <h6 class="modal-title fw-bold">Advanced Settings</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -304,9 +246,11 @@
                     <label class="form-label small fw-bold">Simulations</label>
                     <input type="number" id="setting-sim-count" class="form-control" value="2000" step="500">
                 </div>
+                <hr>
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Core Inflation (%)</label>
                     <input type="number" id="setting-inflation" class="form-control" value="2.5" step="0.1">
+                    <div class="form-text">General price inflation used for discounting.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -318,6 +262,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=5.5"></script>
 </body>
 </html>
