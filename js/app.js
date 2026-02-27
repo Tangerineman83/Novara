@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.1';
 
 const state = {
     worker: null,
@@ -10,7 +10,7 @@ const state = {
     portfolios: [], 
     strategyYears: [50, 15, 0],
     autoRun: true,
-    portfolioInputsCollapsed: false // Sync state for Left/Right panels
+    portfolioInputsCollapsed: false
 };
 
 let debounceTimer;
@@ -90,7 +90,6 @@ function setupEventListeners() {
     document.getElementById('port-select-left')?.addEventListener('change', (e) => renderPortfolioPane('left', e.target.value));
     document.getElementById('port-select-right')?.addEventListener('change', (e) => renderPortfolioPane('right', e.target.value));
     
-    // Synced Collapse Logic
     document.getElementById('toggle-portfolio-inputs')?.addEventListener('click', () => {
         state.portfolioInputsCollapsed = !state.portfolioInputsCollapsed;
         syncPortfolioInputsVisibility();
@@ -198,7 +197,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=10.0'); 
+    state.worker = new Worker('./js/worker.js?v=10.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -385,7 +384,6 @@ function createNewPortfolio(side) {
 }
 
 function renderPortfolioPane(side, portId) {
-    // Rely on global state for collapsing
     syncPortfolioInputsVisibility();
 
     const blankMsg = document.getElementById(`port-blank-${side}`);
@@ -400,8 +398,6 @@ function renderPortfolioPane(side, portId) {
         if(blankMsg) blankMsg.classList.remove('d-none');
         return;
     } else {
-        // If not none, the sync logic already handled the container/hr visibility based on the collapse toggle.
-        // Just need to show visuals and hide blank message.
         if(visualsContainer) visualsContainer.classList.remove('d-none');
         if(blankMsg) blankMsg.classList.add('d-none');
     }
@@ -788,7 +784,7 @@ function renderChart(results) {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         const isPrimary = (index === 0);
         
-        // FIX: Primary strategy always gets fill. Others get dashed boundaries.
+        // FIX: Remove inline breaks to fix formatting, ensure primary has gradient.
         if (!isPrimary) {
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4 });
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
@@ -836,7 +832,7 @@ function renderResultsTable(results) {
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
-            return `<br><span class="small ${diff>=0?'text-success':'text-danger'}" style="font-size:0.75rem">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return ` <span class="small ${diff>=0?'text-success':'text-danger'} ms-2" style="font-size:0.75rem; white-space:nowrap;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
