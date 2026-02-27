@@ -1,10 +1,24 @@
 // js/worker.js
 
+// Standard Normal Generator
 function randn_bm() {
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+// FIX: Fat-Tailed Student's t-Distribution Generator (df=5)
+// Scaled to have a variance of 1 to preserve user input volatilities
+function rand_t(df) {
+    let v = 0;
+    for(let i=0; i<df; i++) {
+        let z = randn_bm();
+        v += z*z;
+    }
+    let t = randn_bm() / Math.sqrt(v/df);
+    // Scale by sqrt((df-2)/df) so Variance = 1.0
+    return t * Math.sqrt((df-2)/df); 
 }
 
 function quantile(arr, q) {
@@ -93,18 +107,24 @@ function runMonteCarloPaths(data) {
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            const z1 = randn_bm(); // Global Equity Factor
-            const z2 = randn_bm(); // Global Credit Factor
+            // FIX: FAT TAILS using t-distribution (df=5)
+            const z1 = rand_t(5); // Global Equity Factor
+            const z2 = rand_t(5); // Global Credit Factor
+            
+            // FIX: Diversification Paradox. Shared Basis Risk prevents total cancellation of residual variance.
+            const z_basis = rand_t(5); 
 
             const assetRandomness = {};
             for (let i = 0; i < assetKeys.length; i++) {
                 const key = assetKeys[i];
                 const fac = assetFactors[key];
                 
-                // FIX: Unique Idiosyncratic Risk (z3) generated PER ASSET to ensure proper correlation mechanics
-                const z3 = randn_bm(); 
+                const z_idio = rand_t(5); // Pure idiosyncratic risk
                 
-                assetRandomness[key] = fac.vol * (fac.ce * z1 + fac.cc * z2 + fac.resid * z3);
+                // 30% of residual risk is systemic basis risk, 70% is pure idiosyncratic
+                const effective_resid = fac.resid * (Math.sqrt(0.3) * z_basis + Math.sqrt(0.7) * z_idio);
+                
+                assetRandomness[key] = fac.vol * (fac.ce * z1 + fac.cc * z2 + effective_resid);
             }
 
             cumulativeInflation *= monthlyInflationRate;
@@ -123,7 +143,8 @@ function runMonteCarloPaths(data) {
                     const fac = assetFactors[key];
                     const imp = strat.implAdjustments[key] || 0; 
                     
-                    const expectedReturn = (Math.pow(1 + fac.mean + imp, 1/12) - 1);
+                    // FIX: Arithmetic alignment. Using simple division prevents geometric double-drag.
+                    const expectedReturn = (fac.mean + imp) / 12;
                     monthlyReturn += w * (expectedReturn + assetRandomness[key]);
                 }
 
