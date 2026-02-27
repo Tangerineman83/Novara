@@ -1,9 +1,10 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=8.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.0';
 
 const state = {
     worker: null,
     chartInstance: null,
+    strategyChartInstance: null,
     pieLeft: null,
     pieRight: null,
     portfolios: [], 
@@ -21,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
     state.portfolios = JSON.parse(JSON.stringify(INITIAL_PORTFOLIOS));
-
+    buildSharedLegend();
     setupEventListeners();
 
     try {
@@ -59,9 +60,16 @@ function setupEventListeners() {
             e.currentTarget.classList.add('active');
             
             const target = e.currentTarget.dataset.tab;
-            
-            // FIX: Use the correct refresh function for the dropdowns
-            if (target === 'strategy') refreshPortfolioDropdowns();
+            if (target === 'strategy') {
+                refreshPortfolioDropdowns();
+                setTimeout(renderStrategyChart, 50); // Ensure DOM is visible before chart draw
+            }
+            if (target === 'portfolio') {
+                setTimeout(() => {
+                    if(state.pieLeft) state.pieLeft.resize();
+                    if(state.pieRight) state.pieRight.resize();
+                }, 50);
+            }
             
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
@@ -69,11 +77,9 @@ function setupEventListeners() {
 
     document.getElementById('run-simulation-btn')?.addEventListener('click', runSimulation);
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
+    document.getElementById('auto-update-toggle')?.addEventListener('change', (e) => { state.autoRun = e.target.checked; });
     
-    document.getElementById('auto-update-toggle')?.addEventListener('change', (e) => {
-        state.autoRun = e.target.checked;
-    });
-    
+    // Portfolio Builders
     document.getElementById('portfolio-cma-select')?.addEventListener('change', () => {
         const leftId = document.getElementById('port-select-left').value;
         const rightId = document.getElementById('port-select-right').value;
@@ -83,46 +89,126 @@ function setupEventListeners() {
 
     document.getElementById('port-select-left')?.addEventListener('change', (e) => renderPortfolioPane('left', e.target.value));
     document.getElementById('port-select-right')?.addEventListener('change', (e) => renderPortfolioPane('right', e.target.value));
-
     document.getElementById('toggle-portfolio-inputs')?.addEventListener('click', () => {
         document.getElementById('port-inputs-left-container').classList.toggle('d-none');
         document.getElementById('port-inputs-right-container').classList.toggle('d-none');
     });
 
+    // Strategy Builders
+    document.getElementById('toggle-strategy-inputs')?.addEventListener('click', () => {
+        document.getElementById('strategy-table-container').classList.toggle('d-none');
+    });
+    document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
+
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
 }
 
+// --- DISTRIBUTION CHARTS (MARKETS) ---
+function drawDistributionChart(assetKey, r, v) {
+    const canvas = document.getElementById(`dist-${assetKey}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width; const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const minX = -0.4; const maxX = 0.4; // Fixed -40% to +40% for visual comparability
+    const points = [];
+    let maxY = 0;
+    
+    for (let x = minX; x <= maxX; x += 0.01) {
+        const vol = Math.max(v, 0.001);
+        const exponent = -Math.pow(x - r, 2) / (2 * Math.pow(vol, 2));
+        const y = (1 / (vol * Math.sqrt(2 * Math.PI))) * Math.exp(exponent);
+        points.push({x, y});
+        if (y > maxY) maxY = y;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(0, height);
+    points.forEach(p => {
+        const cx = ((p.x - minX) / (maxX - minX)) * width;
+        const cy = height - (p.y / Math.max(maxY, 2.5)) * height * 0.9; // normalized to a max height
+        ctx.lineTo(cx, cy);
+    });
+    ctx.lineTo(width, height);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, 'rgba(59, 130, 246, 0.6)');
+    grad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 1.5; ctx.stroke();
+    
+    // Mean line
+    const meanCx = ((r - minX) / (maxX - minX)) * width;
+    ctx.beginPath(); ctx.moveTo(meanCx, 0); ctx.lineTo(meanCx, height);
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+}
+
+function renderAssetRows() {
+    const tbody = document.querySelector('#cma-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    ASSET_CLASSES.forEach(asset => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-medium text-muted">${asset.name}</td>
+            <td class="text-center"><canvas id="dist-${asset.key}" class="dist-canvas" width="80" height="30"></canvas></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0"></td>
+        `;
+        tbody.appendChild(tr);
+        
+        // Attach listener for real-time dist draw
+        const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"]');
+        inputs.forEach(inp => {
+            inp.addEventListener('input', () => {
+                const r = parseFloat(tr.querySelector('input[data-field="r"]').value)/100 || 0;
+                const v = parseFloat(tr.querySelector('input[data-field="v"]').value)/100 || 0;
+                drawDistributionChart(asset.key, r, v);
+            });
+        });
+        
+        // Initial draw
+        setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV), 0);
+    });
+}
+
+// --- PORTFOLIO & STRATEGY PRESETS/UI ---
+function buildSharedLegend() {
+    const container = document.getElementById('shared-portfolio-legend');
+    if(!container) return;
+    let html = '';
+    ASSET_CLASSES.forEach((ac, i) => {
+        const color = PIE_COLORS[i % PIE_COLORS.length];
+        html += `<div class="shared-legend-item"><span class="shared-legend-color" style="background-color:${color}"></span>${ac.name}</div>`;
+    });
+    container.innerHTML = html;
+}
+
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=8.1');
+    state.worker = new Worker('./js/worker.js?v=9.0');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             renderChart(payload);
             renderResultsTable(payload);
-        } else if (type === 'ERROR') {
-            updateUIState('Error');
-        }
+        } else if (type === 'ERROR') { updateUIState('Error'); }
     };
 }
 
 function setupAutoRun() {
-    const inputs = [
-        'run-cma-select', 'run-persona-select', 
-        'run-strat-1', 'run-strat-2', 'run-strat-3',
-        'setting-sim-count', 'setting-inflation'
-    ];
+    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
     inputs.forEach(id => {
-        const el = document.getElementById(id);
-        if(el) {
-            el.addEventListener('change', () => {
-                if(!state.autoRun) return;
-                updateUIState('Updating...');
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(runSimulation, 600); 
-            });
-        }
+        document.getElementById(id)?.addEventListener('change', () => {
+            if(!state.autoRun) return;
+            updateUIState('Updating...');
+            clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); 
+        });
     });
 }
 
@@ -130,22 +216,13 @@ function initPresets() {
     const cmaSelect = document.getElementById('cma-preset-select');
     if (cmaSelect) {
         cmaSelect.innerHTML = '<option value="">Load Preset...</option>';
-        PRESET_CMAS.forEach((preset, index) => {
-            const opt = document.createElement('option');
-            opt.value = index; opt.text = preset.name;
-            cmaSelect.appendChild(opt);
-        });
+        PRESET_CMAS.forEach((preset, index) => { cmaSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
         cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     }
-
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect) {
         persSelect.innerHTML = '<option value="">Load Preset Persona...</option>';
-        PRESET_PERSONAS.forEach((preset, index) => {
-            const opt = document.createElement('option');
-            opt.value = index; opt.text = preset.name;
-            persSelect.appendChild(opt);
-        });
+        PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
         persSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPersonaPreset(e.target.value); });
     }
 }
@@ -153,7 +230,6 @@ function initPresets() {
 function initRunModelInputs() {
     const cmaSelect = document.getElementById('run-cma-select');
     const portCmaSelect = document.getElementById('portfolio-cma-select');
-    
     let html = '<option value="custom">Use "Markets" Tab</option>';
     PRESET_CMAS.forEach((preset, index) => { html += `<option value="${index}">${preset.name}</option>`; });
     if(cmaSelect) cmaSelect.innerHTML = html;
@@ -184,12 +260,13 @@ function updateStrategySelectors() {
 function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
-    const rows = document.querySelectorAll('#cma-table tbody tr');
-    rows.forEach(tr => {
-        const inputs = tr.querySelectorAll('input');
-        inputs.forEach(inp => {
+    document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        tr.querySelectorAll('input').forEach(inp => {
             const key = inp.dataset.key; const field = inp.dataset.field; 
-            if (data[field] && data[field][key] !== undefined) inp.value = (data[field][key] * 100).toFixed(2);
+            if (data[field] && data[field][key] !== undefined) {
+                inp.value = (data[field][key] * 100).toFixed(2);
+                inp.dispatchEvent(new Event('input')); // trigger dist chart update
+            }
         });
     });
 }
@@ -230,6 +307,8 @@ function loadStrategyPreset(index) {
             }
         });
     });
+    
+    renderStrategyChart();
     if(state.autoRun) runSimulation();
 }
 
@@ -261,9 +340,7 @@ function createNewPortfolio(side) {
     const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {} };
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
-    
-    const selId = `port-select-${side}`;
-    document.getElementById(selId).value = newPort.id;
+    document.getElementById(`port-select-${side}`).value = newPort.id;
     renderPortfolioPane(side, newPort.id);
 }
 
@@ -292,10 +369,8 @@ function renderPortfolioPane(side, portId) {
     const titleRow = tbody.insertRow();
     titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase" style="width:50%">Name</td>
                           <td><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
-    
     titleRow.querySelector('input').addEventListener('change', (e) => {
-        portfolio.name = e.target.value;
-        refreshPortfolioDropdowns();
+        portfolio.name = e.target.value; refreshPortfolioDropdowns();
     });
 
     ASSET_CLASSES.forEach(ac => {
@@ -316,30 +391,22 @@ function updatePortfolioVisuals(side, portId) {
     if (!portfolio) return;
 
     const cmaSelect = document.getElementById('portfolio-cma-select');
-    let cmaData;
-    if (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") {
-        cmaData = PRESET_CMAS[cmaSelect.value].data;
-    } else {
-        cmaData = getActiveCMA();
-    }
+    let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
 
     const stats = calcDeterministicStats(portfolio.weights, cmaData);
-    
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-geo-${side}`).innerText = (stats.geoRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
 
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
     const labels = []; const data = []; const bgColors = [];
-    let colorIdx = 0;
     
-    ASSET_CLASSES.forEach(ac => {
+    ASSET_CLASSES.forEach((ac, idx) => {
         const w = portfolio.weights[ac.key] || 0;
         if(w > 0.001) {
             labels.push(ac.name);
             data.push((w*100).toFixed(1));
-            bgColors.push(PIE_COLORS[colorIdx % PIE_COLORS.length]);
-            colorIdx++;
+            bgColors.push(PIE_COLORS[idx % PIE_COLORS.length]); // Use consistent color index
         }
     });
 
@@ -365,6 +432,72 @@ function calcDeterministicStats(weights, cma) {
     const portVol = Math.sqrt(portVariance);
     const geoRet = ret - (portVariance / 2);
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
+}
+
+// --- STRATEGY CHART (GLIDEPATH) ---
+function renderStrategyChart() {
+    const ctx = document.getElementById('strategyChart');
+    if(!ctx) return;
+    if (state.strategyChartInstance) state.strategyChartInstance.destroy();
+
+    const isAssetView = document.getElementById('strat-view-toggle')?.checked;
+    
+    // X Axis Labels (Years descending)
+    const years = [...state.strategyYears].sort((a,b)=>b-a);
+    const labels = years.map(y => y + " Yrs");
+
+    let datasets = [];
+
+    if (isAssetView) {
+        const resolvedPoints = scrapeAndResolveStrategy(); // Ordered b-a
+        ASSET_CLASSES.forEach((ac, idx) => {
+            const data = resolvedPoints.map(pt => (pt.weights[ac.key] || 0) * 100);
+            if(data.some(d => d > 0)) {
+                datasets.push({
+                    label: ac.name,
+                    data: data,
+                    backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                    borderColor: 'transparent',
+                    fill: true,
+                    tension: 0.1
+                });
+            }
+        });
+    } else {
+        const rawPoints = scrapeStrategyUI(); 
+        const portfoliosInUse = new Set();
+        rawPoints.forEach(pt => Object.keys(pt.weights).forEach(k => { if(pt.weights[k]>0) portfoliosInUse.add(k); }));
+        
+        Array.from(portfoliosInUse).forEach((portId, idx) => {
+            const pName = state.portfolios.find(p => p.id === portId)?.name || portId;
+            const data = rawPoints.map(pt => (pt.weights[portId] || 0) * 100);
+            datasets.push({
+                label: pName,
+                data: data,
+                backgroundColor: PIE_COLORS[(idx * 3) % PIE_COLORS.length], // Scatter colors a bit
+                borderColor: 'transparent',
+                fill: true,
+                tension: 0.1
+            });
+        });
+    }
+
+    state.strategyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11} } },
+                tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%` } }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { stacked: true, min: 0, max: 100, border: { display: false } }
+            }
+        }
+    });
 }
 
 function renderStrategyTable() {
@@ -399,6 +532,7 @@ function renderStrategyTable() {
 
     table.querySelectorAll('input, select').forEach(el => {
         el.addEventListener('change', () => {
+            renderStrategyChart(); // Update glidepath visual
             if(!state.autoRun) return;
             updateUIState('Updating...');
             clearTimeout(debounceTimer);
@@ -407,18 +541,13 @@ function renderStrategyTable() {
     });
 }
 
-// FIX: Robustly preserve data when adding columns
 function addStrategyYearColumn() {
     const table = document.getElementById('strategy-table');
     const yearInputs = table.querySelectorAll('.strat-year-header');
     
-    // Save current port selections
     const portSelections = [];
-    for(let r=0; r<10; r++) {
-        portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
-    }
+    for(let r=0; r<10; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
 
-    // Save current weights
     const weightsMatrix = [];
     yearInputs.forEach((yInp, colIdx) => {
         const colWeights = [];
@@ -429,14 +558,12 @@ function addStrategyYearColumn() {
         weightsMatrix.push({ year: parseFloat(yInp.value), colWeights });
     });
 
-    // Add new column at 10 years
     weightsMatrix.push({ year: 10, colWeights: Array(10).fill(0) });
     weightsMatrix.sort((a,b) => b.year - a.year);
 
     state.strategyYears = weightsMatrix.map(w => w.year);
     renderStrategyTable();
 
-    // Restore saved data into the freshly rendered table
     const newTable = document.getElementById('strategy-table');
     for(let r=0; r<10; r++) {
         newTable.querySelectorAll('.strat-port-select')[r].value = portSelections[r];
@@ -445,34 +572,45 @@ function addStrategyYearColumn() {
             if(wInp) wInp.value = wm.colWeights[r];
         });
     }
+    renderStrategyChart();
 }
 
-function scrapeAndResolveStrategy() {
+function scrapeStrategyUI() {
     const table = document.getElementById('strategy-table');
     if(!table) return [];
     const yearInputs = table.querySelectorAll('.strat-year-header');
     const points = [];
 
     yearInputs.forEach((yInp, colIdx) => {
-        const years = parseFloat(yInp.value);
-        const resolvedAssets = {};
-        ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
-
+        const years = parseFloat(yInp.value) || 0;
+        const weights = {};
         for(let r=0; r<10; r++) {
             const portSelect = table.querySelectorAll('.strat-port-select')[r];
             const weightInput = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
-            const portId = portSelect.value;
-            const blendWeight = (parseFloat(weightInput.value) || 0) / 100;
-
-            if (portId !== 'none' && blendWeight > 0) {
-                const port = state.portfolios.find(p => p.id === portId);
-                if (port) ASSET_CLASSES.forEach(ac => { resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight; });
+            if (portSelect.value !== 'none') {
+                weights[portSelect.value] = (parseFloat(weightInput.value) || 0) / 100;
             }
         }
-        points.push({ years, weights: resolvedAssets });
+        points.push({ years, weights });
     });
     points.sort((a,b)=>b.years - a.years);
     return points;
+}
+
+function scrapeAndResolveStrategy() {
+    const rawPoints = scrapeStrategyUI();
+    return rawPoints.map(pt => {
+        const resolvedAssets = {};
+        ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
+        
+        Object.entries(pt.weights).forEach(([portId, blendWeight]) => {
+            const port = state.portfolios.find(p => p.id === portId);
+            if(port && blendWeight > 0) {
+                ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight);
+            }
+        });
+        return { years: pt.years, weights: resolvedAssets };
+    });
 }
 
 function getActiveCMA() {
@@ -663,23 +801,6 @@ function renderResultsTable(results) {
             <td class="text-end text-muted border-bottom border-light">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
             <td class="text-end col-median border-bottom border-light">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
             <td class="text-end text-muted border-bottom border-light">£${Math.round(currHigh).toLocaleString()}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderAssetRows() {
-    const tbody = document.querySelector('#cma-table tbody');
-    if(!tbody) return;
-    tbody.innerHTML = '';
-    ASSET_CLASSES.forEach(asset => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="fw-medium text-muted">${asset.name}</td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0"></td>
         `;
         tbody.appendChild(tr);
     });
