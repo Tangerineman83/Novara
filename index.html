@@ -6,7 +6,7 @@
     <title>Novara Pro Modeller</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=8.1">
+    <link rel="stylesheet" href="css/style.css?v=9.0">
 </head>
 <body>
 
@@ -25,22 +25,22 @@
     </div>
 
     <div id="page-content-wrapper">
-        <nav class="navbar navbar-expand-lg">
+        <nav class="navbar navbar-expand-lg pb-0">
             <div class="container-fluid px-4">
-                <button class="btn btn-light d-md-none" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <div id="status-indicator" class="ms-auto text-success fw-bold small bg-white px-3 py-1 rounded-pill shadow-sm">
+                <button class="btn btn-light d-md-none border" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <div id="status-indicator" class="ms-auto text-success fw-bold small bg-white px-3 py-1 rounded-pill shadow-sm border">
                     <span id="status-text">Ready</span> 
                     <div class="spinner-border spinner-border-sm text-primary d-none ms-2" id="loading-spinner" role="status"></div>
                 </div>
             </div>
         </nav>
 
-        <div class="container-fluid px-4 mt-3">
+        <div class="container-fluid px-4 mt-3" style="flex-grow: 1;">
             
             <div id="tab-cma" class="view-section">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="fw-bold m-0">Markets</h4>
-                    <select id="cma-preset-select" class="form-select form-select-sm" style="width: 250px;">
+                    <select id="cma-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;">
                         <option value="">Load Preset...</option>
                     </select>
                 </div>
@@ -51,6 +51,7 @@
                                 <thead>
                                     <tr>
                                         <th>Asset Class</th>
+                                        <th class="text-center" style="width: 100px;">Distribution</th>
                                         <th class="text-end">Return (%)</th>
                                         <th class="text-end">Vol (%)</th>
                                         <th class="text-end">Corr w/ Eq</th>
@@ -73,14 +74,14 @@
                             <select id="portfolio-cma-select" class="form-select border-0 shadow-none"></select>
                         </div>
                         <button class="btn btn-sm btn-light border rounded-pill" id="toggle-portfolio-inputs">
-                            <i class="fas fa-compress-alt text-muted"></i>
+                            <i class="fas fa-compress-alt text-muted"></i> Toggle Inputs
                         </button>
                     </div>
                 </div>
 
                 <div class="row g-4">
                     <div class="col-lg-6">
-                        <div class="card h-100">
+                        <div class="card h-100 mb-0">
                             <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
                                 <span class="fw-bold text-muted small text-uppercase">Primary Portfolio</span>
                                 <div class="d-flex gap-2">
@@ -107,7 +108,7 @@
                     </div>
 
                     <div class="col-lg-6">
-                        <div class="card h-100">
+                        <div class="card h-100 mb-0">
                             <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
                                 <span class="fw-bold text-muted small text-uppercase">Comparison Portfolio</span>
                                 <div class="d-flex gap-2">
@@ -139,27 +140,47 @@
                         </div>
                     </div>
                 </div>
+                <div class="card mt-3">
+                    <div class="card-body py-2 px-3">
+                        <div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div>
+                    </div>
+                </div>
             </div>
 
             <div id="tab-strategy" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="fw-bold m-0">Strategies</h4>
-                    <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;">
-                        <option value="">Load Preset...</option>
-                    </select>
+                    <div class="d-flex gap-2">
+                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;">
+                            <option value="">Load Preset...</option>
+                        </select>
+                        <button class="btn btn-sm btn-light border rounded-pill" id="toggle-strategy-inputs">
+                            <i class="fas fa-compress-alt text-muted"></i>
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="card">
+                <div class="card mb-3">
+                    <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-uppercase text-muted">Glidepath Visualizer</span>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" id="strat-view-toggle">
+                            <label class="form-check-label small text-muted ms-1">Look-Through Assets</label>
+                        </div>
+                    </div>
+                    <div class="card-body pt-2 pb-3">
+                        <div class="strat-chart-container"><canvas id="strategyChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="card" id="strategy-table-container">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table align-middle text-center mb-0" id="strategy-table">
                                 <thead class="bg-light">
-                                    <tr>
-                                        <th style="width: 250px;" class="text-start ps-4">Building Blocks</th>
-                                        </tr>
+                                    <tr><th style="width: 250px;" class="text-start ps-4">Building Blocks</th></tr>
                                 </thead>
-                                <tbody>
-                                    </tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
                     </div>
@@ -193,93 +214,68 @@
                 </div>
             </div>
 
-            <div id="tab-model" class="view-section d-none">
-                <div class="row g-4">
-                    <div class="col-lg-4 col-xl-3">
-                        <div class="card h-100 bg-white">
-                            <div class="card-header border-0 pb-0 bg-white">
-                                <h5 class="fw-bold m-0">Model Inputs</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="input-block">
-                                    <label class="form-label text-muted small"><i class="fas fa-chart-line me-2"></i>Markets</label>
-                                    <select id="run-cma-select" class="form-select form-select-sm shadow-none"></select>
-                                </div>
-                                <div class="input-block">
-                                    <label class="form-label text-muted small"><i class="fas fa-user me-2"></i>Persona</label>
-                                    <select id="run-persona-select" class="form-select form-select-sm shadow-none"></select>
-                                </div>
-                                
-                                <hr class="my-4 border-light">
-
-                                <div class="input-block" style="border-left: 3px solid #3B82F6;">
-                                    <label class="form-label text-muted small ms-1">Strategy 1</label>
-                                    <select id="run-strat-1" class="form-select form-select-sm shadow-none"></select>
-                                </div>
-                                <div class="input-block" style="border-left: 3px solid #10B981;">
-                                    <label class="form-label text-muted small ms-1">Strategy 2</label>
-                                    <select id="run-strat-2" class="form-select form-select-sm shadow-none"></select>
-                                </div>
-                                <div class="input-block mb-4" style="border-left: 3px solid #F59E0B;">
-                                    <label class="form-label text-muted small ms-1">Strategy 3</label>
-                                    <select id="run-strat-3" class="form-select form-select-sm shadow-none"></select>
-                                </div>
-
-                                <div class="d-flex justify-content-between align-items-center mb-3 px-1">
-                                    <span class="small fw-bold text-muted">Auto-Update</span>
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" id="auto-update-toggle" checked>
-                                    </div>
-                                </div>
-
-                                <div class="d-grid mt-2">
-                                    <button class="btn btn-primary btn-lg fs-6" id="run-simulation-btn">Run Projection</button>
-                                </div>
-                                
-                                <div class="text-center mt-3">
-                                    <button class="btn btn-link btn-sm text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#settingsModal">
-                                        <i class="fas fa-cog me-1"></i> Advanced Tuning
-                                    </button>
-                                </div>
-                            </div>
+            <div id="tab-model" class="view-section d-none dashboard-container">
+                
+                <div class="input-ribbon mb-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-2 col-sm-6 ribbon-col">
+                            <label class="form-label mb-1" style="font-size:0.75rem">Markets</label>
+                            <select id="run-cma-select" class="form-select form-select-sm"></select>
                         </div>
-                    </div>
-
-                    <div class="col-lg-8 col-xl-9">
-                        <div class="card mb-4">
-                            <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="fw-bold text-dark m-0">Accumulation</h5>
-                                    <p class="text-muted small mb-0">Confidence Intervals (Real Terms)</p>
-                                </div>
-                            </div>
-                            <div class="card-body px-4 pb-4">
-                                <div style="height: 380px; position: relative;"><canvas id="mainChart"></canvas></div>
-                            </div>
+                        <div class="col-md-2 col-sm-6 ribbon-col">
+                            <label class="form-label mb-1" style="font-size:0.75rem">Persona</label>
+                            <select id="run-persona-select" class="form-select form-select-sm"></select>
                         </div>
-                        
-                        <div class="card">
-                            <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
-                                <h6 class="fw-bold m-0">Projection Outcomes</h6>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s1">
+                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 1</label>
+                            <select id="run-strat-1" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2">
+                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label>
+                            <select id="run-strat-2" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3">
+                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label>
+                            <select id="run-strat-3" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-2 d-flex flex-column gap-2 justify-content-end align-items-end ps-md-3 border-start">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="small fw-bold text-muted" style="font-size:0.7rem">LIVE</span>
+                                <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="auto-update-toggle" checked></div>
+                                <button class="btn btn-sm btn-link p-0 text-muted" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="fas fa-cog"></i></button>
                             </div>
-                            <div class="table-responsive px-2 pb-2">
-                                <table class="table align-middle border-0" id="results-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="ps-3 border-0">Strategy</th>
-                                            <th class="text-end border-0" id="th-lower">Lower</th>
-                                            <th class="text-end col-median border-0 rounded-start">Median</th>
-                                            <th class="text-end border-0 rounded-end" id="th-upper">Upper</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr><td colspan="4" class="text-center text-muted py-4 border-0">Awaiting execution...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <button class="btn btn-primary btn-sm w-100" id="run-simulation-btn">Run Projection</button>
                         </div>
                     </div>
                 </div>
+
+                <div class="card chart-card-wrapper mb-3">
+                    <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark m-0">Accumulation (Real Terms)</span>
+                    </div>
+                    <div class="card-body px-4 pb-4 d-flex flex-column">
+                        <div class="chart-canvas-wrapper"><canvas id="mainChart"></canvas></div>
+                    </div>
+                </div>
+                
+                <div class="card mb-0">
+                    <div class="table-responsive px-2">
+                        <table class="table align-middle border-0" id="results-table">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3 border-0">Outcomes at Retirement</th>
+                                    <th class="text-end border-0" id="th-lower">Lower</th>
+                                    <th class="text-end col-median border-0 rounded-start">Median</th>
+                                    <th class="text-end border-0 rounded-end" id="th-upper">Upper</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="4" class="text-center text-muted py-3 border-0">Awaiting execution...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
 
         </div>
@@ -314,6 +310,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=8.1"></script>
+<script type="module" src="js/app.js?v=9.0"></script>
 </body>
 </html>
