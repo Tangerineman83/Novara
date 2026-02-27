@@ -65,9 +65,16 @@ function runMonteCarloPaths(data) {
 
     const assetFactors = {};
     assetKeys.forEach(key => {
-        const ce = cma.ce[key] || 0;
-        const cc = cma.cc[key] || 0;
-        const resid = Math.sqrt(Math.max(0, 1 - ce ** 2 - cc ** 2));
+        let ce = cma.ce[key] || 0;
+        let cc = cma.cc[key] || 0;
+        
+        // Normalize constraints (Ensures ce^2 + cc^2 <= 1)
+        const sumSq = ce * ce + cc * cc;
+        if (sumSq > 1) {
+            ce = ce / Math.sqrt(sumSq);
+            cc = cc / Math.sqrt(sumSq);
+        }
+        const resid = Math.sqrt(Math.max(0, 1 - ce * ce - cc * cc));
         
         assetFactors[key] = {
             mean: (cma.r[key] || 0), 
@@ -86,14 +93,17 @@ function runMonteCarloPaths(data) {
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            const z1 = randn_bm();
-            const z2 = randn_bm();
-            const z3 = randn_bm();
+            const z1 = randn_bm(); // Global Equity Factor
+            const z2 = randn_bm(); // Global Credit Factor
 
             const assetRandomness = {};
             for (let i = 0; i < assetKeys.length; i++) {
                 const key = assetKeys[i];
                 const fac = assetFactors[key];
+                
+                // FIX: Unique Idiosyncratic Risk (z3) generated PER ASSET to ensure proper correlation mechanics
+                const z3 = randn_bm(); 
+                
                 assetRandomness[key] = fac.vol * (fac.ce * z1 + fac.cc * z2 + fac.resid * z3);
             }
 
