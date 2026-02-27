@@ -21,9 +21,9 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },  // Blue
-    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },  // Green
-    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }   // Orange
+    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },
+    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },
+    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }
 ];
 
 export const PRESET_CMAS = [
@@ -44,13 +44,20 @@ export const PRESET_PERSONAS = [
     { name: "Late Career (Age 55)", data: { age: 55, retirementAge: 67, savings: 250000, salary: 70000, contribution: 15, realSalaryGrowth: 0 } }
 ];
 
-export const INITIAL_PORTFOLIOS = [
-    { id: "p_growth", name: "Global Equity Growth", weights: { usEq: 0.55, ukEq: 0.10, devEq: 0.15, emEq: 0.10, listedAlts: 0.10 } },
-    { id: "p_balanced", name: "Core Balanced", weights: { usEq: 0.45, ukEq: 0.10, devEq: 0.10, emEq: 0.05, listedAlts: 0.05, igCredit: 0.15, emDebt: 0.05, globalSov: 0.05 } },
-    { id: "p_priv_max", name: "Private Markets Max", weights: { usEq: 0.25, devEq: 0.10, privEq: 0.20, privCredit: 0.20, infrastructure: 0.10, privAssets: 0.10, globalHighYield: 0.05 } },
-    { id: "p_consolidation", name: "Pre-Retirement Glide", weights: { usEq: 0.30, ukEq: 0.10, igCredit: 0.30, sdCredit: 0.15, globalSov: 0.15 } },
-    { id: "p_retire", name: "At Retirement (Income)", weights: { usEq: 0.15, ukEq: 0.10, igCredit: 0.30, sdCredit: 0.25, globalSov: 0.10, moneyMkt: 0.10 } }
+export const PRESET_PORTFOLIOS = [
+    {
+        name: "Standard Core Library",
+        portfolios: [
+            { id: "p_growth", name: "Global Equity Growth", weights: { usEq: 0.55, ukEq: 0.10, devEq: 0.15, emEq: 0.10, listedAlts: 0.10 } },
+            { id: "p_balanced", name: "Core Balanced", weights: { usEq: 0.45, ukEq: 0.10, devEq: 0.10, emEq: 0.05, listedAlts: 0.05, igCredit: 0.15, emDebt: 0.05, globalSov: 0.05 } },
+            { id: "p_priv_max", name: "Private Markets Max", weights: { usEq: 0.25, devEq: 0.10, privEq: 0.20, privCredit: 0.20, infrastructure: 0.10, privAssets: 0.10, globalHighYield: 0.05 } },
+            { id: "p_consolidation", name: "Pre-Retirement Glide", weights: { usEq: 0.30, ukEq: 0.10, igCredit: 0.30, sdCredit: 0.15, globalSov: 0.15 } },
+            { id: "p_retire", name: "At Retirement (Income)", weights: { usEq: 0.15, ukEq: 0.10, igCredit: 0.30, sdCredit: 0.25, globalSov: 0.10, moneyMkt: 0.10 } }
+        ]
+    }
 ];
+
+export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS[0].portfolios));
 
 export const PRESET_STRATEGIES = [
     {
