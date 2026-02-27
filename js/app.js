@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=8.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=8.1';
 
 const state = {
     worker: null,
@@ -59,7 +59,10 @@ function setupEventListeners() {
             e.currentTarget.classList.add('active');
             
             const target = e.currentTarget.dataset.tab;
-            if (target === 'strategy') syncStrategyRowsToPortfolios();
+            
+            // FIX: Use the correct refresh function for the dropdowns
+            if (target === 'strategy') refreshPortfolioDropdowns();
+            
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
     });
@@ -67,7 +70,6 @@ function setupEventListeners() {
     document.getElementById('run-simulation-btn')?.addEventListener('click', runSimulation);
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
     
-    // Auto Update Toggle
     document.getElementById('auto-update-toggle')?.addEventListener('change', (e) => {
         state.autoRun = e.target.checked;
     });
@@ -92,7 +94,7 @@ function setupEventListeners() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=8.0');
+    state.worker = new Worker('./js/worker.js?v=8.1');
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -374,7 +376,7 @@ function renderStrategyTable() {
     state.strategyYears.forEach((y, i) => {
         headHTML += `<th>
             <div class="input-group input-group-sm justify-content-center">
-                <input type="number" class="form-control text-center fw-bold bg-transparent" value="${y}" style="max-width:60px;" data-col="${i}">
+                <input type="number" class="form-control text-center fw-bold bg-transparent strat-year-header" value="${y}" style="max-width:60px;" data-col="${i}">
                 <span class="input-group-text border-0 bg-transparent px-1">Yrs</span>
             </div>
         </th>`;
@@ -405,16 +407,50 @@ function renderStrategyTable() {
     });
 }
 
+// FIX: Robustly preserve data when adding columns
 function addStrategyYearColumn() {
-    state.strategyYears.push(10);
-    state.strategyYears.sort((a,b)=> b-a);
+    const table = document.getElementById('strategy-table');
+    const yearInputs = table.querySelectorAll('.strat-year-header');
+    
+    // Save current port selections
+    const portSelections = [];
+    for(let r=0; r<10; r++) {
+        portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
+    }
+
+    // Save current weights
+    const weightsMatrix = [];
+    yearInputs.forEach((yInp, colIdx) => {
+        const colWeights = [];
+        for(let r=0; r<10; r++) {
+            const wInp = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
+            colWeights.push(wInp ? wInp.value : 0);
+        }
+        weightsMatrix.push({ year: parseFloat(yInp.value), colWeights });
+    });
+
+    // Add new column at 10 years
+    weightsMatrix.push({ year: 10, colWeights: Array(10).fill(0) });
+    weightsMatrix.sort((a,b) => b.year - a.year);
+
+    state.strategyYears = weightsMatrix.map(w => w.year);
     renderStrategyTable();
+
+    // Restore saved data into the freshly rendered table
+    const newTable = document.getElementById('strategy-table');
+    for(let r=0; r<10; r++) {
+        newTable.querySelectorAll('.strat-port-select')[r].value = portSelections[r];
+        weightsMatrix.forEach((wm, colIdx) => {
+            const wInp = newTable.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
+            if(wInp) wInp.value = wm.colWeights[r];
+        });
+    }
 }
 
 function scrapeAndResolveStrategy() {
     const table = document.getElementById('strategy-table');
     if(!table) return [];
-    const yearInputs = table.querySelectorAll('thead input[type="number"]');
+    const yearInputs = table.querySelectorAll('.strat-year-header');
     const points = [];
 
     yearInputs.forEach((yInp, colIdx) => {
@@ -555,7 +591,6 @@ function updateConfidence() {
     state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
 }
 
-// Chart.js - Using tension 0.4 for smooth, organic curves matching the mockup
 function renderChart(results) {
     const ctx = document.getElementById('mainChart').getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
@@ -570,13 +605,10 @@ function renderChart(results) {
         const color = CHART_COLORS[index % CHART_COLORS.length];
         
         if (isMulti) {
-            // Smooth solid line
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4 });
-            // Dashed bounds
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
             datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
         } else {
-            // Smooth filled area chart
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: 'transparent', backgroundColor: color.gradientStart, pointRadius: 0, fill: '+1', tension: 0.4, order: 2 });
             datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: 'transparent', pointRadius: 0, fill: false, tension: 0.4, order: 3 });
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4, order: 1 });
