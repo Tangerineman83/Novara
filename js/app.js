@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.0';
 
 const state = {
     worker: null,
@@ -9,7 +9,8 @@ const state = {
     pieRight: null,
     portfolios: [], 
     strategyYears: [50, 15, 0],
-    autoRun: true
+    autoRun: true,
+    portfolioInputsCollapsed: false // Sync state for Left/Right panels
 };
 
 let debounceTimer;
@@ -28,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         initWorker();
         renderAssetRows();
-        initPresets(); // FIXED in v9.2
+        initPresets();
         initRunModelInputs();
         setupAutoRun();
         
@@ -88,9 +89,11 @@ function setupEventListeners() {
 
     document.getElementById('port-select-left')?.addEventListener('change', (e) => renderPortfolioPane('left', e.target.value));
     document.getElementById('port-select-right')?.addEventListener('change', (e) => renderPortfolioPane('right', e.target.value));
+    
+    // Synced Collapse Logic
     document.getElementById('toggle-portfolio-inputs')?.addEventListener('click', () => {
-        document.getElementById('port-inputs-left-container').classList.toggle('d-none');
-        document.getElementById('port-inputs-right-container').classList.toggle('d-none');
+        state.portfolioInputsCollapsed = !state.portfolioInputsCollapsed;
+        syncPortfolioInputsVisibility();
     });
 
     document.getElementById('toggle-strategy-inputs')?.addEventListener('click', () => {
@@ -100,6 +103,20 @@ function setupEventListeners() {
 
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
+}
+
+function syncPortfolioInputsVisibility() {
+    ['left', 'right'].forEach(side => {
+        const container = document.getElementById(`port-inputs-${side}-container`);
+        const hr = document.getElementById(`port-hr-${side}`);
+        if(container && hr) {
+            if (state.portfolioInputsCollapsed) {
+                container.classList.add('d-none'); hr.classList.add('d-none');
+            } else {
+                container.classList.remove('d-none'); hr.classList.remove('d-none');
+            }
+        }
+    });
 }
 
 function drawDistributionChart(assetKey, r, v) {
@@ -174,15 +191,14 @@ function buildSharedLegend() {
     const container = document.getElementById('shared-portfolio-legend');
     if(!container) return;
     let html = '';
-    ASSET_CLASSES.forEach((ac, i) => {
-        const color = PIE_COLORS[i % PIE_COLORS.length];
-        html += `<div class="shared-legend-item"><span class="shared-legend-color" style="background-color:${color}"></span>${ac.name}</div>`;
+    ASSET_CLASSES.forEach((ac) => {
+        html += `<div class="shared-legend-item"><span class="shared-legend-color" style="background-color:${ac.color}"></span>${ac.name}</div>`;
     });
     container.innerHTML = html;
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=9.2'); // Using previous worker version internally as no logic changed
+    state.worker = new Worker('./js/worker.js?v=10.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -193,9 +209,7 @@ function initWorker() {
     };
 }
 
-// --- FULLY RESTORED initPresets FIX ---
 function initPresets() {
-    // 1. CMA Presets
     const cmaSelect = document.getElementById('cma-preset-select');
     if (cmaSelect) {
         cmaSelect.innerHTML = '<option value="">Load Preset...</option>';
@@ -203,7 +217,6 @@ function initPresets() {
         cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     }
 
-    // 2. Portfolio Presets (Fixing the delay/missing library issue)
     const portSelect = document.getElementById('portfolio-preset-select');
     if (portSelect && typeof PRESET_PORTFOLIOS !== 'undefined') {
         portSelect.innerHTML = '<option value="">Load Library...</option>';
@@ -211,7 +224,6 @@ function initPresets() {
         portSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPortfolioPreset(e.target.value); });
     }
 
-    // 3. Strategy Presets (Fixing the blank strategy dropdown)
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect) {
         stratSelect.innerHTML = '<option value="">Load Preset...</option>';
@@ -219,7 +231,6 @@ function initPresets() {
         stratSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
     }
 
-    // 4. Persona Presets
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect) {
         persSelect.innerHTML = '<option value="">Load Preset...</option>';
@@ -292,15 +303,11 @@ function loadPersonaPreset(index) {
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
-// RESTORED Portfolio Loader
 function loadPortfolioPreset(index) {
     if (!PRESET_PORTFOLIOS[index]) return;
-    
-    // Hard clone the library over current state
     state.portfolios = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS[index].portfolios));
     refreshPortfolioDropdowns();
     
-    // Refresh visual panes
     if(state.portfolios.length > 0) {
         document.getElementById('port-select-left').value = state.portfolios[0].id;
         renderPortfolioPane('left', state.portfolios[0].id);
@@ -308,7 +315,6 @@ function loadPortfolioPreset(index) {
     document.getElementById('port-select-right').value = 'none';
     renderPortfolioPane('right', 'none');
     
-    // Re-draw strategy map
     renderStrategyTable();
     renderStrategyChart();
     if(state.autoRun) runSimulation();
@@ -379,17 +385,23 @@ function createNewPortfolio(side) {
 }
 
 function renderPortfolioPane(side, portId) {
+    // Rely on global state for collapsing
+    syncPortfolioInputsVisibility();
+
+    const blankMsg = document.getElementById(`port-blank-${side}`);
     const bodyContainer = document.getElementById(`port-inputs-${side}-container`);
     const visualsContainer = document.getElementById(`port-visuals-${side}`);
-    const blankMsg = document.getElementById(`port-blank-${side}`);
+    const hr = document.getElementById(`port-hr-${side}`);
 
     if (portId === 'none') {
         if(bodyContainer) bodyContainer.classList.add('d-none');
         if(visualsContainer) visualsContainer.classList.add('d-none');
+        if(hr) hr.classList.add('d-none');
         if(blankMsg) blankMsg.classList.remove('d-none');
         return;
     } else {
-        if(bodyContainer) bodyContainer.classList.remove('d-none');
+        // If not none, the sync logic already handled the container/hr visibility based on the collapse toggle.
+        // Just need to show visuals and hide blank message.
         if(visualsContainer) visualsContainer.classList.remove('d-none');
         if(blankMsg) blankMsg.classList.add('d-none');
     }
@@ -435,12 +447,12 @@ function updatePortfolioVisuals(side, portId) {
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
     const labels = []; const data = []; const bgColors = [];
     
-    ASSET_CLASSES.forEach((ac, idx) => {
+    ASSET_CLASSES.forEach(ac => {
         const w = portfolio.weights[ac.key] || 0;
         if(w > 0.001) {
             labels.push(ac.name);
             data.push((w*100).toFixed(1));
-            bgColors.push(PIE_COLORS[idx % PIE_COLORS.length]); 
+            bgColors.push(ac.color); 
         }
     });
 
@@ -481,14 +493,15 @@ function renderStrategyChart() {
 
     if (isAssetView) {
         const resolvedPoints = scrapeAndResolveStrategy(); 
-        ASSET_CLASSES.forEach((ac, idx) => {
+        ASSET_CLASSES.forEach(ac => {
             const data = resolvedPoints.map(pt => (pt.weights[ac.key] || 0) * 100);
             if(data.some(d => d > 0)) {
                 datasets.push({
                     label: ac.name,
                     data: data,
-                    backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                    backgroundColor: ac.color,
                     borderColor: 'transparent',
+                    pointRadius: 0,
                     fill: true,
                     tension: 0.1
                 });
@@ -499,14 +512,16 @@ function renderStrategyChart() {
         const portfoliosInUse = new Set();
         rawPoints.forEach(pt => Object.keys(pt.weights).forEach(k => { if(pt.weights[k]>0) portfoliosInUse.add(k); }));
         
+        const genericColors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
         Array.from(portfoliosInUse).forEach((portId, idx) => {
             const pName = state.portfolios.find(p => p.id === portId)?.name || portId;
             const data = rawPoints.map(pt => (pt.weights[portId] || 0) * 100);
             datasets.push({
                 label: pName,
                 data: data,
-                backgroundColor: PIE_COLORS[(idx * 3) % PIE_COLORS.length], 
+                backgroundColor: genericColors[idx % genericColors.length], 
                 borderColor: 'transparent',
+                pointRadius: 0,
                 fill: true,
                 tension: 0.1
             });
@@ -767,13 +782,14 @@ function renderChart(results) {
     const startAge = results[0].meta.startAge;
     const months = results[0].percentiles.pMedian.length;
     const labels = Array.from({length: months}, (_, i) => i);
-    const isMulti = results.length > 1;
 
     const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
+        const isPrimary = (index === 0);
         
-        if (isMulti) {
+        // FIX: Primary strategy always gets fill. Others get dashed boundaries.
+        if (!isPrimary) {
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4 });
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
             datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [5, 5], borderWidth: 1.5, tension: 0.4 });
