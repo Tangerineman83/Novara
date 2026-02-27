@@ -1,6 +1,5 @@
 // js/worker.js
 
-// Standard Normal Generator
 function randn_bm() {
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
@@ -8,17 +7,37 @@ function randn_bm() {
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
-// FIX: Fat-Tailed Student's t-Distribution Generator (df=5)
-// Scaled to have a variance of 1 to preserve user input volatilities
-function rand_t(df) {
-    let v = 0;
-    for(let i=0; i<df; i++) {
-        let z = randn_bm();
-        v += z*z;
+// Marsaglia and Tsang's method for Gamma(alpha, 1)
+function rand_gamma(alpha) {
+    if (alpha < 1) return rand_gamma(1.0 + alpha) * Math.pow(Math.random(), 1.0 / alpha);
+    let d = alpha - 1.0 / 3.0;
+    let c = 1.0 / Math.sqrt(9.0 * d);
+    while (true) {
+        let x = randn_bm();
+        let v = 1.0 + c * x;
+        while (v <= 0) { x = randn_bm(); v = 1.0 + c * x; }
+        v = v * v * v;
+        let u = Math.random();
+        let x2 = x * x;
+        if (u < 1.0 - 0.0331 * x2 * x2) return d * v;
+        if (Math.log(u) < 0.5 * x2 + d * (1.0 - v + Math.log(v))) return d * v;
     }
-    let t = randn_bm() / Math.sqrt(v/df);
-    // Scale by sqrt((df-2)/df) so Variance = 1.0
-    return t * Math.sqrt((df-2)/df); 
+}
+
+// Converts User-Input Excess Kurtosis to internal Degrees of Freedom
+function getDfFromKurtosis(k) {
+    if (k <= 0.05) return 1000; // Cap at large df to approximate Normal Distribution
+    return (6.0 / k) + 4.0;
+}
+
+// Continuous Student's t-Generator scaled to Unit Variance
+function rand_t_custom(kurtosis) {
+    if (kurtosis <= 0) return randn_bm();
+    const df = getDfFromKurtosis(kurtosis);
+    const z = randn_bm();
+    const v = rand_gamma(df / 2.0) * 2.0; // Chi-square is Gamma(df/2, 2)
+    const t = z / Math.sqrt(v / df);
+    return t * Math.sqrt((df - 2.0) / df); // Scale back to unit variance
 }
 
 function quantile(arr, q) {
@@ -39,7 +58,6 @@ let cachedStartAge = 30;
 
 self.onmessage = function(e) {
     const { type, payload } = e.data;
-
     if (type === 'RUN_SIMULATION') {
         try {
             const paths = runMonteCarloPaths(payload);
@@ -47,22 +65,16 @@ self.onmessage = function(e) {
             cachedStrategies = payload.strategies;
             cachedMonths = paths[0].length > 0 ? paths[0][0].length : 0;
             cachedStartAge = payload.persona.age;
-            
             const stats = calculateStats(paths, payload.strategies, 0.90);
             self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (error) {
-            self.postMessage({ type: 'ERROR', payload: error.message });
-        }
-    } 
-    else if (type === 'RECALCULATE_STATS') {
+        } catch (error) { self.postMessage({ type: 'ERROR', payload: error.message }); }
+    } else if (type === 'RECALCULATE_STATS') {
         if (!cachedSimulationPaths) return;
         try {
             const confidence = payload.confidence || 0.90;
             const stats = calculateStats(cachedSimulationPaths, cachedStrategies, confidence);
             self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (error) {
-            self.postMessage({ type: 'ERROR', payload: error.message });
-        }
+        } catch (error) { self.postMessage({ type: 'ERROR', payload: error.message }); }
     }
 };
 
@@ -73,6 +85,7 @@ function runMonteCarloPaths(data) {
     
     const coreInflation = settings.inflation; 
     const realSalaryGrowth = persona.realSalaryGrowth;
+    const sysKurtosis = settings.sysKurtosis || 2.0; // Global Systemic Tail Risk
     
     const monthlyInflationRate = Math.pow(1 + coreInflation / 100, 1/12);
     const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1/12);
@@ -84,15 +97,14 @@ function runMonteCarloPaths(data) {
         
         // Normalize constraints (Ensures ce^2 + cc^2 <= 1)
         const sumSq = ce * ce + cc * cc;
-        if (sumSq > 1) {
-            ce = ce / Math.sqrt(sumSq);
-            cc = cc / Math.sqrt(sumSq);
-        }
+        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
+        
         const resid = Math.sqrt(Math.max(0, 1 - ce * ce - cc * cc));
         
         assetFactors[key] = {
             mean: (cma.r[key] || 0), 
             vol: (cma.v[key] || 0) / Math.sqrt(12),
+            k: (cma.k[key] || 0), // Fetch Asset Specific Kurtosis
             ce: ce, cc: cc, resid: resid
         };
     });
@@ -107,21 +119,22 @@ function runMonteCarloPaths(data) {
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            // FIX: FAT TAILS using t-distribution (df=5)
-            const z1 = rand_t(5); // Global Equity Factor
-            const z2 = rand_t(5); // Global Credit Factor
+            // Systemic Market Shocks (incorporating Global Kurtosis)
+            const z1 = rand_t_custom(sysKurtosis); 
+            const z2 = rand_t_custom(sysKurtosis); 
             
-            // FIX: Diversification Paradox. Shared Basis Risk prevents total cancellation of residual variance.
-            const z_basis = rand_t(5); 
+            // Shared Basis Risk (solves the Diversification Paradox)
+            const z_basis = rand_t_custom(sysKurtosis); 
 
             const assetRandomness = {};
             for (let i = 0; i < assetKeys.length; i++) {
                 const key = assetKeys[i];
                 const fac = assetFactors[key];
                 
-                const z_idio = rand_t(5); // Pure idiosyncratic risk
+                // Pure Idiosyncratic Risk (uses Asset Specific Kurtosis)
+                const z_idio = rand_t_custom(fac.k); 
                 
-                // 30% of residual risk is systemic basis risk, 70% is pure idiosyncratic
+                // Blend systemic basis risk (30%) with pure idiosyncratic risk (70%)
                 const effective_resid = fac.resid * (Math.sqrt(0.3) * z_basis + Math.sqrt(0.7) * z_idio);
                 
                 assetRandomness[key] = fac.vol * (fac.ce * z1 + fac.cc * z2 + effective_resid);
@@ -134,7 +147,6 @@ function runMonteCarloPaths(data) {
                 const weightsMap = strat.monthlyWeights[m];
                 
                 let monthlyReturn = 0;
-                
                 for (let i = 0; i < assetKeys.length; i++) {
                     const key = assetKeys[i];
                     const w = weightsMap[key] || 0;
@@ -143,7 +155,7 @@ function runMonteCarloPaths(data) {
                     const fac = assetFactors[key];
                     const imp = strat.implAdjustments[key] || 0; 
                     
-                    // FIX: Arithmetic alignment. Using simple division prevents geometric double-drag.
+                    // Arithmetic Step (Fixes Geometric Double-Drag)
                     const expectedReturn = (fac.mean + imp) / 12;
                     monthlyReturn += w * (expectedReturn + assetRandomness[key]);
                 }
@@ -155,12 +167,10 @@ function runMonteCarloPaths(data) {
                 currentSimPaths[stratIdx][m] = pots[stratIdx] / cumulativeInflation;
             }
         }
-        
         for (let stratIdx = 0; stratIdx < strategies.length; stratIdx++) {
             allStrategyPaths[stratIdx].push(currentSimPaths[stratIdx]);
         }
     }
-
     return allStrategyPaths;
 }
 
@@ -192,6 +202,5 @@ function calculateStats(allPaths, strategies, confidence) {
             }
         };
     });
-
     return strategyResults;
 }
