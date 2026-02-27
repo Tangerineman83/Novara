@@ -1,6 +1,5 @@
 // js/config.js
 
-// 1. REINSTATED EXPANDED ASSET CLASSES
 export const ASSET_CLASSES = [
     { key: "usEq", name: "US Equity", defaultR: 0.075, defaultV: 0.16 },
     { key: "ukEq", name: "UK Equity", defaultR: 0.065, defaultV: 0.15 },
@@ -21,14 +20,13 @@ export const ASSET_CLASSES = [
     { key: "globalSov", name: "Global Sovereign", defaultR: 0.025, defaultV: 0.05 }
 ];
 
+// PALETTE MATCHING THE DESIGN MOCKUP
 export const CHART_COLORS = [
-    { border: '#312E81', gradientStart: 'rgba(49, 46, 129, 0.4)', gradientEnd: 'rgba(49, 46, 129, 0.0)' }, 
-    { border: '#0D9488', gradientStart: 'rgba(13, 148, 136, 0.4)', gradientEnd: 'rgba(13, 148, 136, 0.0)' },
-    { border: '#E11D48', gradientStart: 'rgba(225, 29, 72, 0.4)', gradientEnd: 'rgba(225, 29, 72, 0.0)' },
-    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }
+    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },  // Blue
+    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },  // Green
+    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }   // Orange
 ];
 
-// Expanded CMA to match new keys
 export const PRESET_CMAS = [
     {
         name: "2026 Q1 Global Equilibrium",
@@ -47,7 +45,6 @@ export const PRESET_PERSONAS = [
     { name: "Late Career (Age 55)", data: { age: 55, retirementAge: 67, savings: 250000, salary: 70000, contribution: 15, realSalaryGrowth: 0 } }
 ];
 
-// INITIAL PORTFOLIO LIBRARY
 export const INITIAL_PORTFOLIOS = [
     { id: "p_growth", name: "Global Equity Growth", weights: { usEq: 0.55, ukEq: 0.10, devEq: 0.15, emEq: 0.10, listedAlts: 0.10 } },
     { id: "p_balanced", name: "Core Balanced", weights: { usEq: 0.45, ukEq: 0.10, devEq: 0.10, emEq: 0.05, listedAlts: 0.05, igCredit: 0.15, emDebt: 0.05, globalSov: 0.05 } },
