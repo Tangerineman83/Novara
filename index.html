@@ -12,9 +12,7 @@
 
 <div class="d-flex" id="wrapper">
     <div id="sidebar-wrapper">
-        <div class="sidebar-heading">
-            <span class="logo-mark">N</span>OVARA
-        </div>
+        <div class="sidebar-heading"><span class="logo-mark">N</span>OVARA</div>
         <div class="list-group list-group-flush my-3">
             <a href="#" class="list-group-item active" data-tab="cma"><i class="fas fa-chart-pie me-3"></i>Markets</a>
             <a href="#" class="list-group-item" data-tab="portfolio"><i class="fas fa-cubes me-3"></i>Portfolios</a>
@@ -51,9 +49,10 @@
                                 <thead>
                                     <tr>
                                         <th>Asset Class</th>
-                                        <th class="text-center" style="width: 100px;">Distribution</th>
+                                        <th class="text-center" style="width: 100px;">Tail Risk</th>
                                         <th class="text-end">Return (%)</th>
                                         <th class="text-end">Vol (%)</th>
+                                        <th class="text-end">Kurtosis <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Excess Kurtosis (>0). Higher values model 'fat tails' and black swan events."></i></th>
                                         <th class="text-end">Corr w/ Eq</th>
                                         <th class="text-end">Corr w/ Cred</th>
                                     </tr>
@@ -94,26 +93,15 @@
                             </div>
                             <div class="card-body">
                                 <div id="port-inputs-left-container" class="table-responsive mb-3">
-                                    <table class="table table-sm table-borderless align-middle mb-0" id="port-table-left">
-                                        <tbody class="small"></tbody>
-                                    </table>
+                                    <table class="table table-sm table-borderless align-middle mb-0" id="port-table-left"><tbody class="small"></tbody></table>
                                 </div>
                                 <hr id="port-hr-left" class="border-light m-0">
                                 <div class="row align-items-center mt-3" id="port-visuals-left">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-left"></canvas></div></div>
                                     <div class="col-6">
-                                        <div class="stats-badge mb-2">
-                                            <span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span>
-                                            <span class="val text-primary" id="stat-ret-left">--%</span>
-                                        </div>
-                                        <div class="stats-badge mb-2">
-                                            <span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span>
-                                            <span class="val" id="stat-geo-left">--%</span>
-                                        </div>
-                                        <div class="stats-badge">
-                                            <span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Fully accounts for inter-asset correlations based on the current CMA factor model."></i></span>
-                                            <span class="val text-muted" id="stat-vol-left">--%</span>
-                                        </div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-left">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-left">--%</span></div>
+                                        <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-left">--%</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -125,71 +113,44 @@
                             <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
                                 <span class="fw-bold text-muted small text-uppercase">Comparison Portfolio</span>
                                 <div class="d-flex gap-2">
-                                    <select id="port-select-right" class="form-select form-select-sm rounded-pill" style="max-width: 160px;">
-                                        <option value="none">-- Select to Compare --</option>
-                                    </select>
+                                    <select id="port-select-right" class="form-select form-select-sm rounded-pill" style="max-width: 160px;"><option value="none">-- Select to Compare --</option></select>
                                     <button class="btn btn-sm btn-light border rounded-circle" onclick="createNewPortfolio('right')"><i class="fas fa-plus"></i></button>
                                 </div>
                             </div>
                             <div class="card-body" id="port-body-right">
                                 <div id="port-inputs-right-container" class="table-responsive mb-3 d-none">
-                                    <table class="table table-sm table-borderless align-middle mb-0" id="port-table-right">
-                                        <tbody class="small"></tbody>
-                                    </table>
+                                    <table class="table table-sm table-borderless align-middle mb-0" id="port-table-right"><tbody class="small"></tbody></table>
                                 </div>
                                 <hr id="port-hr-right" class="border-light m-0 d-none">
                                 <div class="row align-items-center mt-3 d-none" id="port-visuals-right">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-right"></canvas></div></div>
                                     <div class="col-6">
-                                        <div class="stats-badge mb-2">
-                                            <span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span>
-                                            <span class="val text-primary" id="stat-ret-right">--%</span>
-                                        </div>
-                                        <div class="stats-badge mb-2">
-                                            <span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span>
-                                            <span class="val" id="stat-geo-right">--%</span>
-                                        </div>
-                                        <div class="stats-badge">
-                                            <span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Fully accounts for inter-asset correlations based on the current CMA factor model."></i></span>
-                                            <span class="val text-muted" id="stat-vol-right">--%</span>
-                                        </div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-right">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-right">--%</span></div>
+                                        <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-right">--%</span></div>
                                     </div>
                                 </div>
-                                <div id="port-blank-right" class="text-center text-muted py-5 mt-5">
-                                    <i class="fas fa-balance-scale fa-2x mb-3 opacity-25"></i>
-                                    <p class="small">Select a portfolio to compare</p>
-                                </div>
+                                <div id="port-blank-right" class="text-center text-muted py-5 mt-5"><i class="fas fa-balance-scale fa-2x mb-3 opacity-25"></i><p class="small">Select a portfolio to compare</p></div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="card mt-3">
-                    <div class="card-body py-2 px-3">
-                        <div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div>
-                    </div>
-                </div>
+                <div class="card mt-3"><div class="card-body py-2 px-3"><div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div></div></div>
             </div>
 
             <div id="tab-strategy" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="fw-bold m-0">Strategies</h4>
                     <div class="d-flex gap-2">
-                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;">
-                            <option value="">Load Preset...</option>
-                        </select>
-                        <button class="btn btn-sm btn-light border rounded-pill" id="toggle-strategy-inputs" title="Toggle Inputs">
-                            <i class="fas fa-compress-alt text-muted"></i>
-                        </button>
+                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;"><option value="">Load Preset...</option></select>
+                        <button class="btn btn-sm btn-light border rounded-pill" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
                     </div>
                 </div>
-                
                 <div class="card mb-3" id="strategy-table-container">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table align-middle text-center mb-0" id="strategy-table">
-                                <thead class="bg-light">
-                                    <tr><th style="width: 250px;" class="text-start ps-4">Building Blocks</th></tr>
-                                </thead>
+                                <thead class="bg-light"><tr><th style="width: 250px;" class="text-start ps-4">Building Blocks</th></tr></thead>
                                 <tbody></tbody>
                             </table>
                         </div>
@@ -199,28 +160,19 @@
                         <button class="btn btn-sm btn-light border rounded-pill" onclick="addStrategyYearColumn()"><i class="fas fa-plus me-1"></i> Add Time Point</button>
                     </div>
                 </div>
-
                 <div class="card">
                     <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
                         <span class="fw-bold small text-uppercase text-muted">Glidepath Visualizer</span>
-                        <div class="form-check form-switch m-0">
-                            <input class="form-check-input" type="checkbox" id="strat-view-toggle">
-                            <label class="form-check-label small text-muted ms-1">Look-Through Assets</label>
-                        </div>
+                        <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="strat-view-toggle"><label class="form-check-label small text-muted ms-1">Look-Through Assets</label></div>
                     </div>
-                    <div class="card-body pt-2 pb-3">
-                        <div class="strat-chart-container"><canvas id="strategyChart"></canvas></div>
-                    </div>
+                    <div class="card-body pt-2 pb-3"><div class="strat-chart-container"><canvas id="strategyChart"></canvas></div></div>
                 </div>
-
             </div>
 
             <div id="tab-persona" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="fw-bold m-0">Personas</h4>
-                    <select id="persona-preset-select" class="form-select form-select-sm rounded-pill" style="width: 220px;">
-                        <option value="">Load Preset...</option>
-                    </select>
+                    <select id="persona-preset-select" class="form-select form-select-sm rounded-pill" style="width: 220px;"><option value="">Load Preset...</option></select>
                 </div>
                 <div class="row">
                     <div class="col-md-6 col-lg-4">
@@ -241,26 +193,11 @@
             <div id="tab-model" class="view-section d-none dashboard-container">
                 <div class="input-ribbon mb-3">
                     <div class="row g-2 align-items-center">
-                        <div class="col-md-2 col-sm-6 ribbon-col">
-                            <label class="form-label mb-1" style="font-size:0.75rem">Markets</label>
-                            <select id="run-cma-select" class="form-select form-select-sm"></select>
-                        </div>
-                        <div class="col-md-2 col-sm-6 ribbon-col">
-                            <label class="form-label mb-1" style="font-size:0.75rem">Persona</label>
-                            <select id="run-persona-select" class="form-select form-select-sm"></select>
-                        </div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s1">
-                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 1</label>
-                            <select id="run-strat-1" class="form-select form-select-sm"></select>
-                        </div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2">
-                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label>
-                            <select id="run-strat-2" class="form-select form-select-sm"></select>
-                        </div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3">
-                            <label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label>
-                            <select id="run-strat-3" class="form-select form-select-sm"></select>
-                        </div>
+                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Markets</label><select id="run-cma-select" class="form-select form-select-sm"></select></div>
+                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Persona</label><select id="run-persona-select" class="form-select form-select-sm"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s1"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 1</label><select id="run-strat-1" class="form-select form-select-sm"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label><select id="run-strat-2" class="form-select form-select-sm"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label><select id="run-strat-3" class="form-select form-select-sm"></select></div>
                         <div class="col-md-2 d-flex flex-column gap-2 justify-content-end align-items-end ps-md-3 border-start">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="small fw-bold text-muted" style="font-size:0.7rem">LIVE</span>
@@ -322,6 +259,7 @@
                 <hr class="text-muted opacity-25">
                 <div class="mb-3"><label class="form-label small fw-bold">Simulations</label><input type="number" id="setting-sim-count" class="form-control bg-light border-0" value="2000" step="500"></div>
                 <div class="mb-3"><label class="form-label small fw-bold">Core Inflation (%)</label><input type="number" id="setting-inflation" class="form-control bg-light border-0" value="2.5" step="0.1"></div>
+                <div class="mb-3"><label class="form-label small fw-bold">Systemic Kurtosis</label><input type="number" id="setting-sys-kurtosis" class="form-control bg-light border-0" value="2.0" step="0.5"><div class="form-text" style="font-size: 0.7rem;">Controls global market tail risk (>0).</div></div>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-primary w-100 rounded-pill" data-bs-dismiss="modal">Apply Settings</button>
