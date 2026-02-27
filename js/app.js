@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPortfolioPane('left', state.portfolios[0].id);
         renderStrategyTable();
 
-        // Init Tooltips globally
         initTooltips();
 
         try {
@@ -133,7 +132,6 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// FIX: Anchor scaling to visually demonstrate kurtosis (5% vol = tall, 25% vol = flat)
 function drawDistributionChart(assetKey, r, v, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -145,7 +143,7 @@ function drawDistributionChart(assetKey, r, v, colorHex) {
     const points = [];
     
     const vol = Math.max(v, 0.001);
-    const maxVisY = 1 / (0.05 * Math.sqrt(2 * Math.PI)); // Baseline height (5% volatility)
+    const maxVisY = 1 / (0.05 * Math.sqrt(2 * Math.PI)); 
     
     for (let x = minX; x <= maxX; x += 0.01) {
         const exponent = -Math.pow(x - r, 2) / (2 * Math.pow(vol, 2));
@@ -157,7 +155,6 @@ function drawDistributionChart(assetKey, r, v, colorHex) {
     ctx.moveTo(0, height);
     points.forEach(p => {
         const cx = ((p.x - minX) / (maxX - minX)) * width;
-        // Cap the height so ultra-low vol doesn't fly off canvas, but let wide curves be flat
         const cy = height - Math.min(p.y / maxVisY, 1.2) * height * 0.8; 
         ctx.lineTo(cx, cy);
     });
@@ -480,9 +477,10 @@ function updatePortfolioVisuals(side, portId) {
     });
 }
 
-// FIX: Deterministic Math normalized identically to worker.js to ensure perfect alignment
+// FIX: Deterministic Math fully aligned with the robust Worker formulation
 function calcDeterministicStats(weights, cma) {
-    let ret = 0; let sum_ce = 0; let sum_cc = 0; let sum_resid_sq = 0;
+    let ret = 0; let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
+    
     ASSET_CLASSES.forEach(ac => {
         const w = weights[ac.key] || 0;
         if(w === 0) return;
@@ -499,16 +497,19 @@ function calcDeterministicStats(weights, cma) {
         ret += w * mu; 
         sum_ce += w * vol * ce; 
         sum_cc += w * vol * cc; 
-        sum_resid_sq += Math.pow(w * vol * resid, 2);
+        // 30% of residual variance is perfectly correlated basis risk
+        sum_basis += w * vol * resid * Math.sqrt(0.3);
+        // 70% is perfectly uncorrelated idiosyncratic risk
+        sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
     });
     
-    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + sum_resid_sq;
+    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq;
     const portVol = Math.sqrt(portVariance);
     const geoRet = ret - (portVariance / 2);
+    
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
-// FIX: Removed pointRadius markers for cleaner flow
 function renderStrategyChart() {
     const ctx = document.getElementById('strategyChart');
     if(!ctx) return;
@@ -844,7 +845,6 @@ function renderChart(results) {
     });
 }
 
-// FIX: Added d-flex and gap to ensure % differences never cut off or break lines
 function renderResultsTable(results) {
     const tbody = document.querySelector('#results-table tbody');
     if(!tbody) return;
