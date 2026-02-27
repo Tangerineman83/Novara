@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=11.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=11.1';
 
 const state = {
     worker: null,
@@ -14,6 +14,7 @@ const state = {
 };
 
 let debounceTimer;
+
 window.onerror = function(message, source, lineno, colno, error) { console.error("Sys Err:", error); };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPortfolioPane('left', state.portfolios[0].id);
         renderStrategyTable();
 
+        // FIX: Force Tooltips to render on the body so they don't get clipped by parent cards
         initTooltips();
 
         try {
@@ -54,7 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initTooltips() {
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
+        container: 'body' 
+    }));
 }
 
 function setupEventListeners() {
@@ -77,6 +81,7 @@ function setupEventListeners() {
                     if(state.pieRight) state.pieRight.resize();
                 }, 50);
             }
+            
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
     });
@@ -130,7 +135,7 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Log Gamma Approximation for accurate Student's t PDF generation
+// Math logic for accurate distribution splines
 function logGamma(z) {
     let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
     let x = z, y = z, tmp = x + 5.5, ser = 1.000000000190015;
@@ -148,12 +153,8 @@ function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
 
     const minX = -0.4; const maxX = 0.4; 
     const vol = Math.max(v, 0.001);
-    
-    // Convert Kurtosis to df for the PDF Math
     const k = Math.max(kurtosis, 0.01);
     const df = (k > 0.05) ? (6 / k) + 4 : 1000;
-    
-    // Scale parameter so variance equals input vol^2
     const s = vol * Math.sqrt((df - 2) / df);
     const coef = Math.exp(logGamma((df+1)/2) - logGamma(df/2)) / (Math.sqrt(Math.PI * df) * s);
     const exponent = -(df + 1) / 2;
@@ -193,6 +194,8 @@ function renderAssetRows() {
     tbody.innerHTML = '';
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
+        // FIX: Now rendering exactly 7 <td> cells to match the 7 <th> headers. 
+        // CE and CC step at 0.01 as they are -1.0 to 1.0 correlations, not percentages.
         tr.innerHTML = `
             <td class="fw-medium text-muted">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${asset.color}; margin-right:6px;"></span>
@@ -202,8 +205,8 @@ function renderAssetRows() {
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0"></td>
+            <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0.00"></td>
+            <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0.00"></td>
         `;
         tbody.appendChild(tr);
         
@@ -231,7 +234,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=11.0'); 
+    state.worker = new Worker('./js/worker.js?v=11.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -313,6 +316,7 @@ function setupAutoRun() {
     });
 }
 
+// FIX: Explicitly handle which variables are percentages and which are raw scalars
 function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
@@ -320,7 +324,13 @@ function loadCMAPreset(index) {
         tr.querySelectorAll('input').forEach(inp => {
             const key = inp.dataset.key; const field = inp.dataset.field; 
             if (data[field] && data[field][key] !== undefined) {
-                inp.value = field === 'k' ? data[field][key].toFixed(2) : (data[field][key] * 100).toFixed(2);
+                const val = data[field][key];
+                if (field === 'r' || field === 'v') {
+                    inp.value = (val * 100).toFixed(2);
+                } else {
+                    // Kurtosis and Correlations are displayed as raw numbers
+                    inp.value = val.toFixed(2);
+                }
                 inp.dispatchEvent(new Event('input')); 
             }
         });
@@ -513,10 +523,7 @@ function calcDeterministicStats(weights, cma) {
         ret += w * mu; 
         sum_ce += w * vol * ce; 
         sum_cc += w * vol * cc; 
-        
-        // 30% of residual variance is perfectly correlated basis risk (solves Diversification Paradox)
         sum_basis += w * vol * resid * Math.sqrt(0.3);
-        // 70% is perfectly uncorrelated idiosyncratic risk
         sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
     });
     
@@ -550,7 +557,7 @@ function renderStrategyChart() {
                     borderColor: 'transparent',
                     pointRadius: 0,
                     fill: true,
-                    tension: 0.4 // Smooth splines
+                    tension: 0.4 
                 });
             }
         });
@@ -706,6 +713,7 @@ function scrapeAndResolveStrategy() {
     });
 }
 
+// FIX: Explicitly handle percentage scaling vs. raw scalars (Kurtosis/Correlations)
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
@@ -713,12 +721,12 @@ function getActiveCMA() {
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
-                const val = parseFloat(inp.value);
+                const val = parseFloat(inp.value) || 0;
                 if(inp.dataset.field === 'r') r[inp.dataset.key] = val / 100;
                 if(inp.dataset.field === 'v') v[inp.dataset.key] = val / 100;
-                if(inp.dataset.field === 'k') k[inp.dataset.key] = val; // Kurtosis is raw number
-                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val / 100;
-                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val / 100;
+                if(inp.dataset.field === 'k') k[inp.dataset.key] = val; // Kurtosis is raw
+                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val; // Correlations are raw
+                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val; // Correlations are raw
             });
         });
         return { r, v, k, ce, cc };
@@ -877,7 +885,6 @@ function renderResultsTable(results) {
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
     const baseLow = baseRes.percentiles.pLower[lastIdx];
     const baseMed = baseRes.percentiles.pMedian[lastIdx];
-    const baseHigh = baseRes.percentiles.pUpper[lastIdx];
     
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
@@ -905,7 +912,7 @@ function renderResultsTable(results) {
                 <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
             </td>
             <td class="text-end text-muted border-bottom border-light pe-4">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span>${formatDiff(currHigh, baseHigh)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span></div>
             </td>
         `;
         tbody.appendChild(tr);
