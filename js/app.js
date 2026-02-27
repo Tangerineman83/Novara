@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, PIE_COLORS } from './config.js?v=9.2';
 
 const state = {
     worker: null,
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         initWorker();
         renderAssetRows();
-        initPresets();
+        initPresets(); // FIXED in v9.2
         initRunModelInputs();
         setupAutoRun();
         
@@ -182,7 +182,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=9.1');
+    state.worker = new Worker('./js/worker.js?v=9.2'); // Using previous worker version internally as no logic changed
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -193,16 +193,36 @@ function initWorker() {
     };
 }
 
+// --- FULLY RESTORED initPresets FIX ---
 function initPresets() {
+    // 1. CMA Presets
     const cmaSelect = document.getElementById('cma-preset-select');
     if (cmaSelect) {
         cmaSelect.innerHTML = '<option value="">Load Preset...</option>';
         PRESET_CMAS.forEach((preset, index) => { cmaSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
         cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     }
+
+    // 2. Portfolio Presets (Fixing the delay/missing library issue)
+    const portSelect = document.getElementById('portfolio-preset-select');
+    if (portSelect && typeof PRESET_PORTFOLIOS !== 'undefined') {
+        portSelect.innerHTML = '<option value="">Load Library...</option>';
+        PRESET_PORTFOLIOS.forEach((preset, index) => { portSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
+        portSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPortfolioPreset(e.target.value); });
+    }
+
+    // 3. Strategy Presets (Fixing the blank strategy dropdown)
+    const stratSelect = document.getElementById('strategy-preset-select');
+    if (stratSelect) {
+        stratSelect.innerHTML = '<option value="">Load Preset...</option>';
+        PRESET_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
+        stratSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
+    }
+
+    // 4. Persona Presets
     const persSelect = document.getElementById('persona-preset-select');
     if (persSelect) {
-        persSelect.innerHTML = '<option value="">Load Preset Persona...</option>';
+        persSelect.innerHTML = '<option value="">Load Preset...</option>';
         PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
         persSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPersonaPreset(e.target.value); });
     }
@@ -238,6 +258,17 @@ function updateStrategySelectors() {
     });
 }
 
+function setupAutoRun() {
+    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
+    inputs.forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            if(!state.autoRun) return;
+            updateUIState('Updating...');
+            clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); 
+        });
+    });
+}
+
 function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
@@ -259,6 +290,28 @@ function loadPersonaPreset(index) {
     setVal('p-age', p.age); setVal('p-retAge', p.retirementAge);
     setVal('p-pot', p.savings); setVal('p-salary', p.salary);
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
+}
+
+// RESTORED Portfolio Loader
+function loadPortfolioPreset(index) {
+    if (!PRESET_PORTFOLIOS[index]) return;
+    
+    // Hard clone the library over current state
+    state.portfolios = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS[index].portfolios));
+    refreshPortfolioDropdowns();
+    
+    // Refresh visual panes
+    if(state.portfolios.length > 0) {
+        document.getElementById('port-select-left').value = state.portfolios[0].id;
+        renderPortfolioPane('left', state.portfolios[0].id);
+    }
+    document.getElementById('port-select-right').value = 'none';
+    renderPortfolioPane('right', 'none');
+    
+    // Re-draw strategy map
+    renderStrategyTable();
+    renderStrategyChart();
+    if(state.autoRun) runSimulation();
 }
 
 function loadStrategyPreset(index) {
