@@ -14,7 +14,6 @@ const state = {
 };
 
 let debounceTimer;
-
 window.onerror = function(message, source, lineno, colno, error) { console.error("Sys Err:", error); };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,7 +77,6 @@ function setupEventListeners() {
                     if(state.pieRight) state.pieRight.resize();
                 }, 50);
             }
-            
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
     });
@@ -132,7 +130,16 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function drawDistributionChart(assetKey, r, v, colorHex) {
+// Log Gamma Approximation for accurate Student's t PDF generation
+function logGamma(z) {
+    let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    let x = z, y = z, tmp = x + 5.5, ser = 1.000000000190015;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (let j = 0; j < 6; j++) ser += co[j] / ++y;
+    return Math.log(2.5066282746310005 * ser / x) - tmp;
+}
+
+function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -140,14 +147,22 @@ function drawDistributionChart(assetKey, r, v, colorHex) {
     ctx.clearRect(0, 0, width, height);
 
     const minX = -0.4; const maxX = 0.4; 
-    const points = [];
-    
     const vol = Math.max(v, 0.001);
+    
+    // Convert Kurtosis to df for the PDF Math
+    const k = Math.max(kurtosis, 0.01);
+    const df = (k > 0.05) ? (6 / k) + 4 : 1000;
+    
+    // Scale parameter so variance equals input vol^2
+    const s = vol * Math.sqrt((df - 2) / df);
+    const coef = Math.exp(logGamma((df+1)/2) - logGamma(df/2)) / (Math.sqrt(Math.PI * df) * s);
+    const exponent = -(df + 1) / 2;
+
+    const points = [];
     const maxVisY = 1 / (0.05 * Math.sqrt(2 * Math.PI)); 
     
     for (let x = minX; x <= maxX; x += 0.01) {
-        const exponent = -Math.pow(x - r, 2) / (2 * Math.pow(vol, 2));
-        const y = (1 / (vol * Math.sqrt(2 * Math.PI))) * Math.exp(exponent);
+        const y = coef * Math.pow(1 + Math.pow((x - r) / s, 2) / df, exponent);
         points.push({x, y});
     }
 
@@ -155,21 +170,21 @@ function drawDistributionChart(assetKey, r, v, colorHex) {
     ctx.moveTo(0, height);
     points.forEach(p => {
         const cx = ((p.x - minX) / (maxX - minX)) * width;
-        const cy = height - Math.min(p.y / maxVisY, 1.2) * height * 0.8; 
+        const cy = height - Math.min(p.y / maxVisY, 1.2) * height * 0.85; 
         ctx.lineTo(cx, cy);
     });
     ctx.lineTo(width, height);
     ctx.closePath();
     
     const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, hexToRgba(colorHex, 0.6));
+    grad.addColorStop(0, hexToRgba(colorHex, 0.7));
     grad.addColorStop(1, hexToRgba(colorHex, 0.0));
     ctx.fillStyle = grad; ctx.fill();
     ctx.strokeStyle = colorHex; ctx.lineWidth = 1.5; ctx.stroke();
     
     const meanCx = ((r - minX) / (maxX - minX)) * width;
     ctx.beginPath(); ctx.moveTo(meanCx, 0); ctx.lineTo(meanCx, height);
-    ctx.strokeStyle = 'rgba(30, 41, 59, 0.3)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.2)'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
 }
 
 function renderAssetRows() {
@@ -186,20 +201,22 @@ function renderAssetRows() {
             <td class="text-center"><canvas id="dist-${asset.key}" class="dist-canvas" width="80" height="30"></canvas></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0"></td>
         `;
         tbody.appendChild(tr);
         
-        const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"]');
+        const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"], input[data-field="k"]');
         inputs.forEach(inp => {
             inp.addEventListener('input', () => {
                 const r = parseFloat(tr.querySelector('input[data-field="r"]').value)/100 || 0;
                 const v = parseFloat(tr.querySelector('input[data-field="v"]').value)/100 || 0;
-                drawDistributionChart(asset.key, r, v, asset.color);
+                const k = parseFloat(tr.querySelector('input[data-field="k"]').value) || 0;
+                drawDistributionChart(asset.key, r, v, k, asset.color);
             });
         });
-        setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV, asset.color), 0);
+        setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV, asset.defaultK, asset.color), 0);
     });
 }
 
@@ -286,7 +303,7 @@ function updateStrategySelectors() {
 }
 
 function setupAutoRun() {
-    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
+    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if(!state.autoRun) return;
@@ -303,7 +320,7 @@ function loadCMAPreset(index) {
         tr.querySelectorAll('input').forEach(inp => {
             const key = inp.dataset.key; const field = inp.dataset.field; 
             if (data[field] && data[field][key] !== undefined) {
-                inp.value = (data[field][key] * 100).toFixed(2);
+                inp.value = field === 'k' ? data[field][key].toFixed(2) : (data[field][key] * 100).toFixed(2);
                 inp.dispatchEvent(new Event('input')); 
             }
         });
@@ -477,7 +494,6 @@ function updatePortfolioVisuals(side, portId) {
     });
 }
 
-// FIX: Deterministic Math fully aligned with the robust Worker formulation
 function calcDeterministicStats(weights, cma) {
     let ret = 0; let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
     
@@ -497,7 +513,8 @@ function calcDeterministicStats(weights, cma) {
         ret += w * mu; 
         sum_ce += w * vol * ce; 
         sum_cc += w * vol * cc; 
-        // 30% of residual variance is perfectly correlated basis risk
+        
+        // 30% of residual variance is perfectly correlated basis risk (solves Diversification Paradox)
         sum_basis += w * vol * resid * Math.sqrt(0.3);
         // 70% is perfectly uncorrelated idiosyncratic risk
         sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
@@ -533,7 +550,7 @@ function renderStrategyChart() {
                     borderColor: 'transparent',
                     pointRadius: 0,
                     fill: true,
-                    tension: 0.1
+                    tension: 0.4 // Smooth splines
                 });
             }
         });
@@ -553,7 +570,7 @@ function renderStrategyChart() {
                 borderColor: 'transparent',
                 pointRadius: 0,
                 fill: true,
-                tension: 0.1
+                tension: 0.4
             });
         });
     }
@@ -692,18 +709,19 @@ function scrapeAndResolveStrategy() {
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
-        const r = {}, v = {}, ce = {}, cc = {};
+        const r = {}, v = {}, k = {}, ce = {}, cc = {};
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
             const inputs = tr.querySelectorAll('input');
             inputs.forEach(inp => {
-                const val = parseFloat(inp.value) / 100;
-                if(inp.dataset.field === 'r') r[inp.dataset.key] = val;
-                if(inp.dataset.field === 'v') v[inp.dataset.key] = val;
-                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val;
-                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val;
+                const val = parseFloat(inp.value);
+                if(inp.dataset.field === 'r') r[inp.dataset.key] = val / 100;
+                if(inp.dataset.field === 'v') v[inp.dataset.key] = val / 100;
+                if(inp.dataset.field === 'k') k[inp.dataset.key] = val; // Kurtosis is raw number
+                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val / 100;
+                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val / 100;
             });
         });
-        return { r, v, ce, cc };
+        return { r, v, k, ce, cc };
     }
     return PRESET_CMAS[sel.value].data;
 }
@@ -779,9 +797,14 @@ function runSimulation() {
     try {
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
+        const sysKInput = document.getElementById('setting-sys-kurtosis');
+        
         const simCount = simInput ? parseInt(simInput.value) : 2000;
         let inflation = 2.5;
         if(infInput && infInput.value !== "") inflation = parseFloat(infInput.value);
+        
+        let sysKurtosis = 2.0;
+        if(sysKInput && sysKInput.value !== "") sysKurtosis = parseFloat(sysKInput.value);
 
         const persona = getActivePersona();
         const cma = getActiveCMA();
@@ -790,7 +813,7 @@ function runSimulation() {
 
         if (strategies.length === 0) { updateUIState('Ready'); return; }
 
-        const payload = { cma, assetKeys: ASSET_CLASSES.map(a => a.key), persona, settings: { simCount, inflation }, strategies };
+        const payload = { cma, assetKeys: ASSET_CLASSES.map(a => a.key), persona, settings: { simCount, inflation, sysKurtosis }, strategies };
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
     } catch(e) {
         console.error("Run Error", e);
