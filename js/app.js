@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=10.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=11.0';
 
 const state = {
     worker: null,
@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPortfolioPane('left', state.portfolios[0].id);
         renderStrategyTable();
 
+        // Init Tooltips globally
+        initTooltips();
+
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
@@ -50,6 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Critical Init Error:", err);
     }
 });
+
+function initTooltips() {
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+}
 
 function setupEventListeners() {
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
@@ -118,7 +126,6 @@ function syncPortfolioInputsVisibility() {
     });
 }
 
-// Converts HEX to RGBA for the charts
 function hexToRgba(hex, alpha) {
     let r = parseInt(hex.slice(1, 3), 16);
     let g = parseInt(hex.slice(3, 5), 16);
@@ -126,6 +133,7 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// FIX: Anchor scaling to visually demonstrate kurtosis (5% vol = tall, 25% vol = flat)
 function drawDistributionChart(assetKey, r, v, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -135,27 +143,27 @@ function drawDistributionChart(assetKey, r, v, colorHex) {
 
     const minX = -0.4; const maxX = 0.4; 
     const points = [];
-    let maxY = 0;
+    
+    const vol = Math.max(v, 0.001);
+    const maxVisY = 1 / (0.05 * Math.sqrt(2 * Math.PI)); // Baseline height (5% volatility)
     
     for (let x = minX; x <= maxX; x += 0.01) {
-        const vol = Math.max(v, 0.001);
         const exponent = -Math.pow(x - r, 2) / (2 * Math.pow(vol, 2));
         const y = (1 / (vol * Math.sqrt(2 * Math.PI))) * Math.exp(exponent);
         points.push({x, y});
-        if (y > maxY) maxY = y;
     }
 
     ctx.beginPath();
     ctx.moveTo(0, height);
     points.forEach(p => {
         const cx = ((p.x - minX) / (maxX - minX)) * width;
-        const cy = height - (p.y / Math.max(maxY, 2.5)) * height * 0.9; 
+        // Cap the height so ultra-low vol doesn't fly off canvas, but let wide curves be flat
+        const cy = height - Math.min(p.y / maxVisY, 1.2) * height * 0.8; 
         ctx.lineTo(cx, cy);
     });
     ctx.lineTo(width, height);
     ctx.closePath();
     
-    // Use the specific Asset Class Color
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, hexToRgba(colorHex, 0.6));
     grad.addColorStop(1, hexToRgba(colorHex, 0.0));
@@ -209,7 +217,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=10.2'); 
+    state.worker = new Worker('./js/worker.js?v=11.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -472,22 +480,35 @@ function updatePortfolioVisuals(side, portId) {
     });
 }
 
+// FIX: Deterministic Math normalized identically to worker.js to ensure perfect alignment
 function calcDeterministicStats(weights, cma) {
     let ret = 0; let sum_ce = 0; let sum_cc = 0; let sum_resid_sq = 0;
     ASSET_CLASSES.forEach(ac => {
         const w = weights[ac.key] || 0;
         if(w === 0) return;
-        const mu = cma.r[ac.key] || 0; const vol = cma.v[ac.key] || 0;
-        const ce = cma.ce[ac.key] || 0; const cc = cma.cc[ac.key] || 0;
+        const mu = cma.r[ac.key] || 0; 
+        const vol = cma.v[ac.key] || 0;
+        
+        let ce = cma.ce[ac.key] || 0; 
+        let cc = cma.cc[ac.key] || 0;
+        const sumSq = ce*ce + cc*cc;
+        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
+        
         const resid = Math.sqrt(Math.max(0, 1 - ce*ce - cc*cc));
-        ret += w * mu; sum_ce += w * vol * ce; sum_cc += w * vol * cc; sum_resid_sq += Math.pow(w * vol * resid, 2);
+        
+        ret += w * mu; 
+        sum_ce += w * vol * ce; 
+        sum_cc += w * vol * cc; 
+        sum_resid_sq += Math.pow(w * vol * resid, 2);
     });
+    
     const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + sum_resid_sq;
     const portVol = Math.sqrt(portVariance);
     const geoRet = ret - (portVariance / 2);
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
+// FIX: Removed pointRadius markers for cleaner flow
 function renderStrategyChart() {
     const ctx = document.getElementById('strategyChart');
     if(!ctx) return;
@@ -794,17 +815,16 @@ function renderChart(results) {
     const datasets = [];
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
+        const isPrimary = (index === 0);
         
-        if (index === 0) {
-            // Strategy 1 (Baseline) ALWAYS gets solid line and gradient fill
-            datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: 'transparent', backgroundColor: color.gradientStart, pointRadius: 0, fill: '+1', tension: 0.4, order: 2 });
-            datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: 'transparent', pointRadius: 0, fill: false, tension: 0.4, order: 3 });
-            datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4, order: 1 });
-        } else {
-            // Comparisons ALWAYS get dashed lines to differentiate from baseline
+        if (!isPrimary) {
             datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, borderDash: [5, 5], tension: 0.4 });
             datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [2, 4], borderWidth: 1.5, tension: 0.4 });
             datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: color.border, backgroundColor: 'transparent', pointRadius: 0, borderDash: [2, 4], borderWidth: 1.5, tension: 0.4 });
+        } else {
+            datasets.push({ label: `${res.name} Range`, data: res.percentiles.pUpper, borderColor: 'transparent', backgroundColor: color.gradientStart, pointRadius: 0, fill: '+1', tension: 0.4, order: 2 });
+            datasets.push({ label: `${res.name} Lower`, data: res.percentiles.pLower, borderColor: 'transparent', pointRadius: 0, fill: false, tension: 0.4, order: 3 });
+            datasets.push({ label: res.name, data: res.percentiles.pMedian, borderColor: color.border, backgroundColor: color.border, pointRadius: 0, borderWidth: 3, tension: 0.4, order: 1 });
         }
     });
 
@@ -824,6 +844,7 @@ function renderChart(results) {
     });
 }
 
+// FIX: Added d-flex and gap to ensure % differences never cut off or break lines
 function renderResultsTable(results) {
     const tbody = document.querySelector('#results-table tbody');
     if(!tbody) return;
@@ -833,6 +854,7 @@ function renderResultsTable(results) {
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
     const baseLow = baseRes.percentiles.pLower[lastIdx];
     const baseMed = baseRes.percentiles.pMedian[lastIdx];
+    const baseHigh = baseRes.percentiles.pUpper[lastIdx];
     
     results.forEach((res, index) => {
         const color = CHART_COLORS[index % CHART_COLORS.length];
@@ -844,19 +866,24 @@ function renderResultsTable(results) {
         const formatDiff = (val, base) => {
             if(index === 0) return '';
             const diff = ((val - base)/base)*100;
-            return ` <span class="small ${diff>=0?'text-success':'text-danger'} ms-2" style="font-size:0.75rem; white-space:nowrap;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold" style="font-size:0.75rem;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
-        // FIX: padding-right added (pe-4) to prevent cutoff
         tr.innerHTML = `
             <td style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light);">
                 <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${color.border}; margin-right:8px;"></span>
                 ${res.name}
             </td>
-            <td class="text-end text-muted border-bottom border-light">£${Math.round(currLow).toLocaleString()}${formatDiff(currLow, baseLow)}</td>
-            <td class="text-end col-median border-bottom border-light">£${Math.round(currMed).toLocaleString()}${formatDiff(currMed, baseMed)}</td>
-            <td class="text-end text-muted border-bottom border-light pe-4">£${Math.round(currHigh).toLocaleString()}</td>
+            <td class="text-end text-muted border-bottom border-light pe-3">
+                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currLow).toLocaleString()}</span>${formatDiff(currLow, baseLow)}</div>
+            </td>
+            <td class="text-end col-median border-bottom border-light pe-3">
+                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
+            </td>
+            <td class="text-end text-muted border-bottom border-light pe-4">
+                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span>${formatDiff(currHigh, baseHigh)}</div>
+            </td>
         `;
         tbody.appendChild(tr);
     });
