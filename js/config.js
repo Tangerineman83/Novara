@@ -1,29 +1,29 @@
 // js/config.js
 
 export const ASSET_CLASSES = [
-    { key: "usEq", name: "US Equity", defaultR: 0.075, defaultV: 0.16 },
-    { key: "ukEq", name: "UK Equity", defaultR: 0.065, defaultV: 0.15 },
-    { key: "devEq", name: "Dev Europe Eq", defaultR: 0.070, defaultV: 0.16 },
-    { key: "emEq", name: "EM Equity", defaultR: 0.085, defaultV: 0.20 },
-    { key: "globalReits", name: "Global REITs", defaultR: 0.060, defaultV: 0.18 },
-    { key: "listedAlts", name: "Listed Alts", defaultR: 0.055, defaultV: 0.12 },
-    { key: "privAssets", name: "Div. Private Assets", defaultR: 0.075, defaultV: 0.12 },
-    { key: "emDebt", name: "EM Debt", defaultR: 0.065, defaultV: 0.12 },
-    { key: "igCredit", name: "IG Credit", defaultR: 0.045, defaultV: 0.06 },
-    { key: "sdCredit", name: "Short Duration Credit", defaultR: 0.035, defaultV: 0.03 },
-    { key: "moneyMkt", name: "Money Markets", defaultR: 0.025, defaultV: 0.01 },
-    { key: "privEq", name: "Private Equity", defaultR: 0.095, defaultV: 0.22 },
-    { key: "infrastructure", name: "Infrastructure", defaultR: 0.065, defaultV: 0.11 },
-    { key: "privCredit", name: "Private Credit", defaultR: 0.075, defaultV: 0.09 },
-    { key: "globalHighYield", name: "Global High Yield", defaultR: 0.060, defaultV: 0.10 },
-    { key: "inflLinked", name: "Inflation Linked", defaultR: 0.020, defaultV: 0.05 },
-    { key: "globalSov", name: "Global Sovereign", defaultR: 0.025, defaultV: 0.05 }
+    { key: "usEq", name: "US Equity", defaultR: 0.075, defaultV: 0.16, color: "#1D4ED8" }, // Blue 700
+    { key: "ukEq", name: "UK Equity", defaultR: 0.065, defaultV: 0.15, color: "#3B82F6" }, // Blue 500
+    { key: "devEq", name: "Dev Europe Eq", defaultR: 0.070, defaultV: 0.16, color: "#60A5FA" }, // Blue 400
+    { key: "emEq", name: "EM Equity", defaultR: 0.085, defaultV: 0.20, color: "#93C5FD" }, // Blue 300
+    { key: "globalReits", name: "Global REITs", defaultR: 0.060, defaultV: 0.18, color: "#6D28D9" }, // Indigo 700
+    { key: "listedAlts", name: "Listed Alts", defaultR: 0.055, defaultV: 0.12, color: "#8B5CF6" }, // Indigo 500
+    { key: "privAssets", name: "Div. Private Assets", defaultR: 0.075, defaultV: 0.12, color: "#A78BFA" }, // Indigo 400
+    { key: "privEq", name: "Private Equity", defaultR: 0.095, defaultV: 0.22, color: "#B45309" }, // Amber 700
+    { key: "infrastructure", name: "Infrastructure", defaultR: 0.065, defaultV: 0.11, color: "#D97706" }, // Amber 600
+    { key: "privCredit", name: "Private Credit", defaultR: 0.075, defaultV: 0.09, color: "#F59E0B" }, // Amber 500
+    { key: "globalHighYield", name: "Global High Yield", defaultR: 0.060, defaultV: 0.10, color: "#FBBF24" }, // Amber 400
+    { key: "emDebt", name: "EM Debt", defaultR: 0.065, defaultV: 0.12, color: "#047857" }, // Emerald 700
+    { key: "igCredit", name: "IG Credit", defaultR: 0.045, defaultV: 0.06, color: "#10B981" }, // Emerald 500
+    { key: "sdCredit", name: "Short Duration Credit", defaultR: 0.035, defaultV: 0.03, color: "#34D399" }, // Emerald 400
+    { key: "globalSov", name: "Global Sovereign", defaultR: 0.025, defaultV: 0.05, color: "#0F766E" }, // Teal 700
+    { key: "inflLinked", name: "Inflation Linked", defaultR: 0.020, defaultV: 0.05, color: "#0E7490" }, // Cyan 700
+    { key: "moneyMkt", name: "Money Markets", defaultR: 0.025, defaultV: 0.01, color: "#64748B" } // Slate 500
 ];
 
 export const CHART_COLORS = [
-    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },
-    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },
-    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }
+    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },  // Blue
+    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },  // Green
+    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }   // Orange
 ];
 
 export const PRESET_CMAS = [
@@ -77,10 +77,4 @@ export const PRESET_STRATEGIES = [
             { years: 0,  weights: { "p_retire": 1.0 } }
         ]
     }
-];
-
-export const PIE_COLORS = [
-    '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', 
-    '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16',
-    '#06B6D4', '#EAB308', '#D946EF', '#0EA5E9', '#A855F7', '#64748B', '#F43F5E'
 ];
