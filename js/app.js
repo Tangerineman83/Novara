@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=11.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=12.0';
 
 const state = {
     worker: null,
@@ -136,7 +136,14 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// FIX: New "Return-Scaled" Kernel Drawing Logic
+function logGamma(z) {
+    let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    let x = z, y = z, tmp = x + 5.5, ser = 1.000000000190015;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (let j = 0; j < 6; j++) ser += co[j] / ++y;
+    return Math.log(2.5066282746310005 * ser / x) - tmp;
+}
+
 function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -149,19 +156,14 @@ function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     const k = Math.max(kurtosis, 0.01);
     const df = (k > 0.05) ? (6 / k) + 4 : 1000;
     const s = vol * Math.sqrt((df - 2) / df);
+    const coef = Math.exp(logGamma((df+1)/2) - logGamma(df/2)) / (Math.sqrt(Math.PI * df) * s);
     const exponent = -(df + 1) / 2;
 
     const points = [];
-    
-    // VISUAL SCALING: Height is proportional to Expected Return
-    // Max return reference is ~12% (0.12). 
-    // We ensure a minimum height of 15% of canvas for very low returns (e.g. Cash)
-    const visualHeight = Math.max(0.15, Math.min(r / 0.12, 1.0)) * height * 0.85;
+    const maxVisY = 1 / (0.05 * Math.sqrt(2 * Math.PI)); 
     
     for (let x = minX; x <= maxX; x += 0.01) {
-        // Unnormalized Student's t-kernel (max value is 1.0 exactly when x == r)
-        const kernel = Math.pow(1 + Math.pow((x - r) / s, 2) / df, exponent);
-        const y = kernel * visualHeight;
+        const y = coef * Math.pow(1 + Math.pow((x - r) / s, 2) / df, exponent);
         points.push({x, y});
     }
 
@@ -169,7 +171,7 @@ function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     ctx.moveTo(0, height);
     points.forEach(p => {
         const cx = ((p.x - minX) / (maxX - minX)) * width;
-        const cy = height - p.y; 
+        const cy = height - Math.min(p.y / maxVisY, 1.2) * height * 0.85; 
         ctx.lineTo(cx, cy);
     });
     ctx.lineTo(width, height);
@@ -230,7 +232,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=11.2'); 
+    state.worker = new Worker('./js/worker.js?v=11.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
