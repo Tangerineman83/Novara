@@ -61,11 +61,11 @@ export const PRESET_PORTFOLIOS = [
                 weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 },
                 alpha: 0.0, te: 0.0
             },
-            { 
-                id: "p_enh_growth", 
-                name: "Enhanced Growth", 
-                weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0833, infrastructure: 0.0833, privCredit: 0.0834 },
-                alpha: 0.0, te: 0.0
+            {
+                id: "p_ltaf",
+                name: "LTAF",
+                weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 },
+                alpha: 0.012, te: 0.024
             },
             { 
                 id: "p_retire", 
@@ -74,10 +74,40 @@ export const PRESET_PORTFOLIOS = [
                 alpha: 0.0, te: 0.0
             }
         ]
+    },
+    {
+        name: "Market Peer & Best in Breed (2026)",
+        portfolios: [
+            { 
+                id: "p_peer_growth", 
+                name: "Peer Default Growth", 
+                weights: { usEq: 0.55, devEq: 0.12, emEq: 0.10, ukEq: 0.05, privEq: 0.04, infrastructure: 0.03, globalReits: 0.04, igCredit: 0.07 },
+                alpha: 0.0, te: 0.0
+            },
+            { 
+                id: "p_peer_retire", 
+                name: "Peer Default Retirement", 
+                weights: { usEq: 0.15, devEq: 0.08, emEq: 0.03, igCredit: 0.25, sdCredit: 0.22, globalSov: 0.10, moneyMkt: 0.12, infrastructure: 0.02, privCredit: 0.03 },
+                alpha: 0.0, te: 0.0
+            },
+            { 
+                id: "p_bib_growth", 
+                name: "Best in Breed Growth", 
+                weights: { usEq: 0.40, emEq: 0.20, devEq: 0.10, privEq: 0.10, infrastructure: 0.05, privCredit: 0.05, listedAlts: 0.05, globalReits: 0.05 },
+                alpha: 0.0, te: 0.0
+            },
+            { 
+                id: "p_bib_retire", 
+                name: "Best in Breed Retirement", 
+                weights: { usEq: 0.20, emEq: 0.05, privCredit: 0.15, igCredit: 0.20, sdCredit: 0.15, inflLinked: 0.15, moneyMkt: 0.10 },
+                alpha: 0.0, te: 0.0
+            }
+        ]
     }
 ];
 
-export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS[0].portfolios));
+// Initialize UI with ALL portfolios available for immediate mixing and matching
+export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS.flatMap(g => g.portfolios)));
 
 export const PRESET_STRATEGIES = [
     {
@@ -91,9 +121,25 @@ export const PRESET_STRATEGIES = [
     {
         name: "Enhanced Glidepath",
         points: [
-            { years: 50, weights: { "p_enh_growth": 1.0 } },
-            { years: 15, weights: { "p_enh_growth": 1.0 } },
+            { years: 50, weights: { "p_std_growth": 0.75, "p_ltaf": 0.25 } },
+            { years: 15, weights: { "p_std_growth": 0.75, "p_ltaf": 0.25 } },
             { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "Peer Default Strategy",
+        points: [
+            { years: 50, weights: { "p_peer_growth": 1.0 } },
+            { years: 15, weights: { "p_peer_growth": 1.0 } },
+            { years: 0,  weights: { "p_peer_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "Best in Breed Maximiser",
+        points: [
+            { years: 50, weights: { "p_bib_growth": 1.0 } },
+            { years: 12, weights: { "p_bib_growth": 1.0 } },
+            { years: 0,  weights: { "p_bib_retire": 1.0 } }
         ]
     }
 ];
