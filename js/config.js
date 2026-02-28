@@ -1,7 +1,6 @@
 // js/config.js
 
 export const ASSET_CLASSES = [
-    // 6 Equity Regions (Mapped to Global Market Cap)
     { key: "usEq", name: "US Equity", defaultR: 0.075, defaultV: 0.16, defaultK: 1.5, color: "#1D4ED8" },
     { key: "devEq", name: "Dev Europe Equity", defaultR: 0.070, defaultV: 0.16, defaultK: 1.6, color: "#3B82F6" },
     { key: "emEq", name: "EM Equity", defaultR: 0.085, defaultV: 0.20, defaultK: 2.5, color: "#60A5FA" },
@@ -9,18 +8,15 @@ export const ASSET_CLASSES = [
     { key: "ukEq", name: "UK Equity", defaultR: 0.065, defaultV: 0.15, defaultK: 1.8, color: "#BFDBFE" },
     { key: "apacEq", name: "Dev APAC (ex-Japan)", defaultR: 0.065, defaultV: 0.16, defaultK: 1.7, color: "#DBEAFE" },
     
-    // Real Assets
     { key: "globalReits", name: "Global REITs", defaultR: 0.060, defaultV: 0.18, defaultK: 2.0, color: "#6D28D9" },
     { key: "realEstateDirect", name: "Real Estate (Direct)", defaultR: 0.055, defaultV: 0.10, defaultK: 2.5, color: "#7E22CE" },
     { key: "infrastructure", name: "Infrastructure", defaultR: 0.065, defaultV: 0.11, defaultK: 2.0, color: "#A855F7" },
     
-    // Private Markets & Alts
     { key: "privEq", name: "Private Equity", defaultR: 0.095, defaultV: 0.22, defaultK: 4.5, color: "#B45309" },
     { key: "privCredit", name: "Private Credit", defaultR: 0.075, defaultV: 0.09, defaultK: 3.5, color: "#D97706" },
     { key: "listedAlts", name: "Listed Alts", defaultR: 0.055, defaultV: 0.12, defaultK: 1.5, color: "#F59E0B" },
     { key: "digitalAssets", name: "Digital Assets", defaultR: 0.120, defaultV: 0.50, defaultK: 5.0, color: "#0F172A" },
     
-    // Fixed Income & Cash
     { key: "globalHighYield", name: "Global High Yield", defaultR: 0.060, defaultV: 0.10, defaultK: 2.5, color: "#047857" },
     { key: "emDebt", name: "EM Debt", defaultR: 0.065, defaultV: 0.12, defaultK: 2.5, color: "#059669" },
     { key: "igCredit", name: "IG Credit", defaultR: 0.045, defaultV: 0.06, defaultK: 1.2, color: "#10B981" },
@@ -62,20 +58,20 @@ export const PRESET_PORTFOLIOS = [
             { 
                 id: "p_std_growth", 
                 name: "Standard Growth", 
-                // 93% Equity (Market Cap Split), 5% REITs, 2% Direct RE
-                weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 } 
+                weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 },
+                alpha: 0.0, te: 0.0
             },
             { 
                 id: "p_enh_growth", 
                 name: "Enhanced Growth", 
-                // 75% Standard Growth + 25% Private Markets (1/3 PE, 1/3 Infra, 1/3 PC)
-                weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0833, infrastructure: 0.0833, privCredit: 0.0834 } 
+                weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0833, infrastructure: 0.0833, privCredit: 0.0834 },
+                alpha: 0.0, te: 0.0
             },
             { 
                 id: "p_retire", 
                 name: "Retirement", 
-                // 34% Equity (Market Cap Split), 2.3% Privates, Remainder mapped to fixed income/alts
-                weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 } 
+                weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 },
+                alpha: 0.0, te: 0.0
             }
         ]
     }
