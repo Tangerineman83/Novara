@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.1';
 
 const state = {
     worker: null,
@@ -232,7 +232,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=13.0'); 
+    state.worker = new Worker('./js/worker.js?v=13.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -466,7 +466,6 @@ function renderPortfolioPane(side, portId) {
         });
     });
 
-    // ADD ALPHA AND TRACKING ERROR INPUTS
     const sepRow = tbody.insertRow();
     sepRow.innerHTML = `<td colspan="2"><hr class="my-2 border-light"></td>`;
 
@@ -486,7 +485,6 @@ function renderPortfolioPane(side, portId) {
         updatePortfolioVisuals(side, portId);
     });
 
-    // Re-bind tooltips for dynamically added items
     const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
 
@@ -500,7 +498,6 @@ function updatePortfolioVisuals(side, portId) {
     const cmaSelect = document.getElementById('portfolio-cma-select');
     let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
 
-    // Include Alpha and TE into deterministic calcs
     const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
     
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
@@ -528,7 +525,7 @@ function updatePortfolioVisuals(side, portId) {
 }
 
 function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
-    let ret = alpha; // Alpha adds directly to Arithmetic Mean
+    let ret = alpha; 
     let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
     
     ASSET_CLASSES.forEach(ac => {
@@ -552,11 +549,8 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
         sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
     });
     
-    // Add Tracking Error (squared) as an independent active risk factor
     const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
     const portVol = Math.sqrt(portVariance);
-    
-    // Geometric Return perfectly factors in the volatility tax caused by active TE
     const geoRet = ret - (portVariance / 2);
     
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
@@ -725,7 +719,6 @@ function scrapeStrategyUI() {
     return points;
 }
 
-// Map the extracted Alpha and TE values down through the time-series points
 function scrapeAndResolveStrategy() {
     const rawPoints = scrapeStrategyUI();
     return rawPoints.map(pt => {
@@ -738,7 +731,7 @@ function scrapeAndResolveStrategy() {
             const port = state.portfolios.find(p => p.id === portId);
             if(port && blendWeight > 0) {
                 alpha += (port.alpha || 0) * blendWeight;
-                te += (port.te || 0) * blendWeight; // Linear TE addition assumes highly correlated active bets, conservative for planning.
+                te += (port.te || 0) * blendWeight;
                 ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight);
             }
         });
@@ -781,6 +774,7 @@ function getActivePersona() {
     return PRESET_PERSONAS[sel.value].data;
 }
 
+// FIX: Ensure correct payload parameter name 'monthlyData' is passed to the worker
 function getActiveStrategies(months) {
     const strategies = [];
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach(selId => {
@@ -815,7 +809,6 @@ function getActiveStrategies(months) {
     return strategies;
 }
 
-// Interpolate the Alpha and TE parameters smoothly over time
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
     const monthlyData = [];
