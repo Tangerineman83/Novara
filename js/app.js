@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.2';
 
 const state = {
     worker: null,
@@ -232,7 +232,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=13.1'); 
+    state.worker = new Worker('./js/worker.js?v=13.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -556,6 +556,17 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
+// FIX: Added robust global lookup for strategies evaluating hidden/unselected portfolios
+function getGlobalPortfolio(portId) {
+    let found = state.portfolios.find(p => p.id === portId);
+    if (found) return found;
+    for (const group of PRESET_PORTFOLIOS) {
+        found = group.portfolios.find(p => p.id === portId);
+        if (found) return found;
+    }
+    return null;
+}
+
 function renderStrategyChart() {
     const ctx = document.getElementById('strategyChart');
     if(!ctx) return;
@@ -590,7 +601,7 @@ function renderStrategyChart() {
         
         const genericColors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
         Array.from(portfoliosInUse).forEach((portId, idx) => {
-            const pName = state.portfolios.find(p => p.id === portId)?.name || portId;
+            const pName = getGlobalPortfolio(portId)?.name || portId;
             const data = rawPoints.map(pt => (pt.weights[portId] || 0) * 100);
             datasets.push({
                 label: pName,
@@ -728,7 +739,7 @@ function scrapeAndResolveStrategy() {
         ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
         
         Object.entries(pt.weights).forEach(([portId, blendWeight]) => {
-            const port = state.portfolios.find(p => p.id === portId);
+            const port = getGlobalPortfolio(portId);
             if(port && blendWeight > 0) {
                 alpha += (port.alpha || 0) * blendWeight;
                 te += (port.te || 0) * blendWeight;
@@ -774,7 +785,6 @@ function getActivePersona() {
     return PRESET_PERSONAS[sel.value].data;
 }
 
-// FIX: Ensure correct payload parameter name 'monthlyData' is passed to the worker
 function getActiveStrategies(months) {
     const strategies = [];
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach(selId => {
@@ -794,7 +804,7 @@ function getActiveStrategies(months) {
                 
                 ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
                 Object.entries(pt.weights).forEach(([portId, weight]) => {
-                    const port = state.portfolios.find(p => p.id === portId);
+                    const port = getGlobalPortfolio(portId);
                     if(port) {
                         alpha += (port.alpha || 0) * weight;
                         te += (port.te || 0) * weight;
