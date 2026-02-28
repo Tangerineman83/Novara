@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=12.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.0';
 
 const state = {
     worker: null,
@@ -232,7 +232,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=11.1'); 
+    state.worker = new Worker('./js/worker.js?v=13.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -416,7 +416,7 @@ function refreshPortfolioDropdowns() {
 
 function createNewPortfolio(side) {
     const num = state.portfolios.length + 1;
-    const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {} };
+    const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {}, alpha: 0, te: 0 };
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
     document.getElementById(`port-select-${side}`).value = newPort.id;
@@ -465,6 +465,31 @@ function renderPortfolioPane(side, portId) {
             updatePortfolioVisuals(side, portId);
         });
     });
+
+    // ADD ALPHA AND TRACKING ERROR INPUTS
+    const sepRow = tbody.insertRow();
+    sepRow.innerHTML = `<td colspan="2"><hr class="my-2 border-light"></td>`;
+
+    const trAlpha = tbody.insertRow();
+    trAlpha.innerHTML = `<td class="fw-bold text-primary small"><i class="fas fa-arrow-up me-1"></i> Target Alpha <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Expected excess return above the passive benchmark from active management."></i></td>
+        <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.alpha||0)*100).toFixed(2)}" step="0.1"></td>`;
+    trAlpha.querySelector('input').addEventListener('input', (e) => {
+        portfolio.alpha = (parseFloat(e.target.value)||0)/100;
+        updatePortfolioVisuals(side, portId);
+    });
+
+    const trTE = tbody.insertRow();
+    trTE.innerHTML = `<td class="fw-bold text-danger small"><i class="fas fa-crosshairs me-1"></i> Tracking Error <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Standard deviation of excess returns (Active Risk). Treated as idiosyncratic and uncorrelated to systemic factors."></i></td>
+        <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.te||0)*100).toFixed(2)}" step="0.1"></td>`;
+    trTE.querySelector('input').addEventListener('input', (e) => {
+        portfolio.te = (parseFloat(e.target.value)||0)/100;
+        updatePortfolioVisuals(side, portId);
+    });
+
+    // Re-bind tooltips for dynamically added items
+    const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+
     updatePortfolioVisuals(side, portId);
 }
 
@@ -475,7 +500,9 @@ function updatePortfolioVisuals(side, portId) {
     const cmaSelect = document.getElementById('portfolio-cma-select');
     let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
 
-    const stats = calcDeterministicStats(portfolio.weights, cmaData);
+    // Include Alpha and TE into deterministic calcs
+    const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
+    
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-geo-${side}`).innerText = (stats.geoRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
@@ -500,8 +527,9 @@ function updatePortfolioVisuals(side, portId) {
     });
 }
 
-function calcDeterministicStats(weights, cma) {
-    let ret = 0; let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
+function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
+    let ret = alpha; // Alpha adds directly to Arithmetic Mean
+    let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
     
     ASSET_CLASSES.forEach(ac => {
         const w = weights[ac.key] || 0;
@@ -524,8 +552,11 @@ function calcDeterministicStats(weights, cma) {
         sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
     });
     
-    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq;
+    // Add Tracking Error (squared) as an independent active risk factor
+    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
     const portVol = Math.sqrt(portVariance);
+    
+    // Geometric Return perfectly factors in the volatility tax caused by active TE
     const geoRet = ret - (portVariance / 2);
     
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
@@ -554,7 +585,7 @@ function renderStrategyChart() {
                     borderColor: 'transparent',
                     pointRadius: 0,
                     fill: true,
-                    tension: 0.4 
+                    tension: 0
                 });
             }
         });
@@ -574,7 +605,7 @@ function renderStrategyChart() {
                 borderColor: 'transparent',
                 pointRadius: 0,
                 fill: true,
-                tension: 0.4
+                tension: 0
             });
         });
     }
@@ -694,19 +725,24 @@ function scrapeStrategyUI() {
     return points;
 }
 
+// Map the extracted Alpha and TE values down through the time-series points
 function scrapeAndResolveStrategy() {
     const rawPoints = scrapeStrategyUI();
     return rawPoints.map(pt => {
         const resolvedAssets = {};
+        let alpha = 0; let te = 0;
+        
         ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
         
         Object.entries(pt.weights).forEach(([portId, blendWeight]) => {
             const port = state.portfolios.find(p => p.id === portId);
             if(port && blendWeight > 0) {
+                alpha += (port.alpha || 0) * blendWeight;
+                te += (port.te || 0) * blendWeight; // Linear TE addition assumes highly correlated active bets, conservative for planning.
                 ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight);
             }
         });
-        return { years: pt.years, weights: resolvedAssets };
+        return { years: pt.years, weights: resolvedAssets, alpha, te };
     });
 }
 
@@ -760,22 +796,29 @@ function getActiveStrategies(months) {
             name = preset.name; 
             resolvedPoints = preset.points.map(pt => {
                 const resolvedAssets = {};
+                let alpha = 0; let te = 0;
+                
                 ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
                 Object.entries(pt.weights).forEach(([portId, weight]) => {
                     const port = state.portfolios.find(p => p.id === portId);
-                    if(port) ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key]||0) * weight);
+                    if(port) {
+                        alpha += (port.alpha || 0) * weight;
+                        te += (port.te || 0) * weight;
+                        ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key]||0) * weight);
+                    }
                 });
-                return { years: pt.years, weights: resolvedAssets };
+                return { years: pt.years, weights: resolvedAssets, alpha, te };
             });
         }
-        strategies.push({ name, monthlyWeights: interpolateWeights(resolvedPoints, months), implAdjustments: {} });
+        strategies.push({ name, monthlyData: interpolateWeights(resolvedPoints, months), implAdjustments: {} });
     });
     return strategies;
 }
 
+// Interpolate the Alpha and TE parameters smoothly over time
 function interpolateWeights(points, totalMonths) {
     if(!points || points.length === 0) return [];
-    const monthlyWeights = [];
+    const monthlyData = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
         let p1 = points[0], p2 = points[points.length - 1];
@@ -791,9 +834,16 @@ function interpolateWeights(points, totalMonths) {
             let w2 = (p2.weights ? p2.weights[ac.key] : p2[ac.key]) || 0;
             w[ac.key] = w2 + (w1 - w2) * ratio;
         });
-        monthlyWeights.push(w);
+        
+        const a1 = p1.alpha || 0; const a2 = p2.alpha || 0;
+        const alpha = a2 + (a1 - a2) * ratio;
+        
+        const t1 = p1.te || 0; const t2 = p2.te || 0;
+        const te = t2 + (t1 - t2) * ratio;
+        
+        monthlyData.push({ weights: w, alpha, te });
     }
-    return monthlyWeights;
+    return monthlyData;
 }
 
 function runSimulation() {
