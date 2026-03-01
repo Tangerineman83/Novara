@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.2';
 
 const state = {
     worker: null,
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         initWorker();
         renderAssetRows();
-        renderStressAssumptionsTable(); // Renders the new Markets tab stress table
+        renderStressAssumptionsTable(); 
         initPresets();
         initRunModelInputs();
         setupAutoRun();
@@ -112,33 +112,8 @@ function setupEventListeners() {
     });
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
-    document.getElementById('stress-toggle')?.addEventListener('click', () => {
-        const collapse = document.getElementById('stress-collapse');
-        const chevron = document.getElementById('stress-chevron');
-        if (collapse.classList.contains('show')) {
-            collapse.classList.remove('show');
-            chevron.style.transform = 'rotate(0deg)';
-        } else {
-            collapse.classList.add('show');
-            chevron.style.transform = 'rotate(180deg)';
-        }
-    });
-
-    document.getElementById('cma-stress-toggle')?.addEventListener('click', () => {
-        const collapse = document.getElementById('cma-stress-collapse');
-        const chevron = document.getElementById('cma-stress-chevron');
-        if (collapse.classList.contains('show')) {
-            collapse.classList.remove('show');
-            chevron.style.transform = 'rotate(0deg)';
-        } else {
-            collapse.classList.add('show');
-            chevron.style.transform = 'rotate(180deg)';
-        }
-    });
-
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
-    window.toggleStress = toggleStress; 
 }
 
 function syncPortfolioInputsVisibility() {
@@ -247,7 +222,18 @@ function renderAssetRows() {
     });
 }
 
-// NEW: Renders the Stress Matrix table in the Markets Tab
+// FIX: Helper logic to assign heatmap background shading mathematically
+function getHeatmapBg(val) {
+    if (val === 0) return '';
+    if (val < 0) {
+        const alpha = Math.min(Math.abs(val) / 0.5, 0.4); 
+        return `background-color: rgba(239, 68, 68, ${alpha}); color: #1E293B;`;
+    } else {
+        const alpha = Math.min(val / 0.3, 0.4); 
+        return `background-color: rgba(16, 185, 129, ${alpha}); color: #1E293B;`;
+    }
+}
+
 function renderStressAssumptionsTable() {
     const theadTr = document.getElementById('cma-stress-thead-tr');
     const tbody = document.querySelector('#cma-stress-table tbody');
@@ -271,8 +257,8 @@ function renderStressAssumptionsTable() {
         STRESS_SCENARIOS.forEach(sc => {
             const val = sc.returns[ac.key] || 0;
             const valPct = (val * 100).toFixed(1);
-            const cls = val > 0 ? 'text-success' : (val < 0 ? 'text-danger' : 'text-muted');
-            bodyHTML += `<td class="text-end fw-bold ${cls}">${val > 0 ? '+' : ''}${valPct}%</td>`;
+            const style = getHeatmapBg(val); // Shading assigned here
+            bodyHTML += `<td class="text-end fw-bold" style="${style}">${val > 0 ? '+' : ''}${valPct}%</td>`;
         });
         bodyHTML += `</tr>`;
     });
@@ -290,7 +276,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=15.1'); 
+    state.worker = new Worker('./js/worker.js?v=15.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -575,13 +561,6 @@ function renderPortfolioPane(side, portId) {
     updatePortfolioVisuals(side, portId);
 }
 
-function toggleStress(side) {
-    const header = document.querySelector(`#stress-content-${side}`).previousElementSibling;
-    const content = document.getElementById(`stress-content-${side}`);
-    header.classList.toggle('open');
-    content.classList.toggle('open');
-}
-
 function updatePortfolioVisuals(side, portId) {
     const portfolio = state.portfolios.find(p => p.id === portId);
     if (!portfolio) return;
@@ -654,6 +633,7 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
 }
 
+// FIX: Table mapped to shading logic for unified design
 function renderStressTests() {
     const leftId = document.getElementById('port-select-left')?.value;
     const rightId = document.getElementById('port-select-right')?.value;
@@ -694,10 +674,10 @@ function renderStressTests() {
         if(portL) ASSET_CLASSES.forEach(ac => { valL += (portL.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
         if(portR) ASSET_CLASSES.forEach(ac => { valR += (portR.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
         
+        const styleL = portL ? getHeatmapBg(valL) : '';
+        const styleR = portR ? getHeatmapBg(valR) : '';
+        
         valL *= 100; valR *= 100;
-
-        const clsL = valL > 0 ? 'text-success' : (valL < 0 ? 'text-danger' : 'text-muted');
-        const clsR = valR > 0 ? 'text-success' : (valR < 0 ? 'text-danger' : 'text-muted');
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -706,8 +686,8 @@ function renderStressTests() {
                     ${sc.name}
                 </span>
             </td>
-            <td class="text-end fw-bold ${clsL}">${portL ? (valL > 0 ? '+' : '') + valL.toFixed(1) + '%' : '--'}</td>
-            <td class="text-end fw-bold ${clsR}">${portR ? (valR > 0 ? '+' : '') + valR.toFixed(1) + '%' : '--'}</td>
+            <td class="text-end fw-bold" style="${styleL}">${portL ? (valL > 0 ? '+' : '') + valL.toFixed(1) + '%' : '--'}</td>
+            <td class="text-end fw-bold" style="${styleR}">${portR ? (valR > 0 ? '+' : '') + valR.toFixed(1) + '%' : '--'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -1154,36 +1134,4 @@ function updateUIState(status) {
     const spinner = document.getElementById('loading-spinner');
     if(text) text.innerText = status;
     if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
-}
-
-// NEW: Renders the Stress Matrix table in the Markets Tab
-function renderStressAssumptionsTable() {
-    const theadTr = document.getElementById('cma-stress-thead-tr');
-    const tbody = document.querySelector('#cma-stress-table tbody');
-    if (!theadTr || !tbody) return;
-
-    let headHTML = '<th style="min-width: 200px; position: sticky; left: 0; background: #F8FAFC; z-index: 2;">Asset Class</th>';
-    STRESS_SCENARIOS.forEach(sc => {
-        headHTML += `<th class="text-end" style="min-width: 130px;">
-            <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${sc.description}">${sc.name}</span>
-        </th>`;
-    });
-    theadTr.innerHTML = headHTML;
-
-    let bodyHTML = '';
-    ASSET_CLASSES.forEach(ac => {
-        bodyHTML += `<tr>
-            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
-                ${ac.name}
-            </td>`;
-        STRESS_SCENARIOS.forEach(sc => {
-            const val = sc.returns[ac.key] || 0;
-            const valPct = (val * 100).toFixed(1);
-            const cls = val > 0 ? 'text-success' : (val < 0 ? 'text-danger' : 'text-muted');
-            bodyHTML += `<td class="text-end fw-bold ${cls}">${val > 0 ? '+' : ''}${valPct}%</td>`;
-        });
-        bodyHTML += `</tr>`;
-    });
-    tbody.innerHTML = bodyHTML;
 }
