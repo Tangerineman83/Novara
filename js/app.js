@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.3';
 
 const state = {
     worker: null,
@@ -126,6 +126,7 @@ function setupEventListeners() {
 
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
+    window.toggleStress = toggleStress; 
 }
 
 function syncPortfolioInputsVisibility() {
@@ -245,7 +246,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=14.2'); 
+    state.worker = new Worker('./js/worker.js?v=14.3'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -449,7 +450,7 @@ function renderPortfolioPane(side, portId) {
         if(visualsContainer) visualsContainer.classList.add('d-none');
         if(hr) hr.classList.add('d-none');
         if(blankMsg) blankMsg.classList.remove('d-none');
-        renderStressTests(); // Update comparative table
+        renderStressTests(); 
         return;
     } else {
         if(visualsContainer) visualsContainer.classList.remove('d-none');
@@ -506,7 +507,90 @@ function renderPortfolioPane(side, portId) {
     updatePortfolioVisuals(side, portId);
 }
 
-// STRESS TESTING LOGIC (Unified Comparative Table)
+function toggleStress(side) {
+    const header = document.querySelector(`#stress-content-${side}`).previousElementSibling;
+    const content = document.getElementById(`stress-content-${side}`);
+    header.classList.toggle('open');
+    content.classList.toggle('open');
+}
+
+function updatePortfolioVisuals(side, portId) {
+    const portfolio = state.portfolios.find(p => p.id === portId);
+    if (!portfolio) return;
+
+    const cmaSelect = document.getElementById('portfolio-cma-select');
+    let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
+
+    const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
+    
+    document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
+    
+    // FIX: Show 20-Year Median Unit Growth Multiple instead of 1-year Geometric %
+    document.getElementById(`stat-unit-${side}`).innerText = stats.median20Yr.toFixed(2) + 'x';
+    
+    document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
+
+    const ctx = document.getElementById(`pie-${side}`).getContext('2d');
+    const labels = []; const data = []; const bgColors = [];
+    
+    ASSET_CLASSES.forEach(ac => {
+        const w = portfolio.weights[ac.key] || 0;
+        if(w > 0.001) {
+            labels.push(ac.name);
+            data.push((w*100).toFixed(1));
+            bgColors.push(ac.color); 
+        }
+    });
+
+    if (state[`pie${side}`]) state[`pie${side}`].destroy();
+    state[`pie${side}`] = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    renderStressTests();
+}
+
+// FIX: Aligned with the expert "Harvest Analogy" - Returns a 20-year unit multiple incorporating tail-risk penalty
+function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
+    let ret = alpha; 
+    let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
+    let port_k = 0; // Weighted Kurtosis approximation for median penalty
+    
+    ASSET_CLASSES.forEach(ac => {
+        const w = weights[ac.key] || 0;
+        if(w === 0) return;
+        const mu = cma.r[ac.key] || 0; 
+        const vol = cma.v[ac.key] || 0;
+        const k = cma.k[ac.key] || 0;
+        
+        let ce = cma.ce[ac.key] || 0; 
+        let cc = cma.cc[ac.key] || 0;
+        const sumSq = ce*ce + cc*cc;
+        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
+        
+        const resid = Math.sqrt(Math.max(0, 1 - ce*ce - cc*cc));
+        
+        ret += w * mu; 
+        port_k += w * k;
+        
+        sum_ce += w * vol * ce; 
+        sum_cc += w * vol * cc; 
+        sum_basis += w * vol * resid * Math.sqrt(0.3);
+        sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
+    });
+    
+    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
+    const portVol = Math.sqrt(portVariance);
+    
+    // 20-Year Median Unit Growth Calculation
+    const kurtosisAdjustment = Math.exp(-0.005 * port_k); // Expert penalty for fat tails dragging finite median
+    const median20Yr = Math.pow(1 + ret - (portVariance / 2), 20) * kurtosisAdjustment;
+    
+    return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
+}
+
 function renderStressTests() {
     const leftId = document.getElementById('port-select-left')?.value;
     const rightId = document.getElementById('port-select-right')?.value;
@@ -517,7 +601,6 @@ function renderStressTests() {
     document.getElementById('stress-th-left').innerText = portL ? portL.name : "Primary Portfolio";
     document.getElementById('stress-th-right').innerText = portR ? portR.name : "Comparison Portfolio";
 
-    // Handle Summary Ranges
     const getRange = (port) => {
         if(!port) return { min: 0, max: 0, str: '--' };
         const vals = STRESS_SCENARIOS.map(sc => {
@@ -540,7 +623,6 @@ function renderStressTests() {
         rightContainer.classList.add('d-none');
     }
 
-    // Build the table rows
     const tbody = document.querySelector('#stress-table tbody');
     tbody.innerHTML = '';
 
@@ -569,73 +651,6 @@ function renderStressTests() {
 
     const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
-}
-
-function updatePortfolioVisuals(side, portId) {
-    const portfolio = state.portfolios.find(p => p.id === portId);
-    if (!portfolio) return;
-
-    const cmaSelect = document.getElementById('portfolio-cma-select');
-    let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
-
-    const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
-    document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
-    document.getElementById(`stat-geo-${side}`).innerText = (stats.geoRet * 100).toFixed(2) + '%';
-    document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
-
-    const ctx = document.getElementById(`pie-${side}`).getContext('2d');
-    const labels = []; const data = []; const bgColors = [];
-    
-    ASSET_CLASSES.forEach(ac => {
-        const w = portfolio.weights[ac.key] || 0;
-        if(w > 0.001) {
-            labels.push(ac.name);
-            data.push((w*100).toFixed(1));
-            bgColors.push(ac.color); 
-        }
-    });
-
-    if (state[`pie${side}`]) state[`pie${side}`].destroy();
-    state[`pie${side}`] = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
-
-    // Render unified comparative stress table
-    renderStressTests();
-}
-
-function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
-    let ret = alpha; 
-    let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
-    
-    ASSET_CLASSES.forEach(ac => {
-        const w = weights[ac.key] || 0;
-        if(w === 0) return;
-        const mu = cma.r[ac.key] || 0; 
-        const vol = cma.v[ac.key] || 0;
-        
-        let ce = cma.ce[ac.key] || 0; 
-        let cc = cma.cc[ac.key] || 0;
-        const sumSq = ce*ce + cc*cc;
-        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
-        
-        const resid = Math.sqrt(Math.max(0, 1 - ce*ce - cc*cc));
-        
-        ret += w * mu; 
-        sum_ce += w * vol * ce; 
-        sum_cc += w * vol * cc; 
-        
-        sum_basis += w * vol * resid * Math.sqrt(0.3);
-        sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
-    });
-    
-    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
-    const portVol = Math.sqrt(portVariance);
-    const geoRet = ret - (portVariance / 2);
-    
-    return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
 function getGlobalPortfolio(portId) {
