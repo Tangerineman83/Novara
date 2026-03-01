@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.3';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.0';
 
 const state = {
     worker: null,
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0);
+            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0, 'core');
             
             setTimeout(runSimulation, 500);
         } catch (dataErr) {
@@ -111,7 +111,6 @@ function setupEventListeners() {
     });
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
-    // Stress Toggle Logic
     document.getElementById('stress-toggle')?.addEventListener('click', () => {
         const collapse = document.getElementById('stress-collapse');
         const chevron = document.getElementById('stress-chevron');
@@ -246,7 +245,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=14.3'); 
+    state.worker = new Worker('./js/worker.js?v=15.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -275,8 +274,21 @@ function initPresets() {
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect) {
         stratSelect.innerHTML = '<option value="">Load Preset...</option>';
-        PRESET_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-        stratSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
+        
+        stratSelect.innerHTML += '<optgroup label="Core Strategies">';
+        PRESET_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="core_${index}">${preset.name}</option>`; });
+        stratSelect.innerHTML += '</optgroup>';
+        
+        stratSelect.innerHTML += '<optgroup label="Provider Strategies">';
+        PROVIDER_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="prov_${index}">${preset.name}</option>`; });
+        stratSelect.innerHTML += '</optgroup>';
+        
+        stratSelect.addEventListener('change', (e) => { 
+            if(e.target.value !== "") {
+                const parts = e.target.value.split('_');
+                loadStrategyPreset(parseInt(parts[1]), parts[0]); 
+            }
+        });
     }
 
     const persSelect = document.getElementById('persona-preset-select');
@@ -310,7 +322,15 @@ function updateStrategySelectors() {
             const curr = sel.value;
             let html = i === 0 ? '' : '<option value="">None</option>';
             html += '<option value="custom">Active Strategy Builder</option>'; 
-            PRESET_STRATEGIES.forEach((preset, index) => { html += `<option value="${index}">${preset.name}</option>`; });
+            
+            html += '<optgroup label="Core Strategies">';
+            PRESET_STRATEGIES.forEach((preset, index) => { html += `<option value="core_${index}">${preset.name}</option>`; });
+            html += '</optgroup>';
+            
+            html += '<optgroup label="Provider Strategies">';
+            PROVIDER_STRATEGIES.forEach((preset, index) => { html += `<option value="prov_${index}">${preset.name}</option>`; });
+            html += '</optgroup>';
+
             sel.innerHTML = html;
             if(curr) sel.value = curr;
         }
@@ -373,8 +393,11 @@ function loadPortfolioPreset(index) {
     if(state.autoRun) runSimulation();
 }
 
-function loadStrategyPreset(index) {
-    const preset = PRESET_STRATEGIES[index];
+function loadStrategyPreset(index, group) {
+    let preset;
+    if (group === 'core') preset = PRESET_STRATEGIES[index];
+    else if (group === 'prov') preset = PROVIDER_STRATEGIES[index];
+    
     if(!preset) return;
     
     state.strategyYears = preset.points.map(p => p.years).sort((a,b)=>b-a);
@@ -524,10 +547,7 @@ function updatePortfolioVisuals(side, portId) {
     const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
     
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
-    
-    // FIX: Show 20-Year Median Unit Growth Multiple instead of 1-year Geometric %
     document.getElementById(`stat-unit-${side}`).innerText = stats.median20Yr.toFixed(2) + 'x';
-    
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
 
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
@@ -552,11 +572,10 @@ function updatePortfolioVisuals(side, portId) {
     renderStressTests();
 }
 
-// FIX: Aligned with the expert "Harvest Analogy" - Returns a 20-year unit multiple incorporating tail-risk penalty
 function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     let ret = alpha; 
     let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
-    let port_k = 0; // Weighted Kurtosis approximation for median penalty
+    let port_k = 0; 
     
     ASSET_CLASSES.forEach(ac => {
         const w = weights[ac.key] || 0;
@@ -584,8 +603,7 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
     const portVol = Math.sqrt(portVariance);
     
-    // 20-Year Median Unit Growth Calculation
-    const kurtosisAdjustment = Math.exp(-0.005 * port_k); // Expert penalty for fat tails dragging finite median
+    const kurtosisAdjustment = Math.exp(-0.005 * port_k); 
     const median20Yr = Math.pow(1 + ret - (portVariance / 2), 20) * kurtosisAdjustment;
     
     return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
@@ -908,8 +926,13 @@ function getActiveStrategies(months) {
             name = "Active Builder Strategy";
             resolvedPoints = scrapeAndResolveStrategy();
         } else {
-            const preset = PRESET_STRATEGIES[sel.value];
+            const parts = sel.value.split('_');
+            const group = parts[0];
+            const index = parseInt(parts[1]);
+            
+            const preset = group === 'core' ? PRESET_STRATEGIES[index] : PROVIDER_STRATEGIES[index];
             name = preset.name; 
+            
             resolvedPoints = preset.points.map(pt => {
                 const resolvedAssets = {};
                 let alpha = 0; let te = 0;
