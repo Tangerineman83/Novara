@@ -94,6 +94,9 @@ label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted
 .table tbody td { vertical-align: middle; border-bottom: 1px solid var(--border-light); font-weight: 500; }
 .col-median { background-color: #F8FAFC; font-weight: 700; color: var(--text-main); }
 
+.cursor-pointer { cursor: pointer; }
+.transition-transform { transition: transform 0.3s ease; }
+
 .stats-badge { background-color: var(--bg-input); border-radius: var(--radius-md); padding: 12px; text-align: center; border: none; }
 .stats-badge .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 4px; }
 .stats-badge .val { font-size: 1.2rem; color: var(--text-main); font-weight: 800; }
@@ -117,8 +120,6 @@ label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted
 .shared-legend-color { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 
 .dist-canvas { display: block; width: 80px; height: 30px; }
-
-/* Custom Tooltip UI overrides for Bootstrap */
 .tooltip-inner { background-color: #1E293B; font-weight: 500; font-family: 'Inter', sans-serif; padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; }
 
 @media (min-width: 768px) {
