@@ -7,16 +7,13 @@ export const ASSET_CLASSES = [
     { key: "jpnEq", name: "Japan Equity", defaultR: 0.060, defaultV: 0.15, defaultK: 1.5, color: "#93C5FD" },
     { key: "ukEq", name: "UK Equity", defaultR: 0.065, defaultV: 0.15, defaultK: 1.8, color: "#BFDBFE" },
     { key: "apacEq", name: "Dev APAC (ex-Japan)", defaultR: 0.065, defaultV: 0.16, defaultK: 1.7, color: "#DBEAFE" },
-    
     { key: "globalReits", name: "Global REITs", defaultR: 0.060, defaultV: 0.18, defaultK: 2.0, color: "#6D28D9" },
     { key: "realEstateDirect", name: "Real Estate (Direct)", defaultR: 0.055, defaultV: 0.10, defaultK: 2.5, color: "#7E22CE" },
     { key: "infrastructure", name: "Infrastructure", defaultR: 0.065, defaultV: 0.11, defaultK: 2.0, color: "#A855F7" },
-    
     { key: "privEq", name: "Private Equity", defaultR: 0.095, defaultV: 0.22, defaultK: 4.5, color: "#B45309" },
     { key: "privCredit", name: "Private Credit", defaultR: 0.075, defaultV: 0.09, defaultK: 3.5, color: "#D97706" },
     { key: "listedAlts", name: "Listed Alts", defaultR: 0.055, defaultV: 0.12, defaultK: 1.5, color: "#F59E0B" },
     { key: "digitalAssets", name: "Digital Assets", defaultR: 0.120, defaultV: 0.50, defaultK: 5.0, color: "#0F172A" },
-    
     { key: "globalHighYield", name: "Global High Yield", defaultR: 0.060, defaultV: 0.10, defaultK: 2.5, color: "#047857" },
     { key: "emDebt", name: "EM Debt", defaultR: 0.065, defaultV: 0.12, defaultK: 2.5, color: "#059669" },
     { key: "igCredit", name: "IG Credit", defaultR: 0.045, defaultV: 0.06, defaultK: 1.2, color: "#10B981" },
@@ -118,7 +115,8 @@ export const PRESET_PORTFOLIOS = [
     }
 ];
 
-export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS.flatMap(g => g.portfolios)));
+// Initialize UI with ALL portfolios available for immediate mixing and matching
+export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify([].concat(...PRESET_PORTFOLIOS.map(g => g.portfolios))));
 
 export const PRESET_STRATEGIES = [
     {
