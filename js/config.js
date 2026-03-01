@@ -32,6 +32,7 @@ export const CHART_COLORS = [
     { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }
 ];
 
+// Optimized to strictly include only the Q1 2026 Equilibrium set
 export const PRESET_CMAS = [
     {
         name: "2026 Q1 Global Equilibrium",
@@ -58,6 +59,12 @@ export const PRESET_PORTFOLIOS = [
             { id: "p_std_growth", name: "Standard Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alpha: 0.0, te: 0.0 },
             { id: "p_ltaf", name: "LTAF", weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, alpha: 0.012, te: 0.024 },
             { id: "p_retire", name: "Retirement", weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, alpha: 0.0, te: 0.0 }
+        ]
+    },
+    {
+        name: "Resilient Strategies",
+        portfolios: [
+            { id: "p_resilient_growth", name: "Resilient Growth", weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, alpha: 0.006, te: 0.018 }
         ]
     },
     {
@@ -108,7 +115,6 @@ export const PRESET_STRATEGIES = [
     }
 ];
 
-// MACRO ECONOMIC SHOCK SCENARIOS (Chronological Order)
 export const STRESS_SCENARIOS = [
     {
         id: "s_1929_crash", name: "1929 Great Depression",
