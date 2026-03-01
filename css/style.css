@@ -95,7 +95,10 @@ label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted
 .col-median { background-color: #F8FAFC; font-weight: 700; color: var(--text-main); }
 
 .cursor-pointer { cursor: pointer; }
-.transition-transform { transition: transform 0.3s ease; }
+
+/* FIX: Responsive Chevron Rotation for Bootstrap Collapses */
+[data-bs-toggle="collapse"] .fa-chevron-down { transition: transform 0.3s ease; transform: rotate(180deg); }
+[data-bs-toggle="collapse"].collapsed .fa-chevron-down { transform: rotate(0deg); }
 
 .stats-badge { background-color: var(--bg-input); border-radius: var(--radius-md); padding: 12px; text-align: center; border: none; }
 .stats-badge .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 4px; }
