@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.2';
 
 const state = {
     worker: null,
@@ -111,9 +111,21 @@ function setupEventListeners() {
     });
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
+    // Stress Toggle Logic
+    document.getElementById('stress-toggle')?.addEventListener('click', () => {
+        const collapse = document.getElementById('stress-collapse');
+        const chevron = document.getElementById('stress-chevron');
+        if (collapse.classList.contains('show')) {
+            collapse.classList.remove('show');
+            chevron.style.transform = 'rotate(0deg)';
+        } else {
+            collapse.classList.add('show');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    });
+
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
-    window.toggleStress = toggleStress; 
 }
 
 function syncPortfolioInputsVisibility() {
@@ -233,7 +245,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=14.1'); 
+    state.worker = new Worker('./js/worker.js?v=14.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -437,6 +449,7 @@ function renderPortfolioPane(side, portId) {
         if(visualsContainer) visualsContainer.classList.add('d-none');
         if(hr) hr.classList.add('d-none');
         if(blankMsg) blankMsg.classList.remove('d-none');
+        renderStressTests(); // Update comparative table
         return;
     } else {
         if(visualsContainer) visualsContainer.classList.remove('d-none');
@@ -454,6 +467,7 @@ function renderPortfolioPane(side, portId) {
                           <td><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
     titleRow.querySelector('input').addEventListener('change', (e) => {
         portfolio.name = e.target.value; refreshPortfolioDropdowns();
+        renderStressTests();
     });
 
     ASSET_CLASSES.forEach(ac => {
@@ -486,15 +500,75 @@ function renderPortfolioPane(side, portId) {
         updatePortfolioVisuals(side, portId);
     });
 
-    // We init tooltips dynamically, but wait until rendering is done
+    const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+
     updatePortfolioVisuals(side, portId);
 }
 
-function toggleStress(side) {
-    const header = document.querySelector(`#stress-content-${side}`).previousElementSibling;
-    const content = document.getElementById(`stress-content-${side}`);
-    header.classList.toggle('open');
-    content.classList.toggle('open');
+// STRESS TESTING LOGIC (Unified Comparative Table)
+function renderStressTests() {
+    const leftId = document.getElementById('port-select-left')?.value;
+    const rightId = document.getElementById('port-select-right')?.value;
+    
+    const portL = state.portfolios.find(p => p.id === leftId);
+    const portR = state.portfolios.find(p => p.id === rightId);
+    
+    document.getElementById('stress-th-left').innerText = portL ? portL.name : "Primary Portfolio";
+    document.getElementById('stress-th-right').innerText = portR ? portR.name : "Comparison Portfolio";
+
+    // Handle Summary Ranges
+    const getRange = (port) => {
+        if(!port) return { min: 0, max: 0, str: '--' };
+        const vals = STRESS_SCENARIOS.map(sc => {
+            let total = 0;
+            ASSET_CLASSES.forEach(ac => { total += (port.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
+            return total * 100;
+        });
+        const min = Math.min(...vals); const max = Math.max(...vals);
+        return { min, max, str: `${min.toFixed(1)}% to ${max.toFixed(1)}%` };
+    };
+
+    const rL = getRange(portL); const rR = getRange(portR);
+    
+    document.getElementById('stress-summary-left').innerText = rL.str;
+    const rightContainer = document.getElementById('stress-summary-right-container');
+    if (portR) {
+        rightContainer.classList.remove('d-none');
+        document.getElementById('stress-summary-right').innerText = rR.str;
+    } else {
+        rightContainer.classList.add('d-none');
+    }
+
+    // Build the table rows
+    const tbody = document.querySelector('#stress-table tbody');
+    tbody.innerHTML = '';
+
+    STRESS_SCENARIOS.forEach(sc => {
+        let valL = 0; let valR = 0;
+        if(portL) ASSET_CLASSES.forEach(ac => { valL += (portL.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
+        if(portR) ASSET_CLASSES.forEach(ac => { valR += (portR.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
+        
+        valL *= 100; valR *= 100;
+
+        const clsL = valL >= 0 ? 'text-success' : 'text-danger';
+        const clsR = valR >= 0 ? 'text-success' : 'text-danger';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${sc.description}">
+                    ${sc.name}
+                </span>
+            </td>
+            <td class="text-end fw-bold ${clsL}">${portL ? (valL > 0 ? '+' : '') + valL.toFixed(1) + '%' : '--'}</td>
+            <td class="text-end fw-bold ${clsR}">${portR ? (valR > 0 ? '+' : '') + valR.toFixed(1) + '%' : '--'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
 }
 
 function updatePortfolioVisuals(side, portId) {
@@ -505,41 +579,9 @@ function updatePortfolioVisuals(side, portId) {
     let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
 
     const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
-    
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-geo-${side}`).innerText = (stats.geoRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
-
-    // Calculate Macro Shocks explicitly using the new `.returns` logic mapped to the user array
-    const shocks = STRESS_SCENARIOS.map(sc => {
-        let total = 0;
-        ASSET_CLASSES.forEach(ac => { total += (portfolio.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
-        return { name: sc.name, desc: sc.description, val: total };
-    });
-
-    const minShock = Math.min(...shocks.map(s => s.val)) * 100;
-    const maxShock = Math.max(...shocks.map(s => s.val)) * 100;
-    
-    document.getElementById(`stress-range-${side}`).innerText = `${minShock.toFixed(1)}% to ${maxShock.toFixed(1)}%`;
-    
-    let shockHtml = '';
-    shocks.forEach(s => {
-        const valStr = (s.val * 100).toFixed(1) + '%';
-        const colorCls = s.val >= 0 ? 'positive' : 'negative';
-        // NEW: Add description as tooltip
-        shockHtml += `
-            <div class="stress-row">
-                <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${s.desc}">${s.name}</span>
-                <span class="stress-val ${colorCls}">${s.val > 0 ? '+' : ''}${valStr}</span>
-            </div>`;
-    });
-    
-    const contentBox = document.getElementById(`stress-content-${side}`);
-    contentBox.innerHTML = shockHtml;
-    
-    // Bind tooltips for newly injected shock descriptions
-    const newTooltips = document.getElementById(`port-visuals-${side}`).querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
 
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
     const labels = []; const data = []; const bgColors = [];
@@ -559,6 +601,9 @@ function updatePortfolioVisuals(side, portId) {
         data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });
+
+    // Render unified comparative stress table
+    renderStressTests();
 }
 
 function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
