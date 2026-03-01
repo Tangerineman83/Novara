@@ -262,6 +262,7 @@ export const STRESS_SCENARIOS = [
     },
     // --- NEW STRESS EVENTS ADDED HERE ---
     {
+
         id: "s_2025_liberation", name: "2025 Liberation Day",
         description: "Aggressive fiscal stimulus and deregulation driving asset price surge.",
         returns: { usEq: 0.150, devEq: 0.080, emEq: 0.050, jpnEq: 0.070, ukEq: 0.060, apacEq: 0.050, globalReits: 0.120, realEstateDirect: 0.080, infrastructure: 0.100, privEq: 0.140, privCredit: 0.060, listedAlts: 0.090, digitalAssets: 0.450, globalHighYield: 0.050, emDebt: 0.040, igCredit: -0.020, sdCredit: 0.010, globalSov: -0.040, inflLinked: 0.020, moneyMkt: 0.010 }
