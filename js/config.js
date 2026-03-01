@@ -32,7 +32,6 @@ export const CHART_COLORS = [
     { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }
 ];
 
-// Optimized to strictly include only the Q1 2026 Equilibrium set
 export const PRESET_CMAS = [
     {
         name: "2026 Q1 Global Equilibrium",
@@ -54,26 +53,38 @@ export const PRESET_PERSONAS = [
 
 export const PRESET_PORTFOLIOS = [
     {
-        name: "Standard Core Library",
+        name: "Core Building Blocks",
         portfolios: [
-            { id: "p_std_growth", name: "Standard Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alpha: 0.0, te: 0.0 },
-            { id: "p_ltaf", name: "LTAF", weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, alpha: 0.012, te: 0.024 },
-            { id: "p_retire", name: "Retirement", weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, alpha: 0.0, te: 0.0 }
-        ]
-    },
-    {
-        name: "Resilient Strategies",
-        portfolios: [
-            { id: "p_resilient_growth", name: "Resilient Growth", weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, alpha: 0.006, te: 0.018 }
-        ]
-    },
-    {
-        name: "Market Peer & Best in Breed (2026)",
-        portfolios: [
-            { id: "p_peer_growth", name: "Peer Default Growth", weights: { usEq: 0.55, devEq: 0.12, emEq: 0.10, ukEq: 0.05, privEq: 0.04, infrastructure: 0.03, globalReits: 0.04, igCredit: 0.07 }, alpha: 0.0, te: 0.0 },
-            { id: "p_peer_retire", name: "Peer Default Retirement", weights: { usEq: 0.15, devEq: 0.08, emEq: 0.03, igCredit: 0.25, sdCredit: 0.22, globalSov: 0.10, moneyMkt: 0.12, infrastructure: 0.02, privCredit: 0.03 }, alpha: 0.0, te: 0.0 },
-            { id: "p_bib_growth", name: "Best in Breed Growth", weights: { usEq: 0.40, emEq: 0.20, devEq: 0.10, privEq: 0.10, infrastructure: 0.05, privCredit: 0.05, listedAlts: 0.05, globalReits: 0.05 }, alpha: 0.0, te: 0.0 },
-            { id: "p_bib_retire", name: "Best in Breed Retirement", weights: { usEq: 0.20, emEq: 0.05, privCredit: 0.15, igCredit: 0.20, sdCredit: 0.15, inflLinked: 0.15, moneyMkt: 0.10 }, alpha: 0.0, te: 0.0 }
+            { 
+                id: "p_std_growth", 
+                name: "Standard Growth", 
+                weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, 
+                alpha: 0.0, te: 0.0 
+            },
+            { 
+                id: "p_enh_growth", 
+                name: "Enhanced Growth", 
+                weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0875, infrastructure: 0.075, privCredit: 0.075, sdCredit: 0.0125 }, 
+                alpha: 0.003, te: 0.006 
+            },
+            { 
+                id: "p_resilient_growth", 
+                name: "Resilient Growth", 
+                weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, 
+                alpha: 0.006, te: 0.018 
+            },
+            { 
+                id: "p_ltaf", 
+                name: "LTAF", 
+                weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, 
+                alpha: 0.012, te: 0.024 
+            },
+            { 
+                id: "p_retire", 
+                name: "Retirement", 
+                weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, 
+                alpha: 0.0, te: 0.0 
+            }
         ]
     }
 ];
@@ -92,25 +103,17 @@ export const PRESET_STRATEGIES = [
     {
         name: "Enhanced Glidepath",
         points: [
-            { years: 50, weights: { "p_std_growth": 0.75, "p_ltaf": 0.25 } },
-            { years: 15, weights: { "p_std_growth": 0.75, "p_ltaf": 0.25 } },
+            { years: 50, weights: { "p_enh_growth": 1.0 } },
+            { years: 15, weights: { "p_enh_growth": 1.0 } },
             { years: 0,  weights: { "p_retire": 1.0 } }
         ]
     },
     {
-        name: "Peer Default Strategy",
+        name: "Resilient Glidepath",
         points: [
-            { years: 50, weights: { "p_peer_growth": 1.0 } },
-            { years: 15, weights: { "p_peer_growth": 1.0 } },
-            { years: 0,  weights: { "p_peer_retire": 1.0 } }
-        ]
-    },
-    {
-        name: "Best in Breed Maximiser",
-        points: [
-            { years: 50, weights: { "p_bib_growth": 1.0 } },
-            { years: 12, weights: { "p_bib_growth": 1.0 } },
-            { years: 0,  weights: { "p_bib_retire": 1.0 } }
+            { years: 50, weights: { "p_resilient_growth": 1.0 } },
+            { years: 15, weights: { "p_resilient_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
         ]
     }
 ];
