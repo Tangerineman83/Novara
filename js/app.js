@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS } from './config.js?v=13.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=14.1';
 
 const state = {
     worker: null,
@@ -113,6 +113,7 @@ function setupEventListeners() {
 
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
+    window.toggleStress = toggleStress; 
 }
 
 function syncPortfolioInputsVisibility() {
@@ -232,7 +233,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=13.2'); 
+    state.worker = new Worker('./js/worker.js?v=14.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -485,10 +486,15 @@ function renderPortfolioPane(side, portId) {
         updatePortfolioVisuals(side, portId);
     });
 
-    const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
-
+    // We init tooltips dynamically, but wait until rendering is done
     updatePortfolioVisuals(side, portId);
+}
+
+function toggleStress(side) {
+    const header = document.querySelector(`#stress-content-${side}`).previousElementSibling;
+    const content = document.getElementById(`stress-content-${side}`);
+    header.classList.toggle('open');
+    content.classList.toggle('open');
 }
 
 function updatePortfolioVisuals(side, portId) {
@@ -503,6 +509,37 @@ function updatePortfolioVisuals(side, portId) {
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-geo-${side}`).innerText = (stats.geoRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
+
+    // Calculate Macro Shocks explicitly using the new `.returns` logic mapped to the user array
+    const shocks = STRESS_SCENARIOS.map(sc => {
+        let total = 0;
+        ASSET_CLASSES.forEach(ac => { total += (portfolio.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
+        return { name: sc.name, desc: sc.description, val: total };
+    });
+
+    const minShock = Math.min(...shocks.map(s => s.val)) * 100;
+    const maxShock = Math.max(...shocks.map(s => s.val)) * 100;
+    
+    document.getElementById(`stress-range-${side}`).innerText = `${minShock.toFixed(1)}% to ${maxShock.toFixed(1)}%`;
+    
+    let shockHtml = '';
+    shocks.forEach(s => {
+        const valStr = (s.val * 100).toFixed(1) + '%';
+        const colorCls = s.val >= 0 ? 'positive' : 'negative';
+        // NEW: Add description as tooltip
+        shockHtml += `
+            <div class="stress-row">
+                <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${s.desc}">${s.name}</span>
+                <span class="stress-val ${colorCls}">${s.val > 0 ? '+' : ''}${valStr}</span>
+            </div>`;
+    });
+    
+    const contentBox = document.getElementById(`stress-content-${side}`);
+    contentBox.innerHTML = shockHtml;
+    
+    // Bind tooltips for newly injected shock descriptions
+    const newTooltips = document.getElementById(`port-visuals-${side}`).querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
 
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
     const labels = []; const data = []; const bgColors = [];
@@ -556,7 +593,6 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     return { arithRet: ret, geoRet: geoRet, vol: portVol };
 }
 
-// FIX: Added robust global lookup for strategies evaluating hidden/unselected portfolios
 function getGlobalPortfolio(portId) {
     let found = state.portfolios.find(p => p.id === portId);
     if (found) return found;
@@ -653,8 +689,24 @@ function renderStrategyTable() {
     for(let r=0; r<10; r++) {
         const tr = tbody.insertRow();
         const selCell = tr.insertCell(); selCell.className = "text-start ps-3";
+        
         let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-medium border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
-        state.portfolios.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
+        
+        PRESET_PORTFOLIOS.forEach(group => {
+            selHTML += `<optgroup label="${group.name}">`;
+            group.portfolios.forEach(p => {
+                selHTML += `<option value="${p.id}">${p.name}</option>`;
+            });
+            selHTML += `</optgroup>`;
+        });
+        
+        const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
+        if(customs.length > 0) {
+            selHTML += `<optgroup label="Custom Portfolios">`;
+            customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
+            selHTML += `</optgroup>`;
+        }
+
         selCell.innerHTML = selHTML + `</select>`;
 
         state.strategyYears.forEach((y, i) => {
