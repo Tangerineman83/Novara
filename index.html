@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=14.2">
+    <link rel="stylesheet" href="css/style.css?v=14.3">
 </head>
 <body>
 
@@ -99,8 +99,8 @@
                                 <div class="row align-items-center mt-3" id="port-visuals-left">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-left"></canvas></div></div>
                                     <div class="col-6">
-                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-left">--%</span></div>
-                                        <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-left">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns."></i></span><span class="val text-primary" id="stat-ret-left">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">20Yr Median Growth <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Projected median multiple of a single unit of wealth over 20 years, accounting for compounding, volatility drag, and tail risks."></i></span><span class="val" id="stat-unit-left">--x</span></div>
                                         <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-left">--%</span></div>
                                     </div>
                                 </div>
@@ -125,8 +125,8 @@
                                 <div class="row align-items-center mt-3 d-none" id="port-visuals-right">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-right"></canvas></div></div>
                                     <div class="col-6">
-                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-right">--%</span></div>
-                                        <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-right">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns."></i></span><span class="val text-primary" id="stat-ret-right">--%</span></div>
+                                        <div class="stats-badge mb-2"><span class="lbl">20Yr Median Growth <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Projected median multiple of a single unit of wealth over 20 years, accounting for compounding, volatility drag, and tail risks."></i></span><span class="val" id="stat-unit-right">--x</span></div>
                                         <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-right">--%</span></div>
                                     </div>
                                 </div>
@@ -303,6 +303,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=14.2"></script>
+<script type="module" src="js/app.js?v=14.3"></script>
 </body>
 </html>
