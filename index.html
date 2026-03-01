@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=14.1">
+    <link rel="stylesheet" href="css/style.css?v=14.2">
 </head>
 <body>
 
@@ -96,27 +96,13 @@
                                     <table class="table table-sm table-borderless align-middle mb-0" id="port-table-left"><tbody class="small"></tbody></table>
                                 </div>
                                 <hr id="port-hr-left" class="border-light m-0">
-                                <div class="row mt-3" id="port-visuals-left">
+                                <div class="row align-items-center mt-3" id="port-visuals-left">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-left"></canvas></div></div>
                                     <div class="col-6">
                                         <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-left">--%</span></div>
                                         <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-left">--%</span></div>
-                                        <div class="stats-badge mb-3"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-left">--%</span></div>
+                                        <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-left">--%</span></div>
                                     </div>
-                                    
-                                    <div class="col-12">
-                                        <div class="stress-container">
-                                            <div class="stress-header" onclick="toggleStress('left')">
-                                                <span class="fw-bold text-muted small text-uppercase"><i class="fas fa-bolt me-2"></i>Macro Stress</span>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="stress-range text-muted" id="stress-range-left">--</span>
-                                                    <i class="fas fa-chevron-down text-muted small" id="stress-icon-left"></i>
-                                                </div>
-                                            </div>
-                                            <div class="stress-content" id="stress-content-left"></div>
-                                        </div>
-                                    </div>
-
                                 </div>
                             </div>
                         </div>
@@ -136,34 +122,53 @@
                                     <table class="table table-sm table-borderless align-middle mb-0" id="port-table-right"><tbody class="small"></tbody></table>
                                 </div>
                                 <hr id="port-hr-right" class="border-light m-0 d-none">
-                                <div class="row mt-3 d-none" id="port-visuals-right">
+                                <div class="row align-items-center mt-3 d-none" id="port-visuals-right">
                                     <div class="col-6"><div class="pie-container"><canvas id="pie-right"></canvas></div></div>
                                     <div class="col-6">
                                         <div class="stats-badge mb-2"><span class="lbl">Arithmetic Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The simple average of expected annual returns. Overstates long-term compounding."></i></span><span class="val text-primary" id="stat-ret-right">--%</span></div>
                                         <div class="stats-badge mb-2"><span class="lbl">Geometric Return <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The true compound growth rate. Accounts for the mathematical drag of volatility."></i></span><span class="val" id="stat-geo-right">--%</span></div>
-                                        <div class="stats-badge mb-3"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-right">--%</span></div>
+                                        <div class="stats-badge"><span class="lbl">Volatility <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="The standard deviation of returns. Accounts for Basis Risk across similar assets."></i></span><span class="val text-muted" id="stat-vol-right">--%</span></div>
                                     </div>
-
-                                    <div class="col-12">
-                                        <div class="stress-container">
-                                            <div class="stress-header" onclick="toggleStress('right')">
-                                                <span class="fw-bold text-muted small text-uppercase"><i class="fas fa-bolt me-2"></i>Macro Stress</span>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="stress-range text-muted" id="stress-range-right">--</span>
-                                                    <i class="fas fa-chevron-down text-muted small" id="stress-icon-right"></i>
-                                                </div>
-                                            </div>
-                                            <div class="stress-content" id="stress-content-right"></div>
-                                        </div>
-                                    </div>
-
                                 </div>
                                 <div id="port-blank-right" class="text-center text-muted py-5 mt-5"><i class="fas fa-balance-scale fa-2x mb-3 opacity-25"></i><p class="small">Select a portfolio to compare</p></div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="card mt-3"><div class="card-body py-2 px-3"><div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div></div></div>
+                
+                <div class="card mt-3 mb-3"><div class="card-body py-2 px-3"><div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div></div></div>
+
+                <div class="card">
+                    <div class="card-header bg-white border-0 cursor-pointer d-flex justify-content-between align-items-center" id="stress-toggle">
+                        <div><h6 class="fw-bold m-0"><i class="fas fa-bolt text-warning me-2"></i>Macroeconomic Stress Scenarios</h6></div>
+                        <div class="d-flex align-items-center gap-4">
+                            <div class="text-end d-none d-md-block">
+                                <div class="small text-muted fw-bold" style="font-size: 0.7rem;">PRIMARY EXPOSURE</div>
+                                <div class="fw-bold text-primary" id="stress-summary-left">--</div>
+                            </div>
+                            <div class="text-end d-none d-md-block" id="stress-summary-right-container">
+                                <div class="small text-muted fw-bold" style="font-size: 0.7rem;">COMPARISON EXPOSURE</div>
+                                <div class="fw-bold text-secondary" id="stress-summary-right">--</div>
+                            </div>
+                            <i class="fas fa-chevron-down text-muted transition-transform" id="stress-chevron"></i>
+                        </div>
+                    </div>
+                    <div class="card-body pt-0 collapse" id="stress-collapse">
+                        <div class="table-responsive mt-2">
+                            <table class="table table-hover align-middle mb-0" id="stress-table">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>Scenario</th>
+                                        <th class="text-end" id="stress-th-left">Primary</th>
+                                        <th class="text-end" id="stress-th-right">Comparison</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div id="tab-strategy" class="view-section d-none">
@@ -298,6 +303,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=14.1"></script>
+<script type="module" src="js/app.js?v=14.2"></script>
 </body>
 </html>
