@@ -110,17 +110,7 @@ export const PRESET_PORTFOLIOS = [
             {
                 id: "p_resilient_growth",
                 name: "Resilient Growth",
-                weights: {
-                    usEq: 0.25,
-                    emEq: 0.10,
-                    infrastructure: 0.15,
-                    privEq: 0.10,
-                    privCredit: 0.10,
-                    globalSov: 0.10,
-                    sdCredit: 0.10,
-                    moneyMkt: 0.05,
-                    listedAlts: 0.05
-                },
+                weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 },
                 alpha: 0.006, 
                 te: 0.018    
             }
