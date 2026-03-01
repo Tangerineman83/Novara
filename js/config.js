@@ -51,7 +51,6 @@ export const PRESET_PERSONAS = [
     { name: "Late Career (Age 55)", data: { age: 55, retirementAge: 67, savings: 250000, salary: 70000, contribution: 15, realSalaryGrowth: 0 } }
 ];
 
-// Combine the core logic and provider options
 export const PRESET_PORTFOLIOS = [
     {
         name: "Core Building Blocks",
@@ -141,6 +140,14 @@ export const PROVIDER_STRATEGIES = [
         ]
     },
     {
+        name: "Aviva My Future Focus",
+        points: [
+            { years: 50, weights: { "p_av_focus_growth": 1.0 } },
+            { years: 15, weights: { "p_av_focus_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
         name: "Aviva My Future Vision (LTAF)",
         points: [
             { years: 50, weights: { "p_av_vision_growth": 1.0 } },
@@ -149,7 +156,7 @@ export const PROVIDER_STRATEGIES = [
         ]
     },
     {
-        name: "Standard Life SMA (New)",
+        name: "Standard Life SMA",
         points: [
             { years: 50, weights: { "p_sl_sma_growth": 1.0 } },
             { years: 15, weights: { "p_sl_sma_growth": 1.0 } },
@@ -246,9 +253,9 @@ export const STRESS_SCENARIOS = [
         returns: { usEq: -0.340, devEq: -0.330, emEq: -0.320, jpnEq: -0.240, ukEq: -0.330, apacEq: -0.280, globalReits: -0.300, realEstateDirect: -0.080, infrastructure: -0.120, privEq: -0.180, privCredit: -0.120, listedAlts: -0.250, digitalAssets: -0.520, globalHighYield: -0.150, emDebt: -0.130, igCredit: -0.120, sdCredit: -0.040, globalSov: 0.080, inflLinked: 0.050, moneyMkt: 0.010 }
     },
     {
-        id: "s_2022_ukraine", name: "Geopolitical Escalation (2022)",
-        description: "Global commodity shock driving structural inflation.",
-        returns: { usEq: -0.180, devEq: -0.220, emEq: -0.250, jpnEq: -0.080, ukEq: -0.080, apacEq: -0.120, globalReits: -0.150, realEstateDirect: -0.100, infrastructure: 0.080, privEq: -0.100, privCredit: -0.040, listedAlts: -0.120, digitalAssets: -0.200, globalHighYield: -0.100, emDebt: -0.200, igCredit: -0.120, sdCredit: -0.030, globalSov: -0.150, inflLinked: 0.120, moneyMkt: 0.040 }
+        id: "s_2022_uk_bond", name: "2022 UK Bond Crash",
+        description: "Historic sell-off in UK sovereign debt triggering broader fixed-income panic.",
+        returns: { usEq: -0.080, devEq: -0.120, emEq: -0.100, jpnEq: -0.050, ukEq: -0.150, apacEq: -0.080, globalReits: -0.180, realEstateDirect: -0.120, infrastructure: -0.050, privEq: -0.080, privCredit: -0.050, listedAlts: -0.100, digitalAssets: -0.200, globalHighYield: -0.120, emDebt: -0.150, igCredit: -0.220, sdCredit: -0.080, globalSov: -0.280, inflLinked: -0.300, moneyMkt: 0.020 }
     },
     {
         id: "s_2022_uk_ldi", name: "2022 UK Gilt Crisis (LDI)",
@@ -256,23 +263,20 @@ export const STRESS_SCENARIOS = [
         returns: { usEq: -0.190, devEq: -0.170, emEq: -0.200, jpnEq: -0.100, ukEq: -0.150, apacEq: -0.170, globalReits: -0.250, realEstateDirect: -0.150, infrastructure: -0.080, privEq: -0.150, privCredit: -0.080, listedAlts: -0.180, digitalAssets: -0.640, globalHighYield: -0.130, emDebt: -0.180, igCredit: -0.200, sdCredit: -0.050, globalSov: -0.350, inflLinked: -0.450, moneyMkt: 0.030 }
     },
     {
+        id: "s_2022_ukraine", name: "Geopolitical Escalation (2022)",
+        description: "Global commodity shock driving structural inflation.",
+        returns: { usEq: -0.180, devEq: -0.220, emEq: -0.250, jpnEq: -0.080, ukEq: -0.080, apacEq: -0.120, globalReits: -0.150, realEstateDirect: -0.100, infrastructure: 0.080, privEq: -0.100, privCredit: -0.040, listedAlts: -0.120, digitalAssets: -0.200, globalHighYield: -0.100, emDebt: -0.200, igCredit: -0.120, sdCredit: -0.030, globalSov: -0.150, inflLinked: 0.120, moneyMkt: 0.040 }
+    },
+    {
         id: "s_2023_svb", name: "2023 US Banking Crisis",
         description: "Digital bank runs testing mid-tier financial stability.",
         returns: { usEq: -0.080, devEq: -0.070, emEq: -0.050, jpnEq: -0.040, ukEq: -0.060, apacEq: -0.040, globalReits: -0.100, realEstateDirect: -0.050, infrastructure: -0.020, privEq: -0.050, privCredit: -0.050, listedAlts: -0.080, digitalAssets: -0.150, globalHighYield: -0.080, emDebt: -0.060, igCredit: -0.060, sdCredit: -0.020, globalSov: 0.040, inflLinked: 0.020, moneyMkt: 0.040 }
     },
-    // --- NEW STRESS EVENTS ADDED HERE ---
     {
-
         id: "s_2025_liberation", name: "2025 Liberation Day",
         description: "Aggressive fiscal stimulus and deregulation driving asset price surge.",
         returns: { usEq: 0.150, devEq: 0.080, emEq: 0.050, jpnEq: 0.070, ukEq: 0.060, apacEq: 0.050, globalReits: 0.120, realEstateDirect: 0.080, infrastructure: 0.100, privEq: 0.140, privCredit: 0.060, listedAlts: 0.090, digitalAssets: 0.450, globalHighYield: 0.050, emDebt: 0.040, igCredit: -0.020, sdCredit: 0.010, globalSov: -0.040, inflLinked: 0.020, moneyMkt: 0.010 }
     },
-    {
-        id: "s_2022_uk_bond", name: "2022 UK Bond Crash",
-        description: "Historic sell-off in UK sovereign debt triggering broader fixed-income panic.",
-        returns: { usEq: -0.080, devEq: -0.120, emEq: -0.100, jpnEq: -0.050, ukEq: -0.150, apacEq: -0.080, globalReits: -0.180, realEstateDirect: -0.120, infrastructure: -0.050, privEq: -0.080, privCredit: -0.050, listedAlts: -0.100, digitalAssets: -0.200, globalHighYield: -0.120, emDebt: -0.150, igCredit: -0.220, sdCredit: -0.080, globalSov: -0.280, inflLinked: -0.300, moneyMkt: 0.020 }
-    },
-    // --- HYPOTHETICAL EVENTS ---
     {
         id: "s_green_bubble", name: "Green Bubble Burst",
         description: "Valuation correction in ESG and transition-aligned assets.",
