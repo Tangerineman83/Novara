@@ -51,40 +51,45 @@ export const PRESET_PERSONAS = [
     { name: "Late Career (Age 55)", data: { age: 55, retirementAge: 67, savings: 250000, salary: 70000, contribution: 15, realSalaryGrowth: 0 } }
 ];
 
+// Combine the core logic and provider options
 export const PRESET_PORTFOLIOS = [
     {
         name: "Core Building Blocks",
         portfolios: [
-            { 
-                id: "p_std_growth", 
-                name: "Standard Growth", 
-                weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, 
-                alpha: 0.0, te: 0.0 
-            },
-            { 
-                id: "p_enh_growth", 
-                name: "Enhanced Growth", 
-                weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0875, infrastructure: 0.075, privCredit: 0.075, sdCredit: 0.0125 }, 
-                alpha: 0.003, te: 0.006 
-            },
-            { 
-                id: "p_resilient_growth", 
-                name: "Resilient Growth", 
-                weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, 
-                alpha: 0.006, te: 0.018 
-            },
-            { 
-                id: "p_ltaf", 
-                name: "LTAF", 
-                weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, 
-                alpha: 0.012, te: 0.024 
-            },
-            { 
-                id: "p_retire", 
-                name: "Retirement", 
-                weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, 
-                alpha: 0.0, te: 0.0 
-            }
+            { id: "p_std_growth", name: "Standard Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alpha: 0.0, te: 0.0 },
+            { id: "p_enh_growth", name: "Enhanced Growth", weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0875, infrastructure: 0.075, privCredit: 0.075, sdCredit: 0.0125 }, alpha: 0.003, te: 0.006 },
+            { id: "p_resilient_growth", name: "Resilient Growth", weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, alpha: 0.006, te: 0.018 },
+            { id: "p_ltaf", name: "LTAF", weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, alpha: 0.012, te: 0.024 },
+            { id: "p_retire", name: "Retirement", weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, alpha: 0.0, te: 0.0 }
+        ]
+    },
+    {
+        name: "Legal & General (L&G)",
+        portfolios: [
+            { id: "p_lg_tdf_growth", name: "L&G TDF Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alpha: 0.0, te: 0.0 },
+            { id: "p_lg_tdf_retire", name: "L&G TDF Retirement", weights: { sdCredit: 0.35, igCredit: 0.25, moneyMkt: 0.20, usEq: 0.12, devEq: 0.04, emEq: 0.02, globalSov: 0.02 }, alpha: 0.0, te: 0.0 },
+            { id: "p_lg_laf_growth", name: "L&G Lifetime Advantage Growth", weights: { usEq: 0.497, devEq: 0.119, emEq: 0.081, jpnEq: 0.047, ukEq: 0.030, apacEq: 0.017, globalReits: 0.043, realEstateDirect: 0.016, privEq: 0.05, infrastructure: 0.05, privCredit: 0.05 }, alpha: 0.004, te: 0.008 }
+        ]
+    },
+    {
+        name: "Aviva",
+        portfolios: [
+            { id: "p_av_focus_growth", name: "Aviva My Future Focus Growth", weights: { usEq: 0.45, devEq: 0.15, emEq: 0.12, jpnEq: 0.05, ukEq: 0.08, apacEq: 0.05, infrastructure: 0.05, igCredit: 0.05 }, alpha: 0.002, te: 0.005 },
+            { id: "p_av_vision_growth", name: "Aviva My Future Vision Growth", weights: { usEq: 0.468, devEq: 0.112, emEq: 0.076, jpnEq: 0.044, ukEq: 0.028, apacEq: 0.016, globalReits: 0.04, realEstateDirect: 0.016, privEq: 0.07, infrastructure: 0.07, privCredit: 0.06 }, alpha: 0.005, te: 0.012 }
+        ]
+    },
+    {
+        name: "Standard Life",
+        portfolios: [
+            { id: "p_sl_sma_growth", name: "Standard Life SMA Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alpha: 0.0, te: 0.0 },
+            { id: "p_sl_future_growth", name: "SL Future Opportunities Growth", weights: { usEq: 0.439, devEq: 0.105, emEq: 0.071, jpnEq: 0.041, ukEq: 0.026, apacEq: 0.015, globalReits: 0.038, realEstateDirect: 0.015, privEq: 0.10, infrastructure: 0.10, privCredit: 0.05 }, alpha: 0.006, te: 0.015 }
+        ]
+    },
+    {
+        name: "NPT",
+        portfolios: [
+            { id: "p_npt_growth", name: "NPT Sustainable Growth", weights: { usEq: 0.556, devEq: 0.133, emEq: 0.090, jpnEq: 0.052, ukEq: 0.033, apacEq: 0.019, globalReits: 0.048, realEstateDirect: 0.019, infrastructure: 0.05 }, alpha: 0.002, te: 0.004 },
+            { id: "p_npt_retire", name: "NPT Retirement (40% Equity)", weights: { usEq: 0.23, devEq: 0.08, emEq: 0.04, ukEq: 0.05, igCredit: 0.30, sdCredit: 0.20, moneyMkt: 0.10 }, alpha: 0.0, te: 0.0 }
         ]
     }
 ];
@@ -114,6 +119,57 @@ export const PRESET_STRATEGIES = [
             { years: 50, weights: { "p_resilient_growth": 1.0 } },
             { years: 15, weights: { "p_resilient_growth": 1.0 } },
             { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    }
+];
+
+export const PROVIDER_STRATEGIES = [
+    {
+        name: "L&G Target Date Fund (TDF)",
+        points: [
+            { years: 50, weights: { "p_lg_tdf_growth": 1.0 } },
+            { years: 15, weights: { "p_lg_tdf_growth": 1.0 } },
+            { years: 0,  weights: { "p_lg_tdf_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "L&G Lifetime Advantage (LAF)",
+        points: [
+            { years: 50, weights: { "p_lg_laf_growth": 1.0 } },
+            { years: 15, weights: { "p_lg_laf_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "Aviva My Future Vision (LTAF)",
+        points: [
+            { years: 50, weights: { "p_av_vision_growth": 1.0 } },
+            { years: 15, weights: { "p_av_vision_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "Standard Life SMA (New)",
+        points: [
+            { years: 50, weights: { "p_sl_sma_growth": 1.0 } },
+            { years: 15, weights: { "p_sl_sma_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "Standard Life Future Opps",
+        points: [
+            { years: 50, weights: { "p_sl_future_growth": 1.0 } },
+            { years: 15, weights: { "p_sl_future_growth": 1.0 } },
+            { years: 0,  weights: { "p_retire": 1.0 } }
+        ]
+    },
+    {
+        name: "NPT Sustainable (19yr Glide)",
+        points: [
+            { years: 50, weights: { "p_npt_growth": 1.0 } },
+            { years: 19, weights: { "p_npt_growth": 1.0 } },
+            { years: 0,  weights: { "p_npt_retire": 1.0 } }
         ]
     }
 ];
@@ -190,20 +246,32 @@ export const STRESS_SCENARIOS = [
         returns: { usEq: -0.340, devEq: -0.330, emEq: -0.320, jpnEq: -0.240, ukEq: -0.330, apacEq: -0.280, globalReits: -0.300, realEstateDirect: -0.080, infrastructure: -0.120, privEq: -0.180, privCredit: -0.120, listedAlts: -0.250, digitalAssets: -0.520, globalHighYield: -0.150, emDebt: -0.130, igCredit: -0.120, sdCredit: -0.040, globalSov: 0.080, inflLinked: 0.050, moneyMkt: 0.010 }
     },
     {
+        id: "s_2022_ukraine", name: "Geopolitical Escalation (2022)",
+        description: "Global commodity shock driving structural inflation.",
+        returns: { usEq: -0.180, devEq: -0.220, emEq: -0.250, jpnEq: -0.080, ukEq: -0.080, apacEq: -0.120, globalReits: -0.150, realEstateDirect: -0.100, infrastructure: 0.080, privEq: -0.100, privCredit: -0.040, listedAlts: -0.120, digitalAssets: -0.200, globalHighYield: -0.100, emDebt: -0.200, igCredit: -0.120, sdCredit: -0.030, globalSov: -0.150, inflLinked: 0.120, moneyMkt: 0.040 }
+    },
+    {
         id: "s_2022_uk_ldi", name: "2022 UK Gilt Crisis (LDI)",
         description: "Extreme bond volatility and collateral calls for UK pension funds.",
         returns: { usEq: -0.190, devEq: -0.170, emEq: -0.200, jpnEq: -0.100, ukEq: -0.150, apacEq: -0.170, globalReits: -0.250, realEstateDirect: -0.150, infrastructure: -0.080, privEq: -0.150, privCredit: -0.080, listedAlts: -0.180, digitalAssets: -0.640, globalHighYield: -0.130, emDebt: -0.180, igCredit: -0.200, sdCredit: -0.050, globalSov: -0.350, inflLinked: -0.450, moneyMkt: 0.030 }
-    },
-    {
-        id: "s_2022_ukraine", name: "Geopolitical Escalation",
-        description: "Global commodity shock driving structural inflation.",
-        returns: { usEq: -0.180, devEq: -0.220, emEq: -0.250, jpnEq: -0.080, ukEq: -0.080, apacEq: -0.120, globalReits: -0.150, realEstateDirect: -0.100, infrastructure: 0.080, privEq: -0.100, privCredit: -0.040, listedAlts: -0.120, digitalAssets: -0.200, globalHighYield: -0.100, emDebt: -0.200, igCredit: -0.120, sdCredit: -0.030, globalSov: -0.150, inflLinked: 0.120, moneyMkt: 0.040 }
     },
     {
         id: "s_2023_svb", name: "2023 US Banking Crisis",
         description: "Digital bank runs testing mid-tier financial stability.",
         returns: { usEq: -0.080, devEq: -0.070, emEq: -0.050, jpnEq: -0.040, ukEq: -0.060, apacEq: -0.040, globalReits: -0.100, realEstateDirect: -0.050, infrastructure: -0.020, privEq: -0.050, privCredit: -0.050, listedAlts: -0.080, digitalAssets: -0.150, globalHighYield: -0.080, emDebt: -0.060, igCredit: -0.060, sdCredit: -0.020, globalSov: 0.040, inflLinked: 0.020, moneyMkt: 0.040 }
     },
+    // --- NEW STRESS EVENTS ADDED HERE ---
+    {
+        id: "s_2025_liberation", name: "2025 Liberation Day",
+        description: "Aggressive fiscal stimulus and deregulation driving asset price surge.",
+        returns: { usEq: 0.150, devEq: 0.080, emEq: 0.050, jpnEq: 0.070, ukEq: 0.060, apacEq: 0.050, globalReits: 0.120, realEstateDirect: 0.080, infrastructure: 0.100, privEq: 0.140, privCredit: 0.060, listedAlts: 0.090, digitalAssets: 0.450, globalHighYield: 0.050, emDebt: 0.040, igCredit: -0.020, sdCredit: 0.010, globalSov: -0.040, inflLinked: 0.020, moneyMkt: 0.010 }
+    },
+    {
+        id: "s_2022_uk_bond", name: "2022 UK Bond Crash",
+        description: "Historic sell-off in UK sovereign debt triggering broader fixed-income panic.",
+        returns: { usEq: -0.080, devEq: -0.120, emEq: -0.100, jpnEq: -0.050, ukEq: -0.150, apacEq: -0.080, globalReits: -0.180, realEstateDirect: -0.120, infrastructure: -0.050, privEq: -0.080, privCredit: -0.050, listedAlts: -0.100, digitalAssets: -0.200, globalHighYield: -0.120, emDebt: -0.150, igCredit: -0.220, sdCredit: -0.080, globalSov: -0.280, inflLinked: -0.300, moneyMkt: 0.020 }
+    },
+    // --- HYPOTHETICAL EVENTS ---
     {
         id: "s_green_bubble", name: "Green Bubble Burst",
         description: "Valuation correction in ESG and transition-aligned assets.",
