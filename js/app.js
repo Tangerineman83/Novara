@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.0';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.1';
 
 const state = {
     worker: null,
@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         initWorker();
         renderAssetRows();
+        renderStressAssumptionsTable(); // Renders the new Markets tab stress table
         initPresets();
         initRunModelInputs();
         setupAutoRun();
@@ -123,6 +124,18 @@ function setupEventListeners() {
         }
     });
 
+    document.getElementById('cma-stress-toggle')?.addEventListener('click', () => {
+        const collapse = document.getElementById('cma-stress-collapse');
+        const chevron = document.getElementById('cma-stress-chevron');
+        if (collapse.classList.contains('show')) {
+            collapse.classList.remove('show');
+            chevron.style.transform = 'rotate(0deg)';
+        } else {
+            collapse.classList.add('show');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    });
+
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
     window.toggleStress = toggleStress; 
@@ -208,7 +221,7 @@ function renderAssetRows() {
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="fw-medium text-muted">
+            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${asset.color}; margin-right:6px;"></span>
                 ${asset.name}
             </td>
@@ -234,6 +247,38 @@ function renderAssetRows() {
     });
 }
 
+// NEW: Renders the Stress Matrix table in the Markets Tab
+function renderStressAssumptionsTable() {
+    const theadTr = document.getElementById('cma-stress-thead-tr');
+    const tbody = document.querySelector('#cma-stress-table tbody');
+    if (!theadTr || !tbody) return;
+
+    let headHTML = '<th style="min-width: 200px; position: sticky; left: 0; background: #F8FAFC; z-index: 2;">Asset Class</th>';
+    STRESS_SCENARIOS.forEach(sc => {
+        headHTML += `<th class="text-end" style="min-width: 130px;">
+            <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${sc.description}">${sc.name}</span>
+        </th>`;
+    });
+    theadTr.innerHTML = headHTML;
+
+    let bodyHTML = '';
+    ASSET_CLASSES.forEach(ac => {
+        bodyHTML += `<tr>
+            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
+                ${ac.name}
+            </td>`;
+        STRESS_SCENARIOS.forEach(sc => {
+            const val = sc.returns[ac.key] || 0;
+            const valPct = (val * 100).toFixed(1);
+            const cls = val > 0 ? 'text-success' : (val < 0 ? 'text-danger' : 'text-muted');
+            bodyHTML += `<td class="text-end fw-bold ${cls}">${val > 0 ? '+' : ''}${valPct}%</td>`;
+        });
+        bodyHTML += `</tr>`;
+    });
+    tbody.innerHTML = bodyHTML;
+}
+
 function buildSharedLegend() {
     const container = document.getElementById('shared-portfolio-legend');
     if(!container) return;
@@ -245,7 +290,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=15.0'); 
+    state.worker = new Worker('./js/worker.js?v=15.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -651,8 +696,8 @@ function renderStressTests() {
         
         valL *= 100; valR *= 100;
 
-        const clsL = valL >= 0 ? 'text-success' : 'text-danger';
-        const clsR = valR >= 0 ? 'text-success' : 'text-danger';
+        const clsL = valL > 0 ? 'text-success' : (valL < 0 ? 'text-danger' : 'text-muted');
+        const clsR = valR > 0 ? 'text-success' : (valR < 0 ? 'text-danger' : 'text-muted');
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -1109,4 +1154,36 @@ function updateUIState(status) {
     const spinner = document.getElementById('loading-spinner');
     if(text) text.innerText = status;
     if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
+}
+
+// NEW: Renders the Stress Matrix table in the Markets Tab
+function renderStressAssumptionsTable() {
+    const theadTr = document.getElementById('cma-stress-thead-tr');
+    const tbody = document.querySelector('#cma-stress-table tbody');
+    if (!theadTr || !tbody) return;
+
+    let headHTML = '<th style="min-width: 200px; position: sticky; left: 0; background: #F8FAFC; z-index: 2;">Asset Class</th>';
+    STRESS_SCENARIOS.forEach(sc => {
+        headHTML += `<th class="text-end" style="min-width: 130px;">
+            <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${sc.description}">${sc.name}</span>
+        </th>`;
+    });
+    theadTr.innerHTML = headHTML;
+
+    let bodyHTML = '';
+    ASSET_CLASSES.forEach(ac => {
+        bodyHTML += `<tr>
+            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
+                ${ac.name}
+            </td>`;
+        STRESS_SCENARIOS.forEach(sc => {
+            const val = sc.returns[ac.key] || 0;
+            const valPct = (val * 100).toFixed(1);
+            const cls = val > 0 ? 'text-success' : (val < 0 ? 'text-danger' : 'text-muted');
+            bodyHTML += `<td class="text-end fw-bold ${cls}">${val > 0 ? '+' : ''}${valPct}%</td>`;
+        });
+        bodyHTML += `</tr>`;
+    });
+    tbody.innerHTML = bodyHTML;
 }
