@@ -48,7 +48,6 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
-// Strict Cholesky that throws if Matrix is non-PSD
 function choleskyStrict(matrix) {
     const n = matrix.length;
     const L = Array(n).fill(0).map(() => Array(n).fill(0));
@@ -70,7 +69,6 @@ function choleskyStrict(matrix) {
     return L;
 }
 
-// Auto-healing Tikhonov/Shrinkage regularization wrapper
 function getRobustCholesky(matrix) {
     const n = matrix.length;
     let blend = 0.0;
@@ -80,7 +78,7 @@ function getRobustCholesky(matrix) {
         try {
             return choleskyStrict(currentMatrix);
         } catch (e) {
-            blend += 0.01; // Shrink towards identity by 1% increments to force mathematical validity
+            blend += 0.01;
             for (let i = 0; i < n; i++) {
                 for (let j = 0; j < n; j++) {
                     if (i === j) currentMatrix[i][j] = 1.0;
@@ -90,7 +88,6 @@ function getRobustCholesky(matrix) {
         }
     }
     
-    // Absolute fallback (Identity Matrix)
     const L = Array(n).fill(0).map(() => Array(n).fill(0));
     for(let i=0; i<n; i++) L[i][i] = 1.0;
     return L;
@@ -184,7 +181,7 @@ function runMonteCarloPaths(data) {
                 const strat = strategies[stratIdx];
                 const monthData = strat.monthlyData[m];
                 
-                let monthlyReturn = (monthData.alpha || 0) / 12;
+                let monthlyReturn = 0;
                 
                 for (let i = 0; i < n; i++) {
                     const key = assetKeys[i];
@@ -193,12 +190,15 @@ function runMonteCarloPaths(data) {
 
                     const fac = assetFactors[key];
                     const expectedReturn = fac.mean / 12;
-                    monthlyReturn += w * (expectedReturn + assetRandomness[key]);
-                }
+                    const alpha = (monthData.alphas && monthData.alphas[key] ? monthData.alphas[key] : 0) / 12;
+                    const te = monthData.tes && monthData.tes[key] ? monthData.tes[key] : 0;
+                    
+                    let activeShock = 0;
+                    if (te > 0) {
+                        activeShock = (te / Math.sqrt(12)) * rand_t_custom(sysKurtosis);
+                    }
 
-                if (monthData.te > 0) {
-                    const activeShock = (monthData.te / Math.sqrt(12)) * rand_t_custom(sysKurtosis);
-                    monthlyReturn += activeShock;
+                    monthlyReturn += w * (expectedReturn + alpha + assetRandomness[key] + activeShock);
                 }
 
                 const contribution = (salaries[stratIdx] * (persona.contribution / 100)) / 12;
