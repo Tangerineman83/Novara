@@ -48,7 +48,6 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
-// NEW: Cholesky Decomposition Algorithm
 function cholesky(matrix) {
     const n = matrix.length;
     const L = Array(n).fill(0).map(() => Array(n).fill(0));
@@ -59,7 +58,6 @@ function cholesky(matrix) {
                 sum += L[i][k] * L[j][k];
             }
             if (i === j) {
-                // Safeguard against non-positive definite matrices via small ridge
                 const val = matrix[i][i] - sum;
                 L[i][j] = Math.sqrt(Math.max(0.000001, val)); 
             } else {
@@ -111,41 +109,22 @@ function runMonteCarloPaths(data) {
 
     const assetFactors = {};
     assetKeys.forEach(key => {
-        let ce = cma.ce[key] || 0;
-        let cc = cma.cc[key] || 0;
-        const sumSq = ce * ce + cc * cc;
-        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
-        const resid = Math.sqrt(Math.max(0, 1 - ce * ce - cc * cc));
-        
         assetFactors[key] = {
             mean: (cma.r[key] || 0), 
             vol: (cma.v[key] || 0) / Math.sqrt(12),
-            k: (cma.k[key] || 0),
-            ce: ce, cc: cc, resid: resid
+            k: (cma.k[key] || 0)
         };
     });
 
-    // NEW: Build the Implied Correlation Matrix preserving the Basis Risk Engine
     const n = assetKeys.length;
     const correlationMatrix = Array(n).fill(0).map(() => Array(n).fill(0));
-    const factorArray = assetKeys.map(key => assetFactors[key]);
-
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-            if (i === j) {
-                correlationMatrix[i][j] = 1.0;
-            } else {
-                const f_i = factorArray[i];
-                const f_j = factorArray[j];
-                // Factor loading dot product + 30% systemic basis risk correlation on residuals
-                correlationMatrix[i][j] = (f_i.ce * f_j.ce) + (f_i.cc * f_j.cc) + (0.3 * f_i.resid * f_j.resid);
-            }
+            correlationMatrix[i][j] = cma.correlations[assetKeys[i]][assetKeys[j]] || 0;
         }
     }
     
-    // Decompose the matrix
     const L = cholesky(correlationMatrix);
-
     const allStrategyPaths = strategies.map(() => []); 
 
     for (let s = 0; s < simCount; s++) {
@@ -156,22 +135,19 @@ function runMonteCarloPaths(data) {
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            // NEW: Generate uncorrelated base shocks utilizing appropriate Kurtosis
             const uncorrShocks = new Float32Array(n);
             for (let i = 0; i < n; i++) {
-                // Blend systemic tail risk with asset specific idiosyncrasies
-                const effectiveK = (i < 2) ? sysKurtosis : factorArray[i].k;
+                const effectiveK = (i < 2) ? sysKurtosis : assetFactors[assetKeys[i]].k;
                 uncorrShocks[i] = rand_t_custom(effectiveK);
             }
 
-            // Apply Cholesky Lower Triangular Matrix to correlate shocks
             const assetRandomness = {};
             for (let i = 0; i < n; i++) {
                 let correlatedShock = 0;
                 for (let j = 0; j <= i; j++) {
                     correlatedShock += L[i][j] * uncorrShocks[j];
                 }
-                assetRandomness[assetKeys[i]] = factorArray[i].vol * correlatedShock;
+                assetRandomness[assetKeys[i]] = assetFactors[assetKeys[i]].vol * correlatedShock;
             }
 
             cumulativeInflation *= monthlyInflationRate;
@@ -187,7 +163,7 @@ function runMonteCarloPaths(data) {
                     const w = monthData.weights[key] || 0;
                     if (w === 0) continue;
 
-                    const fac = factorArray[i];
+                    const fac = assetFactors[key];
                     const expectedReturn = fac.mean / 12;
                     monthlyReturn += w * (expectedReturn + assetRandomness[key]);
                 }
