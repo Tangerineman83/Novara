@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.4';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.5';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -11,7 +11,9 @@ const state = {
     portfolios: [], 
     strategyYears: [50, 15, 0],
     autoRun: true,
-    portfolioInputsCollapsed: false
+    portfolioInputsCollapsed: false,
+    advLeft: false,
+    advRight: false
 };
 
 let debounceTimer;
@@ -127,6 +129,17 @@ function setupEventListeners() {
 
     window.addStrategyYearColumn = addStrategyYearColumn;
     window.createNewPortfolio = createNewPortfolio;
+    window.toggleAdv = toggleAdv;
+}
+
+function toggleAdv(side) {
+    state[`adv${side}`] = !state[`adv${side}`];
+    const cols = document.querySelectorAll(`.adv-col-${side}`);
+    if (state[`adv${side}`]) {
+        cols.forEach(el => el.classList.remove('d-none'));
+    } else {
+        cols.forEach(el => el.classList.add('d-none'));
+    }
 }
 
 function syncPortfolioInputsVisibility() {
@@ -353,7 +366,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.4'); 
+    state.worker = new Worker('./js/worker.js?v=16.5'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -565,7 +578,7 @@ function refreshPortfolioDropdowns() {
 
 function createNewPortfolio(side) {
     const num = state.portfolios.length + 1;
-    const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {}, alpha: 0, te: 0 };
+    const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {}, alphas: {}, tes: {} };
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
     document.getElementById(`port-select-${side}`).value = newPort.id;
@@ -595,56 +608,61 @@ function renderPortfolioPane(side, portId) {
     const portfolio = state.portfolios.find(p => p.id === portId);
     if (!portfolio) return;
 
-    const tbody = document.querySelector(`#port-table-${side} tbody`);
-    tbody.innerHTML = '';
-    const frag = document.createDocumentFragment();
+    const table = document.querySelector(`#port-table-${side}`);
+    table.innerHTML = '';
+    
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th class="text-muted small text-uppercase fw-bold border-0">Asset Class</th>
+            <th class="text-end text-muted small text-uppercase fw-bold border-0" style="width: 80px;">Weight</th>
+            <th class="text-end text-muted small text-uppercase fw-bold border-0 adv-col-${side} ${state[`adv${side}`] ? '' : 'd-none'} text-primary" style="width: 80px;">Alpha</th>
+            <th class="text-end text-muted small text-uppercase fw-bold border-0 adv-col-${side} ${state[`adv${side}`] ? '' : 'd-none'} text-danger" style="width: 80px;">TE</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    tbody.className = "small";
 
     const titleRow = document.createElement('tr');
-    titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase" style="width:50%">Name</td>
-                          <td><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
+    titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase align-middle">Name</td>
+                          <td colspan="3"><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
     titleRow.querySelector('input').addEventListener('change', (e) => {
         portfolio.name = e.target.value; refreshPortfolioDropdowns();
         renderStressTests();
     });
-    frag.appendChild(titleRow);
+    tbody.appendChild(titleRow);
 
     ASSET_CLASSES.forEach(ac => {
         const tr = document.createElement('tr');
         const w = portfolio.weights[ac.key] || 0;
-        tr.innerHTML = `<td class="text-muted fw-medium">${ac.name}</td>
-            <td><input type="number" class="form-control form-control-sm text-end bg-transparent" value="${(w*100).toFixed(1)}" data-key="${ac.key}" step="0.5"></td>`;
-        tr.querySelector('input').addEventListener('input', (e) => {
-            portfolio.weights[ac.key] = (parseFloat(e.target.value) || 0) / 100;
-            updatePortfolioVisuals(side, portId);
+        const alpha = (portfolio.alphas && portfolio.alphas[ac.key]) ? portfolio.alphas[ac.key] : 0;
+        const te = (portfolio.tes && portfolio.tes[ac.key]) ? portfolio.tes[ac.key] : 0;
+
+        tr.innerHTML = `
+            <td class="text-muted fw-medium border-0 align-middle">${ac.name}</td>
+            <td class="border-0"><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${(w*100).toFixed(1)}" data-key="${ac.key}" data-type="weight" step="0.5"></td>
+            <td class="border-0 adv-col-${side} ${state[`adv${side}`] ? '' : 'd-none'}"><input type="number" class="form-control form-control-sm text-end bg-transparent text-primary" value="${(alpha*100).toFixed(2)}" data-key="${ac.key}" data-type="alpha" step="0.1"></td>
+            <td class="border-0 adv-col-${side} ${state[`adv${side}`] ? '' : 'd-none'}"><input type="number" class="form-control form-control-sm text-end bg-transparent text-danger" value="${(te*100).toFixed(2)}" data-key="${ac.key}" data-type="te" step="0.1"></td>
+        `;
+        
+        tr.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                const val = (parseFloat(e.target.value) || 0) / 100;
+                const type = e.target.dataset.type;
+                if (type === 'weight') portfolio.weights[ac.key] = val;
+                if (type === 'alpha') { if(!portfolio.alphas) portfolio.alphas={}; portfolio.alphas[ac.key] = val; }
+                if (type === 'te') { if(!portfolio.tes) portfolio.tes={}; portfolio.tes[ac.key] = val; }
+                updatePortfolioVisuals(side, portId);
+            });
         });
-        frag.appendChild(tr);
+        tbody.appendChild(tr);
     });
 
-    const sepRow = document.createElement('tr');
-    sepRow.innerHTML = `<td colspan="2"><hr class="my-2 border-light"></td>`;
-    frag.appendChild(sepRow);
+    table.appendChild(tbody);
 
-    const trAlpha = document.createElement('tr');
-    trAlpha.innerHTML = `<td class="fw-bold text-primary small"><i class="fas fa-arrow-up me-1"></i> Target Alpha <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Expected excess return above the passive benchmark from active management."></i></td>
-        <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.alpha||0)*100).toFixed(2)}" step="0.1"></td>`;
-    trAlpha.querySelector('input').addEventListener('input', (e) => {
-        portfolio.alpha = (parseFloat(e.target.value)||0)/100;
-        updatePortfolioVisuals(side, portId);
-    });
-    frag.appendChild(trAlpha);
-
-    const trTE = document.createElement('tr');
-    trTE.innerHTML = `<td class="fw-bold text-danger small"><i class="fas fa-crosshairs me-1"></i> Tracking Error <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Standard deviation of excess returns (Active Risk). Treated as idiosyncratic and uncorrelated to systemic factors."></i></td>
-        <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.te||0)*100).toFixed(2)}" step="0.1"></td>`;
-    trTE.querySelector('input').addEventListener('input', (e) => {
-        portfolio.te = (parseFloat(e.target.value)||0)/100;
-        updatePortfolioVisuals(side, portId);
-    });
-    frag.appendChild(trTE);
-
-    tbody.appendChild(frag);
-
-    const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const newTooltips = table.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
 
     updatePortfolioVisuals(side, portId);
@@ -657,7 +675,7 @@ function updatePortfolioVisuals(side, portId) {
     const cmaSelect = document.getElementById('portfolio-cma-select');
     let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
 
-    const stats = calcDeterministicStats(portfolio.weights, cmaData, portfolio.alpha || 0, portfolio.te || 0);
+    const stats = calcDeterministicStats(portfolio.weights, portfolio.alphas, portfolio.tes, cmaData);
     
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-unit-${side}`).innerText = stats.median20Yr.toFixed(2) + 'x';
@@ -990,19 +1008,26 @@ function scrapeAndResolveStrategy() {
     const rawPoints = scrapeStrategyUI();
     return rawPoints.map(pt => {
         const resolvedAssets = {};
-        let alpha = 0; let te = 0;
+        const resolvedAlphas = {};
+        const resolvedTEs = {};
         
-        ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
+        ASSET_CLASSES.forEach(ac => {
+            resolvedAssets[ac.key] = 0;
+            resolvedAlphas[ac.key] = 0;
+            resolvedTEs[ac.key] = 0;
+        });
         
         Object.entries(pt.weights).forEach(([portId, blendWeight]) => {
             const port = getGlobalPortfolio(portId);
             if(port && blendWeight > 0) {
-                alpha += (port.alpha || 0) * blendWeight;
-                te += (port.te || 0) * blendWeight;
-                ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight);
+                ASSET_CLASSES.forEach(ac => {
+                    resolvedAssets[ac.key] += (port.weights[ac.key] || 0) * blendWeight;
+                    resolvedAlphas[ac.key] += (port.alphas && port.alphas[ac.key] ? port.alphas[ac.key] : 0) * blendWeight;
+                    resolvedTEs[ac.key] += (port.tes && port.tes[ac.key] ? port.tes[ac.key] : 0) * blendWeight;
+                });
             }
         });
-        return { years: pt.years, weights: resolvedAssets, alpha, te };
+        return { years: pt.years, weights: resolvedAssets, alphas: resolvedAlphas, tes: resolvedTEs };
     });
 }
 
@@ -1066,18 +1091,26 @@ function getActiveStrategies(months) {
             
             resolvedPoints = preset.points.map(pt => {
                 const resolvedAssets = {};
-                let alpha = 0; let te = 0;
+                const resolvedAlphas = {};
+                const resolvedTEs = {};
                 
-                ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] = 0);
+                ASSET_CLASSES.forEach(ac => {
+                    resolvedAssets[ac.key] = 0;
+                    resolvedAlphas[ac.key] = 0;
+                    resolvedTEs[ac.key] = 0;
+                });
+                
                 Object.entries(pt.weights).forEach(([portId, weight]) => {
                     const port = getGlobalPortfolio(portId);
                     if(port) {
-                        alpha += (port.alpha || 0) * weight;
-                        te += (port.te || 0) * weight;
-                        ASSET_CLASSES.forEach(ac => resolvedAssets[ac.key] += (port.weights[ac.key]||0) * weight);
+                        ASSET_CLASSES.forEach(ac => {
+                            resolvedAssets[ac.key] += (port.weights[ac.key]||0) * weight;
+                            resolvedAlphas[ac.key] += (port.alphas && port.alphas[ac.key] ? port.alphas[ac.key] : 0) * weight;
+                            resolvedTEs[ac.key] += (port.tes && port.tes[ac.key] ? port.tes[ac.key] : 0) * weight;
+                        });
                     }
                 });
-                return { years: pt.years, weights: resolvedAssets, alpha, te };
+                return { years: pt.years, weights: resolvedAssets, alphas: resolvedAlphas, tes: resolvedTEs };
             });
         }
         strategies.push({ name, monthlyData: interpolateWeights(resolvedPoints, months), implAdjustments: {} });
@@ -1091,7 +1124,6 @@ function interpolateWeights(points, totalMonths) {
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
         
-        // FIX: Bound yearsRemaining to prevent infinite strategy extrapolation
         let clampedYears = yearsRemaining;
         if (clampedYears > points[0].years) clampedYears = points[0].years;
         if (clampedYears < points[points.length - 1].years) clampedYears = points[points.length - 1].years;
@@ -1106,19 +1138,24 @@ function interpolateWeights(points, totalMonths) {
         const ratio = (p1.years - p2.years) === 0 ? 0 : (clampedYears - p2.years) / (p1.years - p2.years);
         
         const w = {};
+        const alphas = {};
+        const tes = {};
+        
         ASSET_CLASSES.forEach(ac => {
             let w1 = (p1.weights ? p1.weights[ac.key] : p1[ac.key]) || 0;
             let w2 = (p2.weights ? p2.weights[ac.key] : p2[ac.key]) || 0;
             w[ac.key] = w2 + (w1 - w2) * ratio;
+            
+            let a1 = (p1.alphas && p1.alphas[ac.key]) ? p1.alphas[ac.key] : 0;
+            let a2 = (p2.alphas && p2.alphas[ac.key]) ? p2.alphas[ac.key] : 0;
+            alphas[ac.key] = a2 + (a1 - a2) * ratio;
+            
+            let t1 = (p1.tes && p1.tes[ac.key]) ? p1.tes[ac.key] : 0;
+            let t2 = (p2.tes && p2.tes[ac.key]) ? p2.tes[ac.key] : 0;
+            tes[ac.key] = t2 + (t1 - t2) * ratio;
         });
         
-        const a1 = p1.alpha || 0; const a2 = p2.alpha || 0;
-        const alpha = a2 + (a1 - a2) * ratio;
-        
-        const t1 = p1.te || 0; const t2 = p2.te || 0;
-        const te = t2 + (t1 - t2) * ratio;
-        
-        monthlyData.push({ weights: w, alpha, te });
+        monthlyData.push({ weights: w, alphas: alphas, tes: tes });
     }
     return monthlyData;
 }
