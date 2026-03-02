@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.5';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.6';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -53,10 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const persSel = document.getElementById('run-persona-select');
                 if(persSel) persSel.value = "0";
             }
-            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) {
-                loadStrategyPreset(0, 'core');
+            if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) {
+                loadStrategyPreset(0, 0);
                 const stratSel = document.getElementById('run-strat-1');
-                if(stratSel) stratSel.value = "core_0";
+                if(stratSel) stratSel.value = "0_0";
             }
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -366,7 +366,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.5'); 
+    state.worker = new Worker('./js/worker.js?v=16.6'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -385,29 +385,21 @@ function initPresets() {
         cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     }
 
-    const portSelect = document.getElementById('portfolio-preset-select');
-    if (portSelect && typeof PRESET_PORTFOLIOS !== 'undefined') {
-        portSelect.innerHTML = '<option value="">Load Library...</option>';
-        PRESET_PORTFOLIOS.forEach((preset, index) => { portSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-        portSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPortfolioPreset(e.target.value); });
-    }
-
     const stratSelect = document.getElementById('strategy-preset-select');
     if (stratSelect) {
         stratSelect.innerHTML = '<option value="">Load Preset...</option>';
-        
-        stratSelect.innerHTML += '<optgroup label="Core Strategies">';
-        PRESET_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="core_${index}">${preset.name}</option>`; });
-        stratSelect.innerHTML += '</optgroup>';
-        
-        stratSelect.innerHTML += '<optgroup label="Provider Strategies">';
-        PROVIDER_STRATEGIES.forEach((preset, index) => { stratSelect.innerHTML += `<option value="prov_${index}">${preset.name}</option>`; });
-        stratSelect.innerHTML += '</optgroup>';
+        STRATEGY_GROUPS.forEach((group, gIdx) => {
+            stratSelect.innerHTML += `<optgroup label="${group.name}">`;
+            group.strategies.forEach((strat, sIdx) => {
+                stratSelect.innerHTML += `<option value="${gIdx}_${sIdx}">${strat.name}</option>`;
+            });
+            stratSelect.innerHTML += `</optgroup>`;
+        });
         
         stratSelect.addEventListener('change', (e) => { 
             if(e.target.value !== "") {
-                const parts = e.target.value.split('_');
-                loadStrategyPreset(parseInt(parts[1]), parts[0]); 
+                const [gIdx, sIdx] = e.target.value.split('_');
+                loadStrategyPreset(parseInt(gIdx), parseInt(sIdx)); 
             }
         });
     }
@@ -444,13 +436,13 @@ function updateStrategySelectors() {
             let html = i === 0 ? '' : '<option value="">None</option>';
             html += '<option value="custom">Active Strategy Builder</option>'; 
             
-            html += '<optgroup label="Core Strategies">';
-            PRESET_STRATEGIES.forEach((preset, index) => { html += `<option value="core_${index}">${preset.name}</option>`; });
-            html += '</optgroup>';
-            
-            html += '<optgroup label="Provider Strategies">';
-            PROVIDER_STRATEGIES.forEach((preset, index) => { html += `<option value="prov_${index}">${preset.name}</option>`; });
-            html += '</optgroup>';
+            STRATEGY_GROUPS.forEach((group, gIdx) => {
+                html += `<optgroup label="${group.name}">`;
+                group.strategies.forEach((strat, sIdx) => {
+                    html += `<option value="${gIdx}_${sIdx}">${strat.name}</option>`;
+                });
+                html += `</optgroup>`;
+            });
 
             sel.innerHTML = html;
             if(curr) sel.value = curr;
@@ -501,28 +493,8 @@ function loadPersonaPreset(index) {
     setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
-function loadPortfolioPreset(index) {
-    if (!PRESET_PORTFOLIOS[index]) return;
-    state.portfolios = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS[index].portfolios));
-    refreshPortfolioDropdowns();
-    
-    if(state.portfolios.length > 0) {
-        document.getElementById('port-select-left').value = state.portfolios[0].id;
-        renderPortfolioPane('left', state.portfolios[0].id);
-    }
-    document.getElementById('port-select-right').value = 'none';
-    renderPortfolioPane('right', 'none');
-    
-    renderStrategyTable();
-    renderStrategyChart();
-    if(state.autoRun) runSimulation();
-}
-
-function loadStrategyPreset(index, group) {
-    let preset;
-    if (group === 'core') preset = PRESET_STRATEGIES[index];
-    else if (group === 'prov') preset = PROVIDER_STRATEGIES[index];
-    
+function loadStrategyPreset(gIdx, sIdx) {
+    const preset = STRATEGY_GROUPS[gIdx]?.strategies[sIdx];
     if(!preset) return;
     
     state.strategyYears = preset.points.map(p => p.years).sort((a,b)=>b-a);
@@ -559,7 +531,21 @@ function refreshPortfolioDropdowns() {
     const stratSels = document.querySelectorAll('.strat-port-select');
     
     let html = '';
-    state.portfolios.forEach(p => { html += `<option value="${p.id}">${p.name}</option>`; });
+    PRESET_PORTFOLIOS.forEach(group => {
+        html += `<optgroup label="${group.name}">`;
+        group.portfolios.forEach(p => {
+            const sp = state.portfolios.find(sp => sp.id === p.id);
+            if(sp) html += `<option value="${sp.id}">${sp.name}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+
+    const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    if(customs.length > 0) {
+        html += `<optgroup label="Custom Portfolios">`;
+        customs.forEach(p => { html += `<option value="${p.id}">${p.name}</option>`; });
+        html += `</optgroup>`;
+    }
     
     const currLeft = leftSel?.value;
     if(leftSel) leftSel.innerHTML = html;
@@ -1083,10 +1069,12 @@ function getActiveStrategies(months) {
             resolvedPoints = scrapeAndResolveStrategy();
         } else {
             const parts = sel.value.split('_');
-            const group = parts[0];
-            const index = parseInt(parts[1]);
+            const gIdx = parseInt(parts[0]);
+            const sIdx = parseInt(parts[1]);
             
-            const preset = group === 'core' ? PRESET_STRATEGIES[index] : PROVIDER_STRATEGIES[index];
+            const preset = STRATEGY_GROUPS[gIdx]?.strategies[sIdx];
+            if (!preset) return;
+            
             name = preset.name; 
             
             resolvedPoints = preset.points.map(pt => {
