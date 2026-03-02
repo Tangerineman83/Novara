@@ -35,21 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
         initRunModelInputs();
         setupAutoRun();
         
-        refreshPortfolioDropdowns();
-        renderPortfolioPane('left', state.portfolios[0].id);
-        renderStrategyTable();
-
-        initTooltips();
-
+        // Critical Fix: Load Presets before triggering UI visual updates
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
             if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
             if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0, 'core');
-            
-            setTimeout(runSimulation, 500);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
         }
+        
+        refreshPortfolioDropdowns();
+        renderPortfolioPane('left', state.portfolios[0].id);
+        renderStrategyTable();
+        initTooltips();
+
+        setTimeout(runSimulation, 500);
     } catch (err) {
         console.error("Critical Init Error:", err);
     }
@@ -196,7 +196,7 @@ function renderAssetRows() {
         <th class="text-end pe-4 border-end" style="min-width: 90px;">Kurtosis</th>
     `;
     ASSET_CLASSES.forEach(ac => {
-        headerHTML += `<th class="text-center corr-col d-none" style="min-width: 50px; font-size: 0.65rem;" title="${ac.name}">${ac.key.substring(0,6)}</th>`;
+        headerHTML += `<th class="text-center corr-col d-none" style="min-width: 50px;" title="${ac.name}">${ac.key.substring(0,6)}</th>`;
     });
     thead.innerHTML = headerHTML;
 
@@ -217,9 +217,14 @@ function renderAssetRows() {
         `;
         
         ASSET_CLASSES.forEach(colAsset => {
+            const isSelf = asset.key === colAsset.key;
+            const val = isSelf ? "1.00" : "0.00";
+            const readOnly = isSelf ? 'readonly tabindex="-1"' : '';
+            const bgClass = isSelf ? 'bg-dark text-white' : 'bg-transparent';
+            
             rowHTML += `<td class="text-center corr-col d-none p-0 heatmap-cell">
-                <input type="number" step="0.05" class="form-control form-control-sm text-center border-0 w-100 h-100 rounded-0 bg-transparent corr-input" 
-                data-row="${asset.key}" data-col="${colAsset.key}" value="0.00" style="font-size: 0.75rem; font-weight: 600;">
+                <input type="number" step="0.05" class="form-control form-control-sm text-center border-0 w-100 h-100 rounded-0 ${bgClass} corr-input" 
+                data-row="${asset.key}" data-col="${colAsset.key}" value="${val}" style="font-size: 0.75rem; font-weight: 600;" ${readOnly}>
             </td>`;
         });
         
@@ -236,7 +241,7 @@ function renderAssetRows() {
             });
         });
         
-        const corrInputs = tr.querySelectorAll('.corr-input');
+        const corrInputs = tr.querySelectorAll('.corr-input:not([readonly])');
         corrInputs.forEach(inp => {
             inp.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value) || 0;
@@ -259,8 +264,13 @@ function renderAssetRows() {
     });
     tbody.appendChild(frag);
 
-    document.getElementById('toggle-corr-matrix')?.addEventListener('click', () => {
-        document.querySelectorAll('.corr-col').forEach(el => el.classList.toggle('d-none'));
+    document.getElementById('toggle-corr-matrix')?.addEventListener('change', (e) => {
+        const cols = document.querySelectorAll('.corr-col');
+        if (e.target.checked) {
+            cols.forEach(el => el.classList.remove('d-none'));
+        } else {
+            cols.forEach(el => el.classList.add('d-none'));
+        }
     });
 }
 
