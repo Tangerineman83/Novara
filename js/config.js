@@ -1,32 +1,23 @@
 // js/config.js
 
 export const ASSET_CLASSES = [
-    // EQUITIES
     { key: "usEq", name: "US Equity", category: "Equities", defaultR: 0.075, defaultV: 0.16, defaultK: 1.5, color: "#1D4ED8" },
     { key: "devEq", name: "Dev Europe Equity", category: "Equities", defaultR: 0.070, defaultV: 0.16, defaultK: 1.6, color: "#3B82F6" },
     { key: "emEq", name: "EM Equity", category: "Equities", defaultR: 0.085, defaultV: 0.20, defaultK: 2.5, color: "#60A5FA" },
     { key: "jpnEq", name: "Japan Equity", category: "Equities", defaultR: 0.060, defaultV: 0.15, defaultK: 1.5, color: "#93C5FD" },
     { key: "ukEq", name: "UK Equity", category: "Equities", defaultR: 0.065, defaultV: 0.15, defaultK: 1.8, color: "#BFDBFE" },
     { key: "apacEq", name: "Dev APAC (ex-Japan)", category: "Equities", defaultR: 0.065, defaultV: 0.16, defaultK: 1.7, color: "#DBEAFE" },
-    
-    // REAL ASSETS
     { key: "globalReits", name: "Global REITs", category: "Real Assets", defaultR: 0.060, defaultV: 0.18, defaultK: 2.0, color: "#6D28D9" },
     { key: "realEstateDirect", name: "Real Estate (Direct)", category: "Real Assets", defaultR: 0.055, defaultV: 0.10, defaultK: 2.5, color: "#7E22CE" },
     { key: "infrastructure", name: "Infrastructure", category: "Real Assets", defaultR: 0.065, defaultV: 0.11, defaultK: 2.0, color: "#A855F7" },
-    
-    // ALTERNATIVES
     { key: "privEq", name: "Private Equity", category: "Alternatives", defaultR: 0.095, defaultV: 0.22, defaultK: 4.5, color: "#B45309" },
     { key: "listedAlts", name: "Listed Alts", category: "Alternatives", defaultR: 0.055, defaultV: 0.12, defaultK: 1.5, color: "#F59E0B" },
     { key: "digitalAssets", name: "Digital Assets", category: "Alternatives", defaultR: 0.120, defaultV: 0.50, defaultK: 5.0, color: "#0F172A" },
-    
-    // CREDIT & FIXED INCOME
     { key: "privCredit", name: "Private Credit", category: "Credit", defaultR: 0.075, defaultV: 0.09, defaultK: 3.5, color: "#D97706" },
     { key: "globalHighYield", name: "Global High Yield", category: "Credit", defaultR: 0.060, defaultV: 0.10, defaultK: 2.5, color: "#047857" },
     { key: "emDebt", name: "EM Debt", category: "Credit", defaultR: 0.065, defaultV: 0.12, defaultK: 2.5, color: "#059669" },
     { key: "igCredit", name: "IG Credit", category: "Credit", defaultR: 0.045, defaultV: 0.06, defaultK: 1.2, color: "#10B981" },
     { key: "sdCredit", name: "Short Duration Credit", category: "Credit", defaultR: 0.035, defaultV: 0.03, defaultK: 1.0, color: "#34D399" },
-    
-    // SOVEREIGN & CASH
     { key: "globalSov", name: "Global Sovereign", category: "Sov & Cash", defaultR: 0.025, defaultV: 0.05, defaultK: 0.5, color: "#0F766E" },
     { key: "inflLinked", name: "Inflation Linked", category: "Sov & Cash", defaultR: 0.020, defaultV: 0.05, defaultK: 0.5, color: "#0E7490" },
     { key: "moneyMkt", name: "Money Markets", category: "Sov & Cash", defaultR: 0.025, defaultV: 0.01, defaultK: 0.0, color: "#64748B" }
@@ -45,8 +36,28 @@ export const PRESET_CMAS = [
             r: { usEq: 0.075, devEq: 0.070, emEq: 0.085, jpnEq: 0.060, ukEq: 0.065, apacEq: 0.065, globalReits: 0.060, realEstateDirect: 0.055, infrastructure: 0.065, privEq: 0.095, privCredit: 0.075, listedAlts: 0.055, digitalAssets: 0.120, globalHighYield: 0.060, emDebt: 0.065, igCredit: 0.045, sdCredit: 0.035, globalSov: 0.025, inflLinked: 0.020, moneyMkt: 0.025 },
             v: { usEq: 0.16, devEq: 0.16, emEq: 0.20, jpnEq: 0.15, ukEq: 0.15, apacEq: 0.16, globalReits: 0.18, realEstateDirect: 0.10, infrastructure: 0.11, privEq: 0.22, privCredit: 0.09, listedAlts: 0.12, digitalAssets: 0.50, globalHighYield: 0.10, emDebt: 0.12, igCredit: 0.06, sdCredit: 0.03, globalSov: 0.05, inflLinked: 0.05, moneyMkt: 0.01 },
             k: { usEq: 1.5, devEq: 1.6, emEq: 2.5, jpnEq: 1.5, ukEq: 1.8, apacEq: 1.7, globalReits: 2.0, realEstateDirect: 2.5, infrastructure: 2.0, privEq: 4.5, privCredit: 3.5, listedAlts: 1.5, digitalAssets: 5.0, globalHighYield: 2.5, emDebt: 2.5, igCredit: 1.2, sdCredit: 1.0, globalSov: 0.5, inflLinked: 0.5, moneyMkt: 0.0 },
-            ce: { usEq: 1.0, devEq: 0.95, emEq: 0.85, jpnEq: 0.85, ukEq: 0.95, apacEq: 0.90, globalReits: 0.70, realEstateDirect: 0.40, infrastructure: 0.45, privEq: 0.90, privCredit: 0.45, listedAlts: 0.82, digitalAssets: 0.60, globalHighYield: 0.65, emDebt: 0.50, igCredit: 0.35, sdCredit: 0.25, globalSov: -0.05, inflLinked: 0.15, moneyMkt: 0.0 },
-            cc: { usEq: 0.45, devEq: 0.40, emEq: 0.50, jpnEq: 0.35, ukEq: 0.40, apacEq: 0.45, globalReits: 0.55, realEstateDirect: 0.30, infrastructure: 0.40, privEq: 0.45, privCredit: 0.88, listedAlts: 0.45, digitalAssets: 0.20, globalHighYield: 0.85, emDebt: 0.65, igCredit: 1.0, sdCredit: 0.85, globalSov: 0.60, inflLinked: 0.50, moneyMkt: 0.15 }
+            correlations: {
+                usEq: { usEq: 1.00, devEq: 0.85, emEq: 0.75, jpnEq: 0.65, ukEq: 0.70, apacEq: 0.75, globalReits: 0.60, realEstateDirect: 0.40, infrastructure: 0.50, privEq: 0.85, privCredit: 0.55, listedAlts: 0.65, digitalAssets: 0.35, globalHighYield: 0.65, emDebt: 0.55, igCredit: 0.25, sdCredit: 0.15, globalSov: -0.10, inflLinked: -0.05, moneyMkt: 0.00 },
+                devEq: { usEq: 0.85, devEq: 1.00, emEq: 0.75, jpnEq: 0.60, ukEq: 0.85, apacEq: 0.70, globalReits: 0.55, realEstateDirect: 0.40, infrastructure: 0.45, privEq: 0.80, privCredit: 0.50, listedAlts: 0.60, digitalAssets: 0.30, globalHighYield: 0.60, emDebt: 0.50, igCredit: 0.20, sdCredit: 0.10, globalSov: -0.10, inflLinked: -0.05, moneyMkt: 0.00 },
+                emEq: { usEq: 0.75, devEq: 0.75, emEq: 1.00, jpnEq: 0.55, ukEq: 0.65, apacEq: 0.80, globalReits: 0.50, realEstateDirect: 0.35, infrastructure: 0.40, privEq: 0.70, privCredit: 0.45, listedAlts: 0.55, digitalAssets: 0.40, globalHighYield: 0.65, emDebt: 0.70, igCredit: 0.25, sdCredit: 0.15, globalSov: -0.05, inflLinked: 0.00, moneyMkt: 0.00 },
+                jpnEq: { usEq: 0.65, devEq: 0.60, emEq: 0.55, jpnEq: 1.00, ukEq: 0.55, apacEq: 0.60, globalReits: 0.45, realEstateDirect: 0.30, infrastructure: 0.35, privEq: 0.60, privCredit: 0.40, listedAlts: 0.50, digitalAssets: 0.25, globalHighYield: 0.50, emDebt: 0.45, igCredit: 0.15, sdCredit: 0.10, globalSov: -0.05, inflLinked: 0.00, moneyMkt: 0.00 },
+                ukEq: { usEq: 0.70, devEq: 0.85, emEq: 0.65, jpnEq: 0.55, ukEq: 1.00, apacEq: 0.60, globalReits: 0.50, realEstateDirect: 0.45, infrastructure: 0.40, privEq: 0.70, privCredit: 0.45, listedAlts: 0.55, digitalAssets: 0.25, globalHighYield: 0.55, emDebt: 0.45, igCredit: 0.20, sdCredit: 0.10, globalSov: -0.05, inflLinked: 0.05, moneyMkt: 0.00 },
+                apacEq: { usEq: 0.75, devEq: 0.70, emEq: 0.80, jpnEq: 0.60, ukEq: 0.60, apacEq: 1.00, globalReits: 0.50, realEstateDirect: 0.35, infrastructure: 0.40, privEq: 0.70, privCredit: 0.45, listedAlts: 0.55, digitalAssets: 0.35, globalHighYield: 0.60, emDebt: 0.65, igCredit: 0.20, sdCredit: 0.10, globalSov: -0.05, inflLinked: 0.00, moneyMkt: 0.00 },
+                globalReits: { usEq: 0.60, devEq: 0.55, emEq: 0.50, jpnEq: 0.45, ukEq: 0.50, apacEq: 0.50, globalReits: 1.00, realEstateDirect: 0.65, infrastructure: 0.55, privEq: 0.55, privCredit: 0.40, listedAlts: 0.60, digitalAssets: 0.25, globalHighYield: 0.55, emDebt: 0.45, igCredit: 0.35, sdCredit: 0.20, globalSov: 0.10, inflLinked: 0.15, moneyMkt: 0.00 },
+                realEstateDirect: { usEq: 0.40, devEq: 0.40, emEq: 0.35, jpnEq: 0.30, ukEq: 0.45, apacEq: 0.35, globalReits: 0.65, realEstateDirect: 1.00, infrastructure: 0.50, privEq: 0.45, privCredit: 0.35, listedAlts: 0.45, digitalAssets: 0.15, globalHighYield: 0.40, emDebt: 0.35, igCredit: 0.25, sdCredit: 0.15, globalSov: 0.05, inflLinked: 0.20, moneyMkt: 0.00 },
+                infrastructure: { usEq: 0.50, devEq: 0.45, emEq: 0.40, jpnEq: 0.35, ukEq: 0.40, apacEq: 0.40, globalReits: 0.55, realEstateDirect: 0.50, infrastructure: 1.00, privEq: 0.50, privCredit: 0.45, listedAlts: 0.55, digitalAssets: 0.20, globalHighYield: 0.50, emDebt: 0.45, igCredit: 0.40, sdCredit: 0.25, globalSov: 0.15, inflLinked: 0.30, moneyMkt: 0.00 },
+                privEq: { usEq: 0.85, devEq: 0.80, emEq: 0.70, jpnEq: 0.60, ukEq: 0.70, apacEq: 0.70, globalReits: 0.55, realEstateDirect: 0.45, infrastructure: 0.50, privEq: 1.00, privCredit: 0.60, listedAlts: 0.65, digitalAssets: 0.35, globalHighYield: 0.65, emDebt: 0.55, igCredit: 0.20, sdCredit: 0.10, globalSov: -0.15, inflLinked: -0.05, moneyMkt: 0.00 },
+                privCredit: { usEq: 0.55, devEq: 0.50, emEq: 0.45, jpnEq: 0.40, ukEq: 0.45, apacEq: 0.45, globalReits: 0.40, realEstateDirect: 0.35, infrastructure: 0.45, privEq: 0.60, privCredit: 1.00, listedAlts: 0.50, digitalAssets: 0.25, globalHighYield: 0.75, emDebt: 0.55, igCredit: 0.45, sdCredit: 0.35, globalSov: 0.05, inflLinked: 0.05, moneyMkt: 0.00 },
+                listedAlts: { usEq: 0.65, devEq: 0.60, emEq: 0.55, jpnEq: 0.50, ukEq: 0.55, apacEq: 0.55, globalReits: 0.60, realEstateDirect: 0.45, infrastructure: 0.55, privEq: 0.65, privCredit: 0.50, listedAlts: 1.00, digitalAssets: 0.30, globalHighYield: 0.60, emDebt: 0.50, igCredit: 0.30, sdCredit: 0.20, globalSov: 0.00, inflLinked: 0.05, moneyMkt: 0.00 },
+                digitalAssets: { usEq: 0.35, devEq: 0.30, emEq: 0.40, jpnEq: 0.25, ukEq: 0.25, apacEq: 0.35, globalReits: 0.25, realEstateDirect: 0.15, infrastructure: 0.20, privEq: 0.35, privCredit: 0.25, listedAlts: 0.30, digitalAssets: 1.00, globalHighYield: 0.35, emDebt: 0.40, igCredit: 0.05, sdCredit: 0.05, globalSov: -0.10, inflLinked: -0.05, moneyMkt: 0.00 },
+                globalHighYield: { usEq: 0.65, devEq: 0.60, emEq: 0.65, jpnEq: 0.50, ukEq: 0.55, apacEq: 0.60, globalReits: 0.55, realEstateDirect: 0.40, infrastructure: 0.50, privEq: 0.65, privCredit: 0.75, listedAlts: 0.60, digitalAssets: 0.35, globalHighYield: 1.00, emDebt: 0.75, igCredit: 0.55, sdCredit: 0.40, globalSov: 0.10, inflLinked: 0.10, moneyMkt: 0.00 },
+                emDebt: { usEq: 0.55, devEq: 0.50, emEq: 0.70, jpnEq: 0.45, ukEq: 0.45, apacEq: 0.65, globalReits: 0.45, realEstateDirect: 0.35, infrastructure: 0.45, privEq: 0.55, privCredit: 0.55, listedAlts: 0.50, digitalAssets: 0.40, globalHighYield: 0.75, emDebt: 1.00, igCredit: 0.45, sdCredit: 0.35, globalSov: 0.15, inflLinked: 0.15, moneyMkt: 0.00 },
+                igCredit: { usEq: 0.25, devEq: 0.20, emEq: 0.25, jpnEq: 0.15, ukEq: 0.20, apacEq: 0.20, globalReits: 0.35, realEstateDirect: 0.25, infrastructure: 0.40, privEq: 0.20, privCredit: 0.45, listedAlts: 0.30, digitalAssets: 0.05, globalHighYield: 0.55, emDebt: 0.45, igCredit: 1.00, sdCredit: 0.85, globalSov: 0.70, inflLinked: 0.65, moneyMkt: 0.15 },
+                sdCredit: { usEq: 0.15, devEq: 0.10, emEq: 0.15, jpnEq: 0.10, ukEq: 0.10, apacEq: 0.10, globalReits: 0.20, realEstateDirect: 0.15, infrastructure: 0.25, privEq: 0.10, privCredit: 0.35, listedAlts: 0.20, digitalAssets: 0.05, globalHighYield: 0.40, emDebt: 0.35, igCredit: 0.85, sdCredit: 1.00, globalSov: 0.55, inflLinked: 0.50, moneyMkt: 0.25 },
+                globalSov: { usEq: -0.10, devEq: -0.10, emEq: -0.05, jpnEq: -0.05, ukEq: -0.05, apacEq: -0.05, globalReits: 0.10, realEstateDirect: 0.05, infrastructure: 0.15, privEq: -0.15, privCredit: 0.05, listedAlts: 0.00, digitalAssets: -0.10, globalHighYield: 0.10, emDebt: 0.15, igCredit: 0.70, sdCredit: 0.55, globalSov: 1.00, inflLinked: 0.85, moneyMkt: 0.20 },
+                inflLinked: { usEq: -0.05, devEq: -0.05, emEq: 0.00, jpnEq: 0.00, ukEq: 0.05, apacEq: 0.00, globalReits: 0.15, realEstateDirect: 0.20, infrastructure: 0.30, privEq: -0.05, privCredit: 0.05, listedAlts: 0.05, digitalAssets: -0.05, globalHighYield: 0.10, emDebt: 0.15, igCredit: 0.65, sdCredit: 0.50, globalSov: 0.85, inflLinked: 1.00, moneyMkt: 0.15 },
+                moneyMkt: { usEq: 0.00, devEq: 0.00, emEq: 0.00, jpnEq: 0.00, ukEq: 0.00, apacEq: 0.00, globalReits: 0.00, realEstateDirect: 0.00, infrastructure: 0.00, privEq: 0.00, privCredit: 0.00, listedAlts: 0.00, digitalAssets: 0.00, globalHighYield: 0.00, emDebt: 0.00, igCredit: 0.15, sdCredit: 0.25, globalSov: 0.20, inflLinked: 0.15, moneyMkt: 1.00 }
+            }
         }
     }
 ];
