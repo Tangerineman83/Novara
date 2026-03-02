@@ -78,7 +78,9 @@ nav.navbar { background-color: transparent !important; border: none !important; 
 }
 
 .form-select { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 2rem; }
-.form-select option { white-space: normal; }
+.form-select option { white-space: normal; font-weight: 500; }
+.form-select optgroup { font-weight: 700; color: #475569; }
+
 .form-control:focus, .form-select:focus { background-color: #FFFFFF; border-color: var(--accent-blue); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
 label.form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem; }
 
