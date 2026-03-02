@@ -53,8 +53,16 @@ export function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
         ASSET_CLASSES.forEach((ac2) => {
             const w2 = weights[ac2.key] || 0;
             if (w2 === 0) return;
-            const corr = (cma.correlations[ac1.key] && cma.correlations[ac1.key][ac2.key]) !== undefined 
-                         ? cma.correlations[ac1.key][ac2.key] : 0;
+            
+            // Mathematical safeguard: Self-correlation must be 1.0
+            let corr = 0;
+            if (ac1.key === ac2.key) {
+                corr = 1.0;
+            } else {
+                corr = (cma.correlations[ac1.key] && cma.correlations[ac1.key][ac2.key]) !== undefined 
+                     ? cma.correlations[ac1.key][ac2.key] : 0;
+            }
+            
             const cov = (cma.v[ac1.key] || 0) * (cma.v[ac2.key] || 0) * corr;
             sum_variance += w1 * w2 * cov;
         });
