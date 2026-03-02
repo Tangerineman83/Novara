@@ -1,5 +1,6 @@
 // js/app.js
 import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.2';
+import { logGamma, getMatrixHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
     worker: null,
@@ -138,14 +139,6 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function logGamma(z) {
-    let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
-    let x = z, y = z, tmp = x + 5.5, ser = 1.000000000190015;
-    tmp -= (x + 0.5) * Math.log(tmp);
-    for (let j = 0; j < 6; j++) ser += co[j] / ++y;
-    return Math.log(2.5066282746310005 * ser / x) - tmp;
-}
-
 function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -194,6 +187,8 @@ function renderAssetRows() {
     const tbody = document.querySelector('#cma-table tbody');
     if(!tbody) return;
     tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -208,7 +203,7 @@ function renderAssetRows() {
             <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0.00"></td>
             <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0.00"></td>
         `;
-        tbody.appendChild(tr);
+        frag.appendChild(tr);
         
         const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"], input[data-field="k"]');
         inputs.forEach(inp => {
@@ -221,20 +216,7 @@ function renderAssetRows() {
         });
         setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV, asset.defaultK, asset.color), 0);
     });
-}
-
-// FIX: Determines Text and Background Colors ensuring text is always visible
-function getMatrixHeatmapBg(val) {
-    if (val === 0) return 'background-color: #F8FAFC; color: #64748B;';
-    if (val < 0) {
-        const alpha = Math.min(Math.abs(val) / 0.5, 0.9); 
-        const textColor = alpha > 0.5 ? '#FFFFFF' : '#7F1D1D';
-        return `background-color: rgba(220, 38, 38, ${Math.max(0.1, alpha)}); color: ${textColor};`;
-    } else {
-        const alpha = Math.min(val / 0.3, 0.6); 
-        const textColor = alpha > 0.4 ? '#FFFFFF' : '#064E3B';
-        return `background-color: rgba(16, 185, 129, ${Math.max(0.15, alpha)}); color: ${textColor};`;
-    }
+    tbody.appendChild(frag);
 }
 
 function renderStressAssumptionsTable() {
@@ -545,17 +527,19 @@ function renderPortfolioPane(side, portId) {
 
     const tbody = document.querySelector(`#port-table-${side} tbody`);
     tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
 
-    const titleRow = tbody.insertRow();
+    const titleRow = document.createElement('tr');
     titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase" style="width:50%">Name</td>
                           <td><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
     titleRow.querySelector('input').addEventListener('change', (e) => {
         portfolio.name = e.target.value; refreshPortfolioDropdowns();
         renderStressTests();
     });
+    frag.appendChild(titleRow);
 
     ASSET_CLASSES.forEach(ac => {
-        const tr = tbody.insertRow();
+        const tr = document.createElement('tr');
         const w = portfolio.weights[ac.key] || 0;
         tr.innerHTML = `<td class="text-muted fw-medium">${ac.name}</td>
             <td><input type="number" class="form-control form-control-sm text-end bg-transparent" value="${(w*100).toFixed(1)}" data-key="${ac.key}" step="0.5"></td>`;
@@ -563,26 +547,32 @@ function renderPortfolioPane(side, portId) {
             portfolio.weights[ac.key] = (parseFloat(e.target.value) || 0) / 100;
             updatePortfolioVisuals(side, portId);
         });
+        frag.appendChild(tr);
     });
 
-    const sepRow = tbody.insertRow();
+    const sepRow = document.createElement('tr');
     sepRow.innerHTML = `<td colspan="2"><hr class="my-2 border-light"></td>`;
+    frag.appendChild(sepRow);
 
-    const trAlpha = tbody.insertRow();
+    const trAlpha = document.createElement('tr');
     trAlpha.innerHTML = `<td class="fw-bold text-primary small"><i class="fas fa-arrow-up me-1"></i> Target Alpha <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Expected excess return above the passive benchmark from active management."></i></td>
         <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.alpha||0)*100).toFixed(2)}" step="0.1"></td>`;
     trAlpha.querySelector('input').addEventListener('input', (e) => {
         portfolio.alpha = (parseFloat(e.target.value)||0)/100;
         updatePortfolioVisuals(side, portId);
     });
+    frag.appendChild(trAlpha);
 
-    const trTE = tbody.insertRow();
+    const trTE = document.createElement('tr');
     trTE.innerHTML = `<td class="fw-bold text-danger small"><i class="fas fa-crosshairs me-1"></i> Tracking Error <i class="fas fa-question-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-title="Standard deviation of excess returns (Active Risk). Treated as idiosyncratic and uncorrelated to systemic factors."></i></td>
         <td><input type="number" class="form-control form-control-sm text-end bg-transparent fw-bold" value="${((portfolio.te||0)*100).toFixed(2)}" step="0.1"></td>`;
     trTE.querySelector('input').addEventListener('input', (e) => {
         portfolio.te = (parseFloat(e.target.value)||0)/100;
         updatePortfolioVisuals(side, portId);
     });
+    frag.appendChild(trTE);
+
+    tbody.appendChild(frag);
 
     const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
@@ -625,44 +615,6 @@ function updatePortfolioVisuals(side, portId) {
     renderStressTests();
 }
 
-function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
-    let ret = alpha; 
-    let sum_ce = 0; let sum_cc = 0; let sum_basis = 0; let sum_idio_sq = 0;
-    let port_k = 0; 
-    
-    ASSET_CLASSES.forEach(ac => {
-        const w = weights[ac.key] || 0;
-        if(w === 0) return;
-        const mu = cma.r[ac.key] || 0; 
-        const vol = cma.v[ac.key] || 0;
-        const k = cma.k[ac.key] || 0;
-        
-        let ce = cma.ce[ac.key] || 0; 
-        let cc = cma.cc[ac.key] || 0;
-        const sumSq = ce*ce + cc*cc;
-        if (sumSq > 1) { ce = ce / Math.sqrt(sumSq); cc = cc / Math.sqrt(sumSq); }
-        
-        const resid = Math.sqrt(Math.max(0, 1 - ce*ce - cc*cc));
-        
-        ret += w * mu; 
-        port_k += w * k;
-        
-        sum_ce += w * vol * ce; 
-        sum_cc += w * vol * cc; 
-        sum_basis += w * vol * resid * Math.sqrt(0.3);
-        sum_idio_sq += Math.pow(w * vol * resid * Math.sqrt(0.7), 2);
-    });
-    
-    const portVariance = Math.pow(sum_ce, 2) + Math.pow(sum_cc, 2) + Math.pow(sum_basis, 2) + sum_idio_sq + Math.pow(te, 2);
-    const portVol = Math.sqrt(portVariance);
-    
-    const kurtosisAdjustment = Math.exp(-0.005 * port_k); 
-    const median20Yr = Math.pow(1 + ret - (portVariance / 2), 20) * kurtosisAdjustment;
-    
-    return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
-}
-
-// PHASE 2 FIX: True Dumbbell Plot Rendering
 function renderStressTests() {
     const leftId = document.getElementById('port-select-left')?.value;
     const rightId = document.getElementById('port-select-right')?.value;
@@ -861,9 +813,12 @@ function renderStrategyTable() {
     thead.innerHTML = `<tr>${headHTML}</tr>`;
 
     tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    
     for(let r=0; r<10; r++) {
-        const tr = tbody.insertRow();
-        const selCell = tr.insertCell(); selCell.className = "text-start ps-3";
+        const tr = document.createElement('tr');
+        const selCell = document.createElement('td');
+        selCell.className = "text-start ps-3";
         
         let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-medium border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
         
@@ -883,12 +838,16 @@ function renderStrategyTable() {
         }
 
         selCell.innerHTML = selHTML + `</select>`;
+        tr.appendChild(selCell);
 
         state.strategyYears.forEach((y, i) => {
-            const td = tr.insertCell();
+            const td = document.createElement('td');
             td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
+            tr.appendChild(td);
         });
+        frag.appendChild(tr);
     }
+    tbody.appendChild(frag);
 
     table.querySelectorAll('input, select').forEach(el => {
         el.addEventListener('change', () => {
