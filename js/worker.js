@@ -48,6 +48,28 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
+// NEW: Cholesky Decomposition Algorithm
+function cholesky(matrix) {
+    const n = matrix.length;
+    const L = Array(n).fill(0).map(() => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j <= i; j++) {
+            let sum = 0;
+            for (let k = 0; k < j; k++) {
+                sum += L[i][k] * L[j][k];
+            }
+            if (i === j) {
+                // Safeguard against non-positive definite matrices via small ridge
+                const val = matrix[i][i] - sum;
+                L[i][j] = Math.sqrt(Math.max(0.000001, val)); 
+            } else {
+                L[i][j] = (matrix[i][j] - sum) / L[j][j];
+            }
+        }
+    }
+    return L;
+}
+
 let cachedSimulationPaths = null; 
 let cachedStrategies = null;
 let cachedMonths = 0;
@@ -103,6 +125,27 @@ function runMonteCarloPaths(data) {
         };
     });
 
+    // NEW: Build the Implied Correlation Matrix preserving the Basis Risk Engine
+    const n = assetKeys.length;
+    const correlationMatrix = Array(n).fill(0).map(() => Array(n).fill(0));
+    const factorArray = assetKeys.map(key => assetFactors[key]);
+
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            if (i === j) {
+                correlationMatrix[i][j] = 1.0;
+            } else {
+                const f_i = factorArray[i];
+                const f_j = factorArray[j];
+                // Factor loading dot product + 30% systemic basis risk correlation on residuals
+                correlationMatrix[i][j] = (f_i.ce * f_j.ce) + (f_i.cc * f_j.cc) + (0.3 * f_i.resid * f_j.resid);
+            }
+        }
+    }
+    
+    // Decompose the matrix
+    const L = cholesky(correlationMatrix);
+
     const allStrategyPaths = strategies.map(() => []); 
 
     for (let s = 0; s < simCount; s++) {
@@ -113,41 +156,43 @@ function runMonteCarloPaths(data) {
         const currentSimPaths = strategies.map(() => new Float32Array(months));
 
         for (let m = 0; m < months; m++) {
-            const z1 = rand_t_custom(sysKurtosis); 
-            const z2 = rand_t_custom(sysKurtosis); 
-            const z_basis = rand_t_custom(sysKurtosis); 
+            // NEW: Generate uncorrelated base shocks utilizing appropriate Kurtosis
+            const uncorrShocks = new Float32Array(n);
+            for (let i = 0; i < n; i++) {
+                // Blend systemic tail risk with asset specific idiosyncrasies
+                const effectiveK = (i < 2) ? sysKurtosis : factorArray[i].k;
+                uncorrShocks[i] = rand_t_custom(effectiveK);
+            }
 
+            // Apply Cholesky Lower Triangular Matrix to correlate shocks
             const assetRandomness = {};
-            for (let i = 0; i < assetKeys.length; i++) {
-                const key = assetKeys[i];
-                const fac = assetFactors[key];
-                const z_idio = rand_t_custom(fac.k); 
-                const effective_resid = fac.resid * (Math.sqrt(0.3) * z_basis + Math.sqrt(0.7) * z_idio);
-                assetRandomness[key] = fac.vol * (fac.ce * z1 + fac.cc * z2 + effective_resid);
+            for (let i = 0; i < n; i++) {
+                let correlatedShock = 0;
+                for (let j = 0; j <= i; j++) {
+                    correlatedShock += L[i][j] * uncorrShocks[j];
+                }
+                assetRandomness[assetKeys[i]] = factorArray[i].vol * correlatedShock;
             }
 
             cumulativeInflation *= monthlyInflationRate;
 
             for (let stratIdx = 0; stratIdx < strategies.length; stratIdx++) {
                 const strat = strategies[stratIdx];
-                const monthData = strat.monthlyData[m]; // Contains weights, alpha, and te
+                const monthData = strat.monthlyData[m];
                 
-                // Add the alpha target straight to the arithmetic baseline
                 let monthlyReturn = (monthData.alpha || 0) / 12;
                 
-                for (let i = 0; i < assetKeys.length; i++) {
+                for (let i = 0; i < n; i++) {
                     const key = assetKeys[i];
                     const w = monthData.weights[key] || 0;
                     if (w === 0) continue;
 
-                    const fac = assetFactors[key];
+                    const fac = factorArray[i];
                     const expectedReturn = fac.mean / 12;
                     monthlyReturn += w * (expectedReturn + assetRandomness[key]);
                 }
 
-                // Inject Tracking Error (Active Risk)
                 if (monthData.te > 0) {
-                    // Active risk inherits systemic tail distribution logic
                     const activeShock = (monthData.te / Math.sqrt(12)) * rand_t_custom(sysKurtosis);
                     monthlyReturn += activeShock;
                 }
