@@ -1,5 +1,5 @@
 // js/mathUtils.js
-import { ASSET_CLASSES } from './config.js?v=16.3';
+import { ASSET_CLASSES } from './config.js?v=16.5';
 
 export function logGamma(z) {
     let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
@@ -35,16 +35,21 @@ export function getCorrHeatmapBg(val) {
     }
 }
 
-export function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
-    let ret = alpha; 
+export function calcDeterministicStats(weights, alphas, tes, cma) {
+    let ret = 0; 
     let port_k = 0; 
     let sum_variance = 0;
+    let active_variance = 0;
     
     ASSET_CLASSES.forEach(ac => {
         const w = weights[ac.key] || 0;
         if(w === 0) return;
-        ret += w * (cma.r[ac.key] || 0); 
+        const alpha = alphas && alphas[ac.key] ? alphas[ac.key] : 0;
+        const te = tes && tes[ac.key] ? tes[ac.key] : 0;
+
+        ret += w * ((cma.r[ac.key] || 0) + alpha); 
         port_k += w * (cma.k[ac.key] || 0);
+        active_variance += Math.pow(w * te, 2);
     });
     
     ASSET_CLASSES.forEach((ac1) => {
@@ -54,7 +59,6 @@ export function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
             const w2 = weights[ac2.key] || 0;
             if (w2 === 0) return;
             
-            // Mathematical safeguard: Self-correlation must be 1.0
             let corr = 0;
             if (ac1.key === ac2.key) {
                 corr = 1.0;
@@ -68,7 +72,7 @@ export function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
         });
     });
     
-    const portVariance = sum_variance + Math.pow(te, 2);
+    const portVariance = sum_variance + active_variance;
     const portVol = Math.sqrt(portVariance);
     
     const kurtosisAdjustment = Math.exp(-0.005 * port_k); 
