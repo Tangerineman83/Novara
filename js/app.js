@@ -35,20 +35,33 @@ document.addEventListener('DOMContentLoaded', () => {
         initRunModelInputs();
         setupAutoRun();
         
-        // Critical Fix: Load Presets before triggering UI visual updates
-        try {
-            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset(0);
-            if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) loadPersonaPreset(0);
-            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) loadStrategyPreset(0, 'core');
-        } catch (dataErr) {
-            console.warn("Default Data Load Warning:", dataErr);
-        }
-        
+        // Render UI foundations first
         refreshPortfolioDropdowns();
         renderPortfolioPane('left', state.portfolios[0].id);
         renderStrategyTable();
         initTooltips();
 
+        // Inject Presets into the rendered DOM components
+        try {
+            if(PRESET_CMAS && PRESET_CMAS.length > 0) {
+                loadCMAPreset(0);
+                const cmaSel = document.getElementById('run-cma-select');
+                if(cmaSel) cmaSel.value = "0";
+            }
+            if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) {
+                loadPersonaPreset(0);
+                const persSel = document.getElementById('run-persona-select');
+                if(persSel) persSel.value = "0";
+            }
+            if(PRESET_STRATEGIES && PRESET_STRATEGIES.length > 0) {
+                loadStrategyPreset(0, 'core');
+                const stratSel = document.getElementById('run-strat-1');
+                if(stratSel) stratSel.value = "core_0";
+            }
+        } catch (dataErr) {
+            console.warn("Default Data Load Warning:", dataErr);
+        }
+        
         setTimeout(runSimulation, 500);
     } catch (err) {
         console.error("Critical Init Error:", err);
@@ -965,7 +978,7 @@ function scrapeStrategyUI() {
         for(let r=0; r<10; r++) {
             const portSelect = table.querySelectorAll('.strat-port-select')[r];
             const weightInput = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
-            if (portSelect.value !== 'none') {
+            if (portSelect && weightInput && portSelect.value !== 'none') {
                 weights[portSelect.value] = (parseFloat(weightInput.value) || 0) / 100;
             }
         }
