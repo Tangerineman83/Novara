@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=15.2';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.0';
 
 const state = {
     worker: null,
@@ -222,7 +222,6 @@ function renderAssetRows() {
     });
 }
 
-// FIX: Helper logic to assign heatmap background shading mathematically
 function getHeatmapBg(val) {
     if (val === 0) return '';
     if (val < 0) {
@@ -234,35 +233,80 @@ function getHeatmapBg(val) {
     }
 }
 
+// PHASE 1: Grouped Matrix Heatmap Coloring Algorithm
+function getMatrixHeatmapBg(val) {
+    if (val === 0) return 'background-color: #F8FAFC;';
+    if (val < 0) {
+        // Scales opacity up to 90% as the crash approaches -50%
+        const alpha = Math.min(Math.abs(val) / 0.5, 0.9); 
+        return `background-color: rgba(220, 38, 38, ${Math.max(0.1, alpha)});`;
+    } else {
+        // Scales mint green up to 60% opacity for positive runs
+        const alpha = Math.min(val / 0.3, 0.6); 
+        return `background-color: rgba(16, 185, 129, ${Math.max(0.15, alpha)});`;
+    }
+}
+
 function renderStressAssumptionsTable() {
     const theadTr = document.getElementById('cma-stress-thead-tr');
     const tbody = document.querySelector('#cma-stress-table tbody');
     if (!theadTr || !tbody) return;
 
-    let headHTML = '<th style="min-width: 200px; position: sticky; left: 0; background: #F8FAFC; z-index: 2;">Asset Class</th>';
+    let headHTML = `
+        <th class="border-end" style="min-width: 120px; position: sticky; left: 0; background: #F8FAFC; z-index: 3;">Category</th>
+        <th class="border-end" style="min-width: 200px; position: sticky; left: 120px; background: #F8FAFC; z-index: 3;">Asset Class</th>
+    `;
     STRESS_SCENARIOS.forEach(sc => {
-        headHTML += `<th class="text-end" style="min-width: 130px;">
+        headHTML += `<th class="text-center" style="min-width: 100px; font-size:0.7rem; font-weight:700;">
             <span style="cursor:help; border-bottom:1px dotted #94A3B8;" data-bs-toggle="tooltip" data-bs-title="${sc.description}">${sc.name}</span>
         </th>`;
     });
     theadTr.innerHTML = headHTML;
 
-    let bodyHTML = '';
+    // Group assets dynamically by their config classification
+    const grouped = {};
     ASSET_CLASSES.forEach(ac => {
-        bodyHTML += `<tr>
-            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
-                ${ac.name}
-            </td>`;
-        STRESS_SCENARIOS.forEach(sc => {
-            const val = sc.returns[ac.key] || 0;
-            const valPct = (val * 100).toFixed(1);
-            const style = getHeatmapBg(val); // Shading assigned here
-            bodyHTML += `<td class="text-end fw-bold" style="${style}">${val > 0 ? '+' : ''}${valPct}%</td>`;
-        });
-        bodyHTML += `</tr>`;
+        if(!grouped[ac.category]) grouped[ac.category] = [];
+        grouped[ac.category].push(ac);
     });
+
+    let bodyHTML = '';
+    Object.keys(grouped).forEach(cat => {
+        const assets = grouped[cat];
+        assets.forEach((ac, idx) => {
+            bodyHTML += `<tr>`;
+            
+            if(idx === 0) {
+                bodyHTML += `<td rowspan="${assets.length}" class="cat-header text-center border-end" style="position: sticky; left: 0; z-index: 2; background: #FFF;">${cat}</td>`;
+            }
+            
+            bodyHTML += `
+                <td class="fw-medium text-muted border-end" style="position: sticky; left: 120px; background: #FFF; z-index: 2;">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
+                    ${ac.name}
+                </td>`;
+            
+            // Generate the Heatmap Grid
+            STRESS_SCENARIOS.forEach(sc => {
+                const val = sc.returns[ac.key] || 0;
+                const valPct = (val * 100).toFixed(1);
+                const style = getMatrixHeatmapBg(val);
+                
+                // Automatically switch hover text to white if the cell is a deep, dark red
+                const darkClass = val <= -0.4 ? 'dark-bg' : '';
+                bodyHTML += `<td class="heatmap-cell ${darkClass}" style="${style}">${val > 0 ? '+' : ''}${valPct}%</td>`;
+            });
+            bodyHTML += `</tr>`;
+        });
+    });
+    
     tbody.innerHTML = bodyHTML;
+
+    // Re-bind tooltips explicitly for dynamically injected HTML headers
+    setTimeout(() => {
+        const newTooltips = document.getElementById('cma-stress-collapse').querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+    }, 100);
 }
 
 function buildSharedLegend() {
@@ -276,7 +320,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=15.2'); 
+    state.worker = new Worker('./js/worker.js?v=16.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -633,7 +677,6 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
 }
 
-// FIX: Table mapped to shading logic for unified design
 function renderStressTests() {
     const leftId = document.getElementById('port-select-left')?.value;
     const rightId = document.getElementById('port-select-right')?.value;
