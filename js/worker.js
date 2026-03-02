@@ -48,7 +48,8 @@ function quantile(arr, q) {
     return sorted[base];
 }
 
-function cholesky(matrix) {
+// Strict Cholesky that throws if Matrix is non-PSD
+function choleskyStrict(matrix) {
     const n = matrix.length;
     const L = Array(n).fill(0).map(() => Array(n).fill(0));
     for (let i = 0; i < n; i++) {
@@ -59,12 +60,39 @@ function cholesky(matrix) {
             }
             if (i === j) {
                 const val = matrix[i][i] - sum;
-                L[i][j] = Math.sqrt(Math.max(0.000001, val)); 
+                if (val <= 0.000001) throw new Error("Not PSD");
+                L[i][j] = Math.sqrt(val);
             } else {
                 L[i][j] = (matrix[i][j] - sum) / L[j][j];
             }
         }
     }
+    return L;
+}
+
+// Auto-healing Tikhonov/Shrinkage regularization wrapper
+function getRobustCholesky(matrix) {
+    const n = matrix.length;
+    let blend = 0.0;
+    let currentMatrix = Array(n).fill(0).map((_, i) => [...matrix[i]]);
+    
+    while (blend <= 1.0) {
+        try {
+            return choleskyStrict(currentMatrix);
+        } catch (e) {
+            blend += 0.01; // Shrink towards identity by 1% increments to force mathematical validity
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    if (i === j) currentMatrix[i][j] = 1.0;
+                    else currentMatrix[i][j] = matrix[i][j] * (1.0 - blend);
+                }
+            }
+        }
+    }
+    
+    // Absolute fallback (Identity Matrix)
+    const L = Array(n).fill(0).map(() => Array(n).fill(0));
+    for(let i=0; i<n; i++) L[i][i] = 1.0;
     return L;
 }
 
@@ -124,7 +152,7 @@ function runMonteCarloPaths(data) {
         }
     }
     
-    const L = cholesky(correlationMatrix);
+    const L = getRobustCholesky(correlationMatrix);
     const allStrategyPaths = strategies.map(() => []); 
 
     for (let s = 0; s < simCount; s++) {
