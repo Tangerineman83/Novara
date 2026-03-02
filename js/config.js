@@ -31,7 +31,7 @@ export const CHART_COLORS = [
 
 export const PRESET_CMAS = [
     {
-        name: "2026 Q1 Global Equilibrium (Updated)",
+        name: "2026 Q1 Global Equilibrium",
         data: {
             r: { usEq: 0.070, devEq: 0.072, emEq: 0.086, jpnEq: 0.070, ukEq: 0.065, apacEq: 0.072, globalReits: 0.068, realEstateDirect: 0.062, infrastructure: 0.071, privEq: 0.105, privCredit: 0.082, listedAlts: 0.064, digitalAssets: 0.125, globalHighYield: 0.078, emDebt: 0.075, igCredit: 0.051, sdCredit: 0.048, globalSov: 0.042, inflLinked: 0.045, moneyMkt: 0.035 },
             v: { usEq: 0.155, devEq: 0.150, emEq: 0.220, jpnEq: 0.170, ukEq: 0.140, apacEq: 0.185, globalReits: 0.190, realEstateDirect: 0.140, infrastructure: 0.120, privEq: 0.240, privCredit: 0.100, listedAlts: 0.145, digitalAssets: 0.480, globalHighYield: 0.110, emDebt: 0.140, igCredit: 0.060, sdCredit: 0.040, globalSov: 0.070, inflLinked: 0.060, moneyMkt: 0.010 },
@@ -112,20 +112,28 @@ export const PRESET_PORTFOLIOS = [
 
 export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS.flatMap(g => g.portfolios)));
 
-export const PRESET_STRATEGIES = [
-    { name: "Standard Glidepath", points: [ { years: 50, weights: { "p_std_growth": 1.0 } }, { years: 15, weights: { "p_std_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Enhanced Glidepath", points: [ { years: 50, weights: { "p_enh_growth": 1.0 } }, { years: 15, weights: { "p_enh_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Resilient Glidepath", points: [ { years: 50, weights: { "p_resilient_growth": 1.0 } }, { years: 15, weights: { "p_resilient_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] }
-];
-
-export const PROVIDER_STRATEGIES = [
-    { name: "L&G Target Date Fund (TDF)", points: [ { years: 50, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 15, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 0,  weights: { "p_lg_tdf_retire": 1.0 } } ] },
-    { name: "L&G Lifetime Advantage (LAF)", points: [ { years: 50, weights: { "p_lg_laf_growth": 1.0 } }, { years: 15, weights: { "p_lg_laf_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Aviva My Future Focus", points: [ { years: 50, weights: { "p_av_focus_growth": 1.0 } }, { years: 15, weights: { "p_av_focus_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Aviva My Future Vision (LTAF)", points: [ { years: 50, weights: { "p_av_vision_growth": 1.0 } }, { years: 15, weights: { "p_av_vision_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Standard Life SMA", points: [ { years: 50, weights: { "p_sl_sma_growth": 1.0 } }, { years: 15, weights: { "p_sl_sma_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "Standard Life Future Opps", points: [ { years: 50, weights: { "p_sl_future_growth": 1.0 } }, { years: 15, weights: { "p_sl_future_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-    { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] }
+// Unified Strategy Groups - Allows dynamic scaling of dropdown menus via the config
+export const STRATEGY_GROUPS = [
+    {
+        name: "Core Strategies",
+        strategies: [
+            { name: "Standard Glidepath", points: [ { years: 50, weights: { "p_std_growth": 1.0 } }, { years: 15, weights: { "p_std_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Enhanced Glidepath", points: [ { years: 50, weights: { "p_enh_growth": 1.0 } }, { years: 15, weights: { "p_enh_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Resilient Glidepath", points: [ { years: 50, weights: { "p_resilient_growth": 1.0 } }, { years: 15, weights: { "p_resilient_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] }
+        ]
+    },
+    {
+        name: "Provider Strategies",
+        strategies: [
+            { name: "L&G Target Date Fund (TDF)", points: [ { years: 50, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 15, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 0,  weights: { "p_lg_tdf_retire": 1.0 } } ] },
+            { name: "L&G Lifetime Advantage (LAF)", points: [ { years: 50, weights: { "p_lg_laf_growth": 1.0 } }, { years: 15, weights: { "p_lg_laf_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Aviva My Future Focus", points: [ { years: 50, weights: { "p_av_focus_growth": 1.0 } }, { years: 15, weights: { "p_av_focus_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Aviva My Future Vision (LTAF)", points: [ { years: 50, weights: { "p_av_vision_growth": 1.0 } }, { years: 15, weights: { "p_av_vision_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Standard Life SMA", points: [ { years: 50, weights: { "p_sl_sma_growth": 1.0 } }, { years: 15, weights: { "p_sl_sma_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "Standard Life Future Opps", points: [ { years: 50, weights: { "p_sl_future_growth": 1.0 } }, { years: 15, weights: { "p_sl_future_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
+            { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] }
+        ]
+    }
 ];
 
 export const STRESS_SCENARIOS = [
