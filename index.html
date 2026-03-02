@@ -39,20 +39,23 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div class="d-flex align-items-center gap-3">
                         <h4 class="fw-bold m-0">Markets</h4>
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill" id="toggle-corr-matrix">
-                            <i class="fas fa-th me-1"></i> Expand Correlation Matrix
-                        </button>
                     </div>
-                    <select id="cma-preset-select" class="form-select form-select-sm rounded-pill" style="width: 250px;">
-                        <option value="">Load Preset...</option>
-                    </select>
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Toggle full matrix view">
+                            <input class="form-check-input mt-0" type="checkbox" id="toggle-corr-matrix" style="cursor:pointer;">
+                            <label class="form-check-label small fw-bold text-muted" for="toggle-corr-matrix" style="cursor:pointer;">Show Correlations</label>
+                        </div>
+                        <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0" style="width: 220px; font-weight: 600;">
+                            <option value="">Load Preset...</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="card mb-4">
                     <div class="card-body p-0">
-                        <div class="table-responsive">
+                        <div class="table-responsive pb-1">
                             <table class="table align-middle" id="cma-table">
-                                <thead>
+                                <thead class="table-header-custom">
                                     <tr>
                                         <th>Asset Class</th>
                                         <th class="text-center" style="width: 100px;">Tail Risk</th>
@@ -75,7 +78,7 @@
                     <div class="card-body p-0 collapse" id="cma-stress-collapse">
                         <div class="table-responsive">
                             <table class="table align-middle mb-0" id="cma-stress-table">
-                                <thead class="bg-light"><tr id="cma-stress-thead-tr"></tr></thead>
+                                <thead class="table-header-custom"><tr id="cma-stress-thead-tr"></tr></thead>
                                 <tbody></tbody>
                             </table>
                         </div>
@@ -102,7 +105,7 @@
 
                 <div class="row g-4">
                     <div class="col-lg-6">
-                        <div class="card h-100 mb-0">
+                        <div class="card h-100 mb-0 shadow-sm">
                             <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
                                 <span class="fw-bold text-muted small text-uppercase">Primary Portfolio</span>
                                 <div class="d-flex gap-2">
@@ -128,7 +131,7 @@
                     </div>
 
                     <div class="col-lg-6">
-                        <div class="card h-100 mb-0">
+                        <div class="card h-100 mb-0 shadow-sm">
                             <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
                                 <span class="fw-bold text-muted small text-uppercase">Comparison Portfolio</span>
                                 <div class="d-flex gap-2">
@@ -187,11 +190,11 @@
                         <button class="btn btn-sm btn-light border rounded-pill" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
                     </div>
                 </div>
-                <div class="card mb-3" id="strategy-table-container">
+                <div class="card mb-3 shadow-sm" id="strategy-table-container">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table align-middle text-center mb-0" id="strategy-table">
-                                <thead class="bg-light"><tr><th style="width: 250px;" class="text-start ps-4">Building Blocks</th></tr></thead>
+                                <thead class="table-header-custom"><tr><th style="width: 250px;" class="text-start ps-4">Building Blocks</th></tr></thead>
                                 <tbody></tbody>
                             </table>
                         </div>
@@ -201,7 +204,7 @@
                         <button class="btn btn-sm btn-light border rounded-pill" onclick="addStrategyYearColumn()"><i class="fas fa-plus me-1"></i> Add Time Point</button>
                     </div>
                 </div>
-                <div class="card">
+                <div class="card shadow-sm">
                     <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
                         <span class="fw-bold small text-uppercase text-muted">Glidepath Visualizer</span>
                         <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="strat-view-toggle"><label class="form-check-label small text-muted ms-1">Look-Through Assets</label></div>
@@ -217,7 +220,7 @@
                 </div>
                 <div class="row">
                     <div class="col-md-6 col-lg-4">
-                        <div class="card">
+                        <div class="card shadow-sm">
                             <div class="card-body">
                                 <div class="mb-3"><label class="form-label">Current Age</label><input type="number" id="p-age" class="form-control" value="30"></div>
                                 <div class="mb-3"><label class="form-label">Retirement Age</label><input type="number" id="p-retAge" class="form-control" value="65"></div>
@@ -232,25 +235,25 @@
             </div>
 
             <div id="tab-model" class="view-section d-none dashboard-container">
-                <div class="input-ribbon mb-3">
+                <div class="input-ribbon mb-3 shadow-sm">
                     <div class="row g-2 align-items-center">
-                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Markets</label><select id="run-cma-select" class="form-select form-select-sm"></select></div>
-                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Persona</label><select id="run-persona-select" class="form-select form-select-sm"></select></div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s1"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 1</label><select id="run-strat-1" class="form-select form-select-sm"></select></div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label><select id="run-strat-2" class="form-select form-select-sm"></select></div>
-                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label><select id="run-strat-3" class="form-select form-select-sm"></select></div>
+                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Markets</label><select id="run-cma-select" class="form-select form-select-sm border-0 bg-light"></select></div>
+                        <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Persona</label><select id="run-persona-select" class="form-select form-select-sm border-0 bg-light"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s1"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 1</label><select id="run-strat-1" class="form-select form-select-sm border-0 bg-light"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label><select id="run-strat-2" class="form-select form-select-sm border-0 bg-light"></select></div>
+                        <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label><select id="run-strat-3" class="form-select form-select-sm border-0 bg-light"></select></div>
                         <div class="col-md-2 d-flex flex-column gap-2 justify-content-end align-items-end ps-md-3 border-start">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="small fw-bold text-muted" style="font-size:0.7rem">LIVE</span>
-                                <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="auto-update-toggle" checked></div>
+                                <div class="form-check form-switch m-0"><input class="form-check-input mt-0" type="checkbox" id="auto-update-toggle" checked></div>
                                 <button class="btn btn-sm btn-link p-0 text-muted" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="fas fa-cog"></i></button>
                             </div>
-                            <button class="btn btn-primary btn-sm w-100" id="run-simulation-btn">Run Projection</button>
+                            <button class="btn btn-primary btn-sm w-100 shadow-sm" id="run-simulation-btn">Run Projection</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="card chart-card-wrapper mb-3">
+                <div class="card chart-card-wrapper mb-3 shadow-sm">
                     <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
                         <span class="fw-bold text-dark m-0">Accumulation (Real Terms)</span>
                     </div>
@@ -259,7 +262,7 @@
                     </div>
                 </div>
                 
-                <div class="card mb-0">
+                <div class="card mb-0 shadow-sm">
                     <div class="table-responsive px-2">
                         <table class="table align-middle border-0" id="results-table">
                             <thead>
