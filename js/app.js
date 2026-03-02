@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.3';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.4';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -35,13 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
         initRunModelInputs();
         setupAutoRun();
         
-        // Render UI foundations first
         refreshPortfolioDropdowns();
         renderPortfolioPane('left', state.portfolios[0].id);
         renderStrategyTable();
         initTooltips();
 
-        // Inject Presets into the rendered DOM components
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) {
                 loadCMAPreset(0);
@@ -355,7 +353,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.3'); 
+    state.worker = new Worker('./js/worker.js?v=16.4'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1092,13 +1090,21 @@ function interpolateWeights(points, totalMonths) {
     const monthlyData = [];
     for (let m = 0; m < totalMonths; m++) {
         const yearsRemaining = (totalMonths - m) / 12;
+        
+        // FIX: Bound yearsRemaining to prevent infinite strategy extrapolation
+        let clampedYears = yearsRemaining;
+        if (clampedYears > points[0].years) clampedYears = points[0].years;
+        if (clampedYears < points[points.length - 1].years) clampedYears = points[points.length - 1].years;
+
         let p1 = points[0], p2 = points[points.length - 1];
         for (let i = 0; i < points.length - 1; i++) {
-            if (yearsRemaining <= points[i].years && yearsRemaining >= points[i+1].years) {
+            if (clampedYears <= points[i].years && clampedYears >= points[i+1].years) {
                 p1 = points[i]; p2 = points[i+1]; break;
             }
         }
-        const ratio = (p1.years - p2.years) === 0 ? 0 : (yearsRemaining - p2.years) / (p1.years - p2.years);
+        
+        const ratio = (p1.years - p2.years) === 0 ? 0 : (clampedYears - p2.years) / (p1.years - p2.years);
+        
         const w = {};
         ASSET_CLASSES.forEach(ac => {
             let w1 = (p1.weights ? p1.weights[ac.key] : p1[ac.key]) || 0;
