@@ -1,6 +1,6 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.2';
-import { logGamma, getMatrixHeatmapBg, calcDeterministicStats } from './mathUtils.js';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.3';
+import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
     worker: null,
@@ -184,25 +184,46 @@ function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
 }
 
 function renderAssetRows() {
+    const thead = document.querySelector('#cma-table thead tr');
     const tbody = document.querySelector('#cma-table tbody');
-    if(!tbody) return;
+    if(!tbody || !thead) return;
+    
+    let headerHTML = `
+        <th style="min-width: 180px;">Asset Class</th>
+        <th class="text-center" style="width: 100px;">Tail Risk</th>
+        <th class="text-end" style="min-width: 90px;">Return (%)</th>
+        <th class="text-end" style="min-width: 90px;">Vol (%)</th>
+        <th class="text-end pe-4 border-end" style="min-width: 90px;">Kurtosis</th>
+    `;
+    ASSET_CLASSES.forEach(ac => {
+        headerHTML += `<th class="text-center corr-col d-none" style="min-width: 50px; font-size: 0.65rem;" title="${ac.name}">${ac.key.substring(0,6)}</th>`;
+    });
+    thead.innerHTML = headerHTML;
+
     tbody.innerHTML = '';
     const frag = document.createDocumentFragment();
     
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
+        let rowHTML = `
             <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${asset.color}; margin-right:6px;"></span>
                 ${asset.name}
             </td>
             <td class="text-center"><canvas id="dist-${asset.key}" class="dist-canvas" width="80" height="30"></canvas></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
-            <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="ce" value="0.00"></td>
-            <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end bg-transparent border-0" data-key="${asset.key}" data-field="cc" value="0.00"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
+            <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
+            <td class="text-end pe-4 border-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
         `;
+        
+        ASSET_CLASSES.forEach(colAsset => {
+            rowHTML += `<td class="text-center corr-col d-none p-0 heatmap-cell">
+                <input type="number" step="0.05" class="form-control form-control-sm text-center border-0 w-100 h-100 rounded-0 bg-transparent corr-input" 
+                data-row="${asset.key}" data-col="${colAsset.key}" value="0.00" style="font-size: 0.75rem; font-weight: 600;">
+            </td>`;
+        });
+        
+        tr.innerHTML = rowHTML;
         frag.appendChild(tr);
         
         const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"], input[data-field="k"]');
@@ -214,9 +235,33 @@ function renderAssetRows() {
                 drawDistributionChart(asset.key, r, v, k, asset.color);
             });
         });
+        
+        const corrInputs = tr.querySelectorAll('.corr-input');
+        corrInputs.forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value) || 0;
+                const rowKey = e.target.dataset.row;
+                const colKey = e.target.dataset.col;
+                
+                e.target.parentElement.style = getCorrHeatmapBg(val);
+                
+                if (rowKey !== colKey) {
+                    const symmetricCell = document.querySelector(`.corr-input[data-row="${colKey}"][data-col="${rowKey}"]`);
+                    if(symmetricCell && symmetricCell.value !== e.target.value) {
+                        symmetricCell.value = e.target.value;
+                        symmetricCell.parentElement.style = getCorrHeatmapBg(val);
+                    }
+                }
+            });
+        });
+        
         setTimeout(() => drawDistributionChart(asset.key, asset.defaultR, asset.defaultV, asset.defaultK, asset.color), 0);
     });
     tbody.appendChild(frag);
+
+    document.getElementById('toggle-corr-matrix')?.addEventListener('click', () => {
+        document.querySelectorAll('.corr-col').forEach(el => el.classList.toggle('d-none'));
+    });
 }
 
 function renderStressAssumptionsTable() {
@@ -287,7 +332,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.2'); 
+    state.worker = new Worker('./js/worker.js?v=16.3'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -394,15 +439,19 @@ function loadCMAPreset(index) {
     if (!PRESET_CMAS[index]) return;
     const data = PRESET_CMAS[index].data;
     document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
-        tr.querySelectorAll('input').forEach(inp => {
+        tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
             const key = inp.dataset.key; const field = inp.dataset.field; 
             if (data[field] && data[field][key] !== undefined) {
                 const val = data[field][key];
-                if (field === 'r' || field === 'v') {
-                    inp.value = (val * 100).toFixed(2);
-                } else {
-                    inp.value = val.toFixed(2);
-                }
+                inp.value = (field === 'r' || field === 'v') ? (val * 100).toFixed(2) : val.toFixed(2);
+                inp.dispatchEvent(new Event('input')); 
+            }
+        });
+        
+        tr.querySelectorAll('.corr-input').forEach(inp => {
+            const row = inp.dataset.row; const col = inp.dataset.col;
+            if (data.correlations && data.correlations[row] && data.correlations[row][col] !== undefined) {
+                inp.value = data.correlations[row][col].toFixed(2);
                 inp.dispatchEvent(new Event('input')); 
             }
         });
@@ -939,19 +988,24 @@ function scrapeAndResolveStrategy() {
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
     if (!sel || sel.value === 'custom') {
-        const r = {}, v = {}, k = {}, ce = {}, cc = {};
+        const r = {}, v = {}, k = {}, correlations = {};
+        
+        ASSET_CLASSES.forEach(ac => correlations[ac.key] = {});
+
         document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
-            const inputs = tr.querySelectorAll('input');
-            inputs.forEach(inp => {
+            tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
                 const val = parseFloat(inp.value) || 0;
                 if(inp.dataset.field === 'r') r[inp.dataset.key] = val / 100;
                 if(inp.dataset.field === 'v') v[inp.dataset.key] = val / 100;
                 if(inp.dataset.field === 'k') k[inp.dataset.key] = val; 
-                if(inp.dataset.field === 'ce') ce[inp.dataset.key] = val; 
-                if(inp.dataset.field === 'cc') cc[inp.dataset.key] = val; 
+            });
+            
+            tr.querySelectorAll('.corr-input').forEach(inp => {
+                const val = parseFloat(inp.value) || 0;
+                correlations[inp.dataset.row][inp.dataset.col] = val;
             });
         });
-        return { r, v, k, ce, cc };
+        return { r, v, k, correlations };
     }
     return PRESET_CMAS[sel.value].data;
 }
