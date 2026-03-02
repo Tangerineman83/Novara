@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.1';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, PRESET_STRATEGIES, PROVIDER_STRATEGIES, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.2';
 
 const state = {
     worker: null,
@@ -58,7 +58,8 @@ function initTooltips() {
     if (typeof bootstrap !== 'undefined') {
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
-            container: 'body' 
+            container: 'body',
+            html: true
         }));
     }
 }
@@ -222,14 +223,17 @@ function renderAssetRows() {
     });
 }
 
+// FIX: Determines Text and Background Colors ensuring text is always visible
 function getMatrixHeatmapBg(val) {
-    if (val === 0) return 'background-color: #F8FAFC;';
+    if (val === 0) return 'background-color: #F8FAFC; color: #64748B;';
     if (val < 0) {
         const alpha = Math.min(Math.abs(val) / 0.5, 0.9); 
-        return `background-color: rgba(220, 38, 38, ${Math.max(0.1, alpha)});`;
+        const textColor = alpha > 0.5 ? '#FFFFFF' : '#7F1D1D';
+        return `background-color: rgba(220, 38, 38, ${Math.max(0.1, alpha)}); color: ${textColor};`;
     } else {
         const alpha = Math.min(val / 0.3, 0.6); 
-        return `background-color: rgba(16, 185, 129, ${Math.max(0.15, alpha)});`;
+        const textColor = alpha > 0.4 ? '#FFFFFF' : '#064E3B';
+        return `background-color: rgba(16, 185, 129, ${Math.max(0.15, alpha)}); color: ${textColor};`;
     }
 }
 
@@ -276,8 +280,7 @@ function renderStressAssumptionsTable() {
                 const valPct = (val * 100).toFixed(1);
                 const style = getMatrixHeatmapBg(val);
                 
-                const darkClass = val <= -0.4 ? 'dark-bg' : '';
-                bodyHTML += `<td class="heatmap-cell ${darkClass}" style="${style}">${val > 0 ? '+' : ''}${valPct}%</td>`;
+                bodyHTML += `<td class="heatmap-cell" style="${style}">${val > 0 ? '+' : ''}${valPct}%</td>`;
             });
             bodyHTML += `</tr>`;
         });
@@ -287,7 +290,7 @@ function renderStressAssumptionsTable() {
 
     setTimeout(() => {
         const newTooltips = document.getElementById('cma-stress-collapse').querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
     }, 100);
 }
 
@@ -302,7 +305,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.1'); 
+    state.worker = new Worker('./js/worker.js?v=16.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -582,7 +585,7 @@ function renderPortfolioPane(side, portId) {
     });
 
     const newTooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
 
     updatePortfolioVisuals(side, portId);
 }
@@ -659,7 +662,7 @@ function calcDeterministicStats(weights, cma, alpha = 0, te = 0) {
     return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
 }
 
-// PHASE 2: Dumbbell Plot Construction Engine
+// PHASE 2 FIX: True Dumbbell Plot Rendering
 function renderStressTests() {
     const leftId = document.getElementById('port-select-left')?.value;
     const rightId = document.getElementById('port-select-right')?.value;
@@ -667,105 +670,102 @@ function renderStressTests() {
     const portL = state.portfolios.find(p => p.id === leftId);
     const portR = state.portfolios.find(p => p.id === rightId);
     
-    // Process Data
-    let allVals = [];
-    const scenariosData = STRESS_SCENARIOS.map(sc => {
-        let valL = 0, valR = 0;
-        if(portL) ASSET_CLASSES.forEach(ac => { valL += (portL.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
-        if(portR) ASSET_CLASSES.forEach(ac => { valR += (portR.weights[ac.key] || 0) * (sc.returns[ac.key] || 0); });
-        
-        valL *= 100; valR *= 100;
-        if(portL) allVals.push(valL);
-        if(portR) allVals.push(valR);
-        
-        return { name: sc.name, desc: sc.description, valL, valR };
-    });
-
-    if (allVals.length === 0) {
-        document.getElementById('stress-content').innerHTML = '<div class="text-center text-muted p-4">Select a portfolio to view stress analysis.</div>';
+    const content = document.getElementById('stress-content');
+    
+    if (!portL && !portR) {
+        content.innerHTML = '<div class="text-center text-muted p-4">Select a portfolio to view stress analysis.</div>';
         return;
     }
 
-    // Dynamic Scaling
-    let minVal = Math.min(...allVals);
-    let maxVal = Math.max(...allVals);
+    let allVals = [];
+    const scenarioResults = STRESS_SCENARIOS.map(sc => {
+        let vL = null, vR = null;
+        if (portL) {
+            vL = 0;
+            ASSET_CLASSES.forEach(ac => vL += (portL.weights[ac.key] || 0) * (sc.returns[ac.key] || 0));
+            allVals.push(vL);
+        }
+        if (portR) {
+            vR = 0;
+            ASSET_CLASSES.forEach(ac => vR += (portR.weights[ac.key] || 0) * (sc.returns[ac.key] || 0));
+            allVals.push(vR);
+        }
+        return { name: sc.name, desc: sc.description, vL, vR };
+    });
 
-    minVal = Math.floor((minVal - 2) / 10) * 10; 
-    maxVal = Math.ceil((maxVal + 2) / 10) * 10;
-    if (maxVal < 0) maxVal = 0; 
-    if (minVal > 0) minVal = 0;
+    let minVal = Math.min(...allVals, 0);
+    let maxVal = Math.max(...allVals, 0);
+    
+    minVal = Math.floor(minVal * 10) / 10 - 0.05;
+    maxVal = Math.ceil(maxVal * 10) / 10 + 0.05;
+    if(maxVal < 0) maxVal = 0;
+    if(minVal > 0) minVal = 0;
+    const range = maxVal - minVal || 1;
 
-    const range = maxVal - minVal || 1; 
-
-    // Update Header Summaries
-    const formatStr = (vals) => `${Math.min(...vals).toFixed(1)}% to ${Math.max(...vals).toFixed(1)}%`;
-    if (portL) document.getElementById('stress-summary-left').innerText = formatStr(scenariosData.map(s=>s.valL));
+    const formatStr = (vals) => `${(Math.min(...vals)*100).toFixed(1)}% to ${(Math.max(...vals)*100).toFixed(1)}%`;
+    if (portL) document.getElementById('stress-summary-left').innerText = formatStr(scenarioResults.map(s=>s.vL));
     
     const rightContainer = document.getElementById('stress-summary-right-container');
     if (portR) {
         rightContainer.classList.remove('d-none');
-        document.getElementById('stress-summary-right').innerText = formatStr(scenariosData.map(s=>s.valR));
+        document.getElementById('stress-summary-right').innerText = formatStr(scenarioResults.map(s=>s.vR));
     } else {
         rightContainer.classList.add('d-none');
     }
 
-    // Build the Dumbbell UI
     let html = '';
-
-    // Axis Ticks
-    html += '<div class="d-flex mb-3" style="padding-left: 220px; position:relative; height: 20px;">';
-    for(let i = minVal; i <= maxVal; i+=10) {
-        const leftPct = ((i - minVal) / range) * 100;
-        html += `<span class="small text-muted" style="position:absolute; left:${leftPct}%; transform:translateX(-50%); font-size:0.7rem;">${i}%</span>`;
+    
+    html += '<div class="d-flex mb-2" style="padding-left: 220px; position:relative; height: 15px;">';
+    for(let i = Math.ceil(minVal*10); i <= Math.floor(maxVal*10); i+=1) {
+        const val = i / 10;
+        const leftPct = ((val - minVal) / range) * 100;
+        html += `<span class="small text-muted" style="position:absolute; left:${leftPct}%; transform:translateX(-50%); font-size:0.65rem;">${(val*100).toFixed(0)}%</span>`;
     }
     html += '</div>';
 
-    // Tracks
-    scenariosData.forEach(sc => {
+    scenarioResults.forEach(sc => {
         html += `<div class="d-flex align-items-center mb-3">
-                    <div class="pe-3 text-truncate" style="width: 220px; font-size: 0.85rem; font-weight: 500; cursor:help;" data-bs-toggle="tooltip" data-bs-title="${sc.desc}">
-                        ${sc.name}
-                    </div>
-                    <div class="flex-grow-1 position-relative" style="height: 24px;">
-                        <div class="w-100 position-absolute top-50 start-0 translate-middle-y" style="height:4px; background:var(--border-light); border-radius:2px;"></div>`;
-
-        if (portL && portR) {
-            const minDot = Math.min(sc.valL, sc.valR);
-            const maxDot = Math.max(sc.valL, sc.valR);
+            <div class="pe-3 text-truncate" style="width: 220px; font-size: 0.8rem; font-weight: 600; cursor:help; color: var(--text-main);" data-bs-toggle="tooltip" data-bs-title="${sc.desc}">${sc.name}</div>
+            <div class="flex-grow-1 position-relative" style="height: 24px;">
+                <div class="w-100 position-absolute top-50 start-0 translate-middle-y" style="height:4px; background: #E2E8F0; border-radius:2px;"></div>`;
+        
+        if (sc.vL !== null && sc.vR !== null) {
+            const minDot = Math.min(sc.vL, sc.vR);
+            const maxDot = Math.max(sc.vL, sc.vR);
             const leftPct = ((minDot - minVal) / range) * 100;
             const widthPct = ((maxDot - minDot) / range) * 100;
-
-            const diff = sc.valR - sc.valL;
+            
+            const diff = (sc.vR - sc.vL) * 100;
             const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
-            const tooltipText = `<div class='text-start'><b>${sc.name}</b><br>${portL.name}: ${sc.valL.toFixed(1)}%<br>${portR.name}: ${sc.valR.toFixed(1)}%<hr class='my-1'>Gap (Comparison - Primary): <b>${diffStr}</b></div>`;
+            const tooltipHtml = `<div class='text-start'><b>${sc.name}</b><br>${portL.name}: ${(sc.vL*100).toFixed(1)}%<br>${portR.name}: ${(sc.vR*100).toFixed(1)}%<hr class='my-1 border-secondary'>Gap: <b>${diffStr}</b></div>`;
 
-            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, #3B82F6, #8B5CF6);" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${tooltipText}"></div>`;
+            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, #3B82F6, #8B5CF6); opacity:0.6;" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${tooltipHtml}"></div>`;
         }
 
-        if (portL) {
-            const leftPct = ((sc.valL - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle" style="left:${leftPct}%; width:16px; height:16px; background-color:#3B82F6; border-radius:50%;" data-bs-toggle="tooltip" data-bs-title="${portL.name}: ${sc.valL.toFixed(1)}%"></div>`;
+        if (sc.vL !== null) {
+            const leftPct = ((sc.vL - minVal) / range) * 100;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:#3B82F6; border: 2px solid #FFF; border-radius:50%; z-index:2;" data-bs-toggle="tooltip" data-bs-title="${portL.name}: ${(sc.vL*100).toFixed(1)}%"></div>`;
         }
-        if (portR) {
-            const leftPct = ((sc.valR - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle" style="left:${leftPct}%; width:16px; height:16px; background-color:#8B5CF6; border-radius:50%;" data-bs-toggle="tooltip" data-bs-title="${portR.name}: ${sc.valR.toFixed(1)}%"></div>`;
+        if (sc.vR !== null) {
+            const leftPct = ((sc.vR - minVal) / range) * 100;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:#8B5CF6; border: 2px solid #FFF; border-radius:50%; z-index:3;" data-bs-toggle="tooltip" data-bs-title="${portR.name}: ${(sc.vR*100).toFixed(1)}%"></div>`;
         }
-
         html += `</div></div>`;
     });
 
-    // Legend
     html += `
-        <div class="d-flex justify-content-center align-items-center gap-4 mt-4 pt-3 border-top">
-            ${portL ? `<div class="d-flex align-items-center small fw-bold" style="color: #3B82F6;"><span style="width:12px;height:12px;background:#3B82F6;border-radius:50%;margin-right:8px;"></span>${portL.name}</div>` : ''}
-            ${portR ? `<div class="d-flex align-items-center small fw-bold" style="color: #8B5CF6;"><span style="width:12px;height:12px;background:#8B5CF6;border-radius:50%;margin-right:8px;"></span>${portR.name}</div>` : ''}
+        <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top">
+            ${portL ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:#3B82F6;border-radius:50%;margin-right:6px;"></span>${portL.name}</div>` : ''}
+            ${portR ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:#8B5CF6;border-radius:50%;margin-right:6px;"></span>${portR.name}</div>` : ''}
         </div>
     `;
 
-    document.getElementById('stress-content').innerHTML = html;
-
-    const newTooltips = document.getElementById('stress-collapse').querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body'}));
+    content.innerHTML = html;
+    
+    setTimeout(() => {
+        const newTooltips = content.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
+    }, 50);
 }
 
 function getGlobalPortfolio(portId) {
