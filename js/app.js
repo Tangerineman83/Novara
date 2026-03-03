@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=17.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -9,6 +9,8 @@ const state = {
     pieLeft: null,
     pieRight: null,
     portfolios: [], 
+    personas: [],
+    activePersonaId: null,
     strategyYears: [50, 15, 0],
     autoRun: true,
     portfolioInputsCollapsed: false,
@@ -25,11 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
-    // Move crucial UI bindings above data initializations to prevent total UI freeze on data error
-    setupEventListeners();
-    
     state.portfolios = JSON.parse(JSON.stringify(INITIAL_PORTFOLIOS));
+    state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
+    if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
+
     buildSharedLegend();
+    setupEventListeners();
 
     try {
         initWorker();
@@ -37,11 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStressAssumptionsTable(); 
         initPresets();
         initRunModelInputs();
+        renderPersonaCards();
         setupAutoRun();
         
         refreshPortfolioDropdowns();
         renderPortfolioPane('left', state.portfolios[0].id);
-        renderStrategyTable();
+        
+        renderStrategyTable(1);
         initTooltips();
 
         try {
@@ -49,11 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadCMAPreset(0);
                 const cmaSel = document.getElementById('run-cma-select');
                 if(cmaSel) cmaSel.value = "0";
-            }
-            if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) {
-                loadPersonaPreset(0);
-                const persSel = document.getElementById('run-persona-select');
-                if(persSel) persSel.value = "0";
             }
             if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) {
                 loadStrategyPreset(0, 0);
@@ -78,6 +78,17 @@ function initTooltips() {
             html: true
         }));
     }
+}
+
+// 100% Validated DiceBear Algorithm to ensure beautiful render and dynamic age mapping
+function getNeutralAvatarUrl(age, seed) {
+    let top = age < 30 ? "shortHairShortFlat" : age <= 50 ? "shortHairShortWaved" : "shortHairTheCaesar";
+    let hairColor = age > 50 ? "SilverGray" : "BrownDark";
+    let clothing = age < 30 ? "graphicShirt" : age <= 50 ? "collarSweater" : "blazerShirt";
+    let clothingColor = age < 30 ? "Blue03" : age <= 50 ? "PastelGreen" : "Blue02";
+    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
+
+    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&top=${top}&hairColor=${hairColor}&clothing=${clothing}&clothingColor=${clothingColor}&backgroundColor=${bg}&eyes=default&mouth=default&eyebrows=defaultNatural`;
 }
 
 function setupEventListeners() {
@@ -130,6 +141,7 @@ function setupEventListeners() {
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
     window.addStrategyYearColumn = addStrategyYearColumn;
+    window.addStrategyRow = addStrategyRow;
     window.createNewPortfolio = createNewPortfolio;
     window.toggleAdv = toggleAdv;
 }
@@ -219,7 +231,7 @@ function renderAssetRows() {
         <th class="text-center" style="width: 100px;">Tail Risk</th>
         <th class="text-end" style="min-width: 90px;">Return (%)</th>
         <th class="text-end" style="min-width: 90px;">Vol (%)</th>
-        <th class="text-end pe-4 border-end" style="min-width: 90px;">Kurtosis</th>
+        <th class="text-end pe-4" style="min-width: 90px;">Kurtosis</th>
     `;
     ASSET_CLASSES.forEach(ac => {
         headerHTML += `<th class="text-center corr-col d-none" style="min-width: 50px;" title="${ac.name}">${ac.key.substring(0,6)}</th>`;
@@ -267,7 +279,6 @@ function renderAssetRows() {
             });
         });
         
-        // Use Strict-Mode Safe .cssText instead of .style assignment
         const corrInputs = tr.querySelectorAll('.corr-input:not([readonly])');
         corrInputs.forEach(inp => {
             inp.addEventListener('input', (e) => {
@@ -275,13 +286,13 @@ function renderAssetRows() {
                 const rowKey = e.target.dataset.row;
                 const colKey = e.target.dataset.col;
                 
-                e.target.parentElement.style.cssText = getCorrHeatmapBg(val);
+                e.target.parentElement.style = getCorrHeatmapBg(val);
                 
                 if (rowKey !== colKey) {
                     const symmetricCell = document.querySelector(`.corr-input[data-row="${colKey}"][data-col="${rowKey}"]`);
                     if(symmetricCell && symmetricCell.value !== e.target.value) {
                         symmetricCell.value = e.target.value;
-                        symmetricCell.parentElement.style.cssText = getCorrHeatmapBg(val);
+                        symmetricCell.parentElement.style = getCorrHeatmapBg(val);
                     }
                 }
             });
@@ -369,7 +380,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js'); 
+    state.worker = new Worker('./js/worker.js?v=17.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -406,13 +417,76 @@ function initPresets() {
             }
         });
     }
+}
 
-    const persSelect = document.getElementById('persona-preset-select');
-    if (persSelect) {
-        persSelect.innerHTML = '<option value="">Load Preset...</option>';
-        PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-        persSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPersonaPreset(e.target.value); });
-    }
+function renderPersonaCards() {
+    const container = document.getElementById('persona-cards-container');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    state.personas.forEach(p => {
+        const isActive = state.activePersonaId === p.id;
+        const activeClass = isActive ? 'active-persona' : '';
+        const imgGlow = isActive ? 'box-shadow: var(--shadow-btn) !important; border-color: var(--accent-blue) !important;' : 'border: 2px solid var(--border-light);';
+        
+        const col = document.createElement('div');
+        col.className = 'col-lg-4 col-md-6';
+        col.innerHTML = `
+            <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
+                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
+                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
+                    <div class="d-flex align-items-center gap-2">
+                        <h6 class="fw-bold m-0 text-dark">${p.name}</h6>
+                        <i class="fas fa-info-circle text-muted pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>
+                    </div>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="age" value="${p.data.age}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="retirementAge" value="${p.data.retirementAge}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="salary" value="${p.data.salary}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="savings" value="${p.data.savings}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="contribution" value="${p.data.contribution}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm" data-id="${p.id}" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(col);
+        
+        const cardEl = col.querySelector('.persona-card');
+        cardEl.addEventListener('click', (e) => {
+            if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'i') return;
+            state.activePersonaId = p.id;
+            renderPersonaCards(); 
+            updateActivePersonaDisplay(); 
+            if(state.autoRun) { 
+                updateUIState('Updating...'); 
+                clearTimeout(debounceTimer); 
+                debounceTimer = setTimeout(runSimulation, 600); 
+            }
+        });
+
+        col.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const field = e.target.dataset.field;
+                p.data[field] = parseFloat(e.target.value) || 0;
+                
+                if (field === 'age') {
+                    const imgEl = document.getElementById(`avatar-img-${p.id}`);
+                    if (imgEl) imgEl.src = getNeutralAvatarUrl(p.data.age, p.seed);
+                    renderPersonaDropdown();
+                }
+
+                if(state.autoRun && state.activePersonaId === p.id) runSimulation();
+            });
+        });
+    });
+    
+    setTimeout(() => {
+        const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
+    }, 50);
 }
 
 function initRunModelInputs() {
@@ -423,12 +497,39 @@ function initRunModelInputs() {
     if(cmaSelect) cmaSelect.innerHTML = html;
     if(portCmaSelect) portCmaSelect.innerHTML = html;
 
-    const persSelect = document.getElementById('run-persona-select');
-    if(persSelect) {
-        persSelect.innerHTML = '<option value="custom">Use "Personas" Tab</option>';
-        PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-    }
+    renderPersonaDropdown();
     updateStrategySelectors();
+}
+
+function renderPersonaDropdown() {
+    const menu = document.getElementById('run-persona-dropdown-menu');
+    if(!menu) return;
+    menu.innerHTML = '';
+    
+    state.personas.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
+            <img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
+            <span class="fw-bold small text-dark">${p.name}</span>
+        </a>`;
+        li.querySelector('a').addEventListener('click', (e) => {
+            e.preventDefault();
+            state.activePersonaId = p.id;
+            renderPersonaCards(); 
+            updateActivePersonaDisplay();
+            if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
+        });
+        menu.appendChild(li);
+    });
+    updateActivePersonaDisplay();
+}
+
+function updateActivePersonaDisplay() {
+    const p = state.personas.find(x => x.id === state.activePersonaId);
+    const content = document.getElementById('active-persona-content');
+    if(p && content) {
+        content.innerHTML = `<img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark" style="font-size: 0.85rem; white-space: nowrap;">${p.name}</span>`;
+    }
 }
 
 function updateStrategySelectors() {
@@ -454,7 +555,7 @@ function updateStrategySelectors() {
 }
 
 function setupAutoRun() {
-    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
+    const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if(!state.autoRun) return;
@@ -487,29 +588,20 @@ function loadCMAPreset(index) {
     });
 }
 
-function loadPersonaPreset(index) {
-    if (!PRESET_PERSONAS[index]) return;
-    const p = PRESET_PERSONAS[index].data;
-    const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-    setVal('p-age', p.age); setVal('p-retAge', p.retirementAge);
-    setVal('p-pot', p.savings); setVal('p-salary', p.salary);
-    setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
-}
-
 function loadStrategyPreset(gIdx, sIdx) {
     const preset = STRATEGY_GROUPS[gIdx]?.strategies[sIdx];
     if(!preset) return;
     
     state.strategyYears = preset.points.map(p => p.years).sort((a,b)=>b-a);
-    renderStrategyTable(); 
-    
-    const table = document.getElementById('strategy-table');
-    const selects = table.querySelectorAll('.strat-port-select');
     
     const neededPortIds = new Set();
     preset.points.forEach(pt => Object.keys(pt.weights).forEach(id => neededPortIds.add(id)));
-    
     const idsArray = Array.from(neededPortIds);
+    
+    renderStrategyTable(Math.max(1, idsArray.length)); 
+    
+    const table = document.getElementById('strategy-table');
+    const selects = table.querySelectorAll('.strat-port-select');
     idsArray.forEach((id, rowIdx) => { if(selects[rowIdx]) selects[rowIdx].value = id; });
 
     preset.points.forEach(pt => {
@@ -531,7 +623,6 @@ function loadStrategyPreset(gIdx, sIdx) {
 function refreshPortfolioDropdowns() {
     const leftSel = document.getElementById('port-select-left');
     const rightSel = document.getElementById('port-select-right');
-    const stratSels = document.querySelectorAll('.strat-port-select');
     
     let html = '';
     PRESET_PORTFOLIOS.forEach(group => {
@@ -557,12 +648,6 @@ function refreshPortfolioDropdowns() {
     const currRight = rightSel?.value;
     if(rightSel) rightSel.innerHTML = `<option value="none">-- Select to Compare --</option>` + html;
     if(currRight && rightSel) rightSel.value = currRight;
-
-    stratSels.forEach(sel => {
-        const currVal = sel.value;
-        sel.innerHTML = `<option value="none">-- Select Portfolio --</option>` + html;
-        if(currVal) sel.value = currVal;
-    });
 }
 
 function createNewPortfolio(side) {
@@ -615,8 +700,8 @@ function renderPortfolioPane(side, portId) {
     tbody.className = "small";
 
     const titleRow = document.createElement('tr');
-    titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase align-middle border-0">Name</td>
-                          <td colspan="3" class="border-0"><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
+    titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase align-middle">Name</td>
+                          <td colspan="3"><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
     titleRow.querySelector('input').addEventListener('change', (e) => {
         portfolio.name = e.target.value; refreshPortfolioDropdowns();
         renderStressTests();
@@ -731,13 +816,21 @@ function renderStressTests() {
     if(minVal > 0) minVal = 0;
     const range = maxVal - minVal || 1;
 
-    const formatStr = (vals) => `${(Math.min(...vals)*100).toFixed(1)}% to ${(Math.max(...vals)*100).toFixed(1)}%`;
-    if (portL) document.getElementById('stress-summary-left').innerText = formatStr(scenarioResults.map(s=>s.vL));
+    const formatAvg = (vals) => {
+        const sum = vals.reduce((a,b)=>a+b, 0);
+        return `${((sum/vals.length)*100).toFixed(1)}%`;
+    };
+
+    if (portL) {
+        document.getElementById('stress-summary-left-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-left').innerText = formatAvg(scenarioResults.map(s=>s.vL));
+    }
     
     const rightContainer = document.getElementById('stress-summary-right-container');
     if (portR) {
         rightContainer.classList.remove('d-none');
-        document.getElementById('stress-summary-right').innerText = formatStr(scenarioResults.map(s=>s.vR));
+        document.getElementById('stress-summary-right-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-right').innerText = formatAvg(scenarioResults.map(s=>s.vR));
     } else {
         rightContainer.classList.add('d-none');
     }
@@ -783,7 +876,7 @@ function renderStressTests() {
     });
 
     html += `
-        <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top">
+        <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top" style="border-color: var(--border-light) !important;">
             ${portL ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-blue);border-radius:50%;margin-right:6px;"></span>${portL.name}</div>` : ''}
             ${portR ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-purple);border-radius:50%;margin-right:6px;"></span>${portR.name}</div>` : ''}
         </div>
@@ -873,61 +966,16 @@ function renderStrategyChart() {
     });
 }
 
-function renderStrategyTable() {
+function bindStrategyTableEvents() {
     const table = document.getElementById('strategy-table');
-    if(!table) return;
-    const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
-    
-    let headHTML = '<th style="width: 250px;" class="text-start ps-4">Building Blocks</th>';
-    state.strategyYears.forEach((y, i) => {
-        headHTML += `<th>
-            <div class="input-group input-group-sm justify-content-center">
-                <input type="number" class="form-control text-center fw-bold bg-transparent strat-year-header border-0" value="${y}" style="max-width:60px;" data-col="${i}">
-                <span class="input-group-text border-0 bg-transparent px-1">Yrs</span>
-            </div>
-        </th>`;
-    });
-    thead.innerHTML = `<tr>${headHTML}</tr>`;
-
-    tbody.innerHTML = '';
-    const frag = document.createDocumentFragment();
-    
-    for(let r=0; r<10; r++) {
-        const tr = document.createElement('tr');
-        const selCell = document.createElement('td');
-        selCell.className = "text-start ps-3";
-        
-        let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-bold border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
-        
-        PRESET_PORTFOLIOS.forEach(group => {
-            selHTML += `<optgroup label="${group.name}">`;
-            group.portfolios.forEach(p => {
-                selHTML += `<option value="${p.id}">${p.name}</option>`;
-            });
-            selHTML += `</optgroup>`;
-        });
-        
-        const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
-        if(customs.length > 0) {
-            selHTML += `<optgroup label="Custom Portfolios">`;
-            customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
-            selHTML += `</optgroup>`;
-        }
-
-        selCell.innerHTML = selHTML + `</select>`;
-        tr.appendChild(selCell);
-
-        state.strategyYears.forEach((y, i) => {
-            const td = document.createElement('td');
-            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
-            tr.appendChild(td);
-        });
-        frag.appendChild(tr);
-    }
-    tbody.appendChild(frag);
-
     table.querySelectorAll('input, select').forEach(el => {
-        el.addEventListener('change', () => {
+        const newEl = el.cloneNode(true);
+        el.parentNode.replaceChild(newEl, el);
+        newEl.addEventListener('change', () => {
+            if (newEl.classList.contains('strat-year-header')) {
+               const colIdx = newEl.dataset.col;
+               state.strategyYears[colIdx] = parseFloat(newEl.value) || 0;
+            }
             renderStrategyChart(); 
             if(!state.autoRun) return;
             updateUIState('Updating...');
@@ -937,31 +985,92 @@ function renderStrategyTable() {
     });
 }
 
+function appendStrategyRow(tbody, r) {
+    const tr = document.createElement('tr');
+    const selCell = document.createElement('td');
+    selCell.className = "text-start ps-3 align-middle border-0";
+    
+    let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-bold border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
+    PRESET_PORTFOLIOS.forEach(group => {
+        selHTML += `<optgroup label="${group.name}">`;
+        group.portfolios.forEach(p => {
+            selHTML += `<option value="${p.id}">${p.name}</option>`;
+        });
+        selHTML += `</optgroup>`;
+    });
+    const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    if(customs.length > 0) {
+        selHTML += `<optgroup label="Custom Portfolios">`;
+        customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
+        selHTML += `</optgroup>`;
+    }
+    selCell.innerHTML = selHTML + `</select>`;
+    tr.appendChild(selCell);
+
+    state.strategyYears.forEach((y, i) => {
+        const td = document.createElement('td');
+        td.className = "align-middle border-0";
+        td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
+        tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+}
+
+function renderStrategyTable(rowCount = 1) {
+    const table = document.getElementById('strategy-table');
+    if(!table) return;
+    const thead = table.querySelector('thead'); 
+    const tbody = table.querySelector('tbody');
+    
+    let headHTML = '<th style="width: 250px;" class="text-start ps-4">Building Blocks</th>';
+    state.strategyYears.forEach((y, i) => {
+        headHTML += `<th>
+            <div class="input-group input-group-sm justify-content-center">
+                <input type="number" class="form-control text-center fw-bold bg-transparent strat-year-header border-0 shadow-none" value="${y}" style="max-width:60px;" data-col="${i}">
+                <span class="input-group-text border-0 bg-transparent px-1 text-muted">Yrs</span>
+            </div>
+        </th>`;
+    });
+    thead.innerHTML = `<tr>${headHTML}</tr>`;
+
+    tbody.innerHTML = '';
+    for(let r=0; r<rowCount; r++) {
+        appendStrategyRow(tbody, r);
+    }
+    bindStrategyTableEvents();
+}
+
+function addStrategyRow() {
+    const tbody = document.querySelector('#strategy-table tbody');
+    appendStrategyRow(tbody, tbody.children.length);
+    bindStrategyTableEvents();
+}
+
 function addStrategyYearColumn() {
     const table = document.getElementById('strategy-table');
-    const yearInputs = table.querySelectorAll('.strat-year-header');
+    const numRows = table.querySelectorAll('tbody tr').length;
     
     const portSelections = [];
-    for(let r=0; r<10; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
+    for(let r=0; r<numRows; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
 
     const weightsMatrix = [];
-    yearInputs.forEach((yInp, colIdx) => {
+    state.strategyYears.forEach((y, colIdx) => {
         const colWeights = [];
-        for(let r=0; r<10; r++) {
+        for(let r=0; r<numRows; r++) {
             const wInp = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
             colWeights.push(wInp ? wInp.value : 0);
         }
-        weightsMatrix.push({ year: parseFloat(yInp.value), colWeights });
+        weightsMatrix.push({ year: y, colWeights });
     });
 
-    weightsMatrix.push({ year: 10, colWeights: Array(10).fill(0) });
+    weightsMatrix.push({ year: 10, colWeights: Array(numRows).fill(0) });
     weightsMatrix.sort((a,b) => b.year - a.year);
 
     state.strategyYears = weightsMatrix.map(w => w.year);
-    renderStrategyTable();
+    renderStrategyTable(numRows);
 
     const newTable = document.getElementById('strategy-table');
-    for(let r=0; r<10; r++) {
+    for(let r=0; r<numRows; r++) {
         newTable.querySelectorAll('.strat-port-select')[r].value = portSelections[r];
         weightsMatrix.forEach((wm, colIdx) => {
             const wInp = newTable.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
@@ -975,12 +1084,13 @@ function scrapeStrategyUI() {
     const table = document.getElementById('strategy-table');
     if(!table) return [];
     const yearInputs = table.querySelectorAll('.strat-year-header');
+    const numRows = table.querySelectorAll('tbody tr').length;
     const points = [];
 
     yearInputs.forEach((yInp, colIdx) => {
         const years = parseFloat(yInp.value) || 0;
         const weights = {};
-        for(let r=0; r<10; r++) {
+        for(let r=0; r<numRows; r++) {
             const portSelect = table.querySelectorAll('.strat-port-select')[r];
             const weightInput = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
             if (portSelect && weightInput && portSelect.value !== 'none') {
@@ -1046,18 +1156,11 @@ function getActiveCMA() {
 }
 
 function getActivePersona() {
-    const sel = document.getElementById('run-persona-select');
-    if (!sel || sel.value === 'custom') {
-        return {
-            age: parseFloat(document.getElementById('p-age').value),
-            retirementAge: parseFloat(document.getElementById('p-retAge').value),
-            savings: parseFloat(document.getElementById('p-pot').value),
-            salary: parseFloat(document.getElementById('p-salary').value),
-            contribution: parseFloat(document.getElementById('p-contrib').value),
-            realSalaryGrowth: parseFloat(document.getElementById('p-growth').value)
-        };
+    if (state.activePersonaId) {
+        const p = state.personas.find(x => x.id === state.activePersonaId);
+        if (p) return p.data;
     }
-    return PRESET_PERSONAS[sel.value].data;
+    return state.personas[0].data;
 }
 
 function getActiveStrategies(months) {
@@ -1246,9 +1349,9 @@ function renderResultsTable(results) {
         const currHigh = res.percentiles.pUpper[last];
 
         const formatDiff = (val, base) => {
-            if(index === 0) return '';
+            if(index === 0) return '<span style="display:inline-block; width:65px;"></span>';
             const diff = ((val - base)/base)*100;
-            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold" style="font-size:0.75rem;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold text-end" style="font-size:0.75rem; display:inline-block; width:65px;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
@@ -1258,13 +1361,22 @@ function renderResultsTable(results) {
                 ${res.name}
             </td>
             <td class="text-end text-muted border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currLow).toLocaleString()}</span>${formatDiff(currLow, baseLow)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span>£${Math.round(currLow).toLocaleString()}</span>
+                    ${formatDiff(currLow, baseLow)}
+                </div>
             </td>
             <td class="text-end col-median border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span class="median-val">£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span class="median-val">£${Math.round(currMed).toLocaleString()}</span>
+                    ${formatDiff(currMed, baseMed)}
+                </div>
             </td>
             <td class="text-end text-muted border-bottom border-light pe-4">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span>${formatDiff(currHigh, baseHigh)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span>£${Math.round(currHigh).toLocaleString()}</span>
+                    ${formatDiff(currHigh, baseHigh)}
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
