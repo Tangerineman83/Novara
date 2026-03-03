@@ -220,7 +220,7 @@ function calculateStats(allPaths, strategies, confidence) {
     const alpha = (1 - confidence) / 2;
     const pLower = alpha;
     const pUpper = 1 - alpha;
-
+    
     const strategyResults = strategies.map((strat, index) => {
         const paths = allPaths[index];
         const percentiles = { pLower: [], pMedian: [], pUpper: [] };
