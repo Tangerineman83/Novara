@@ -24,9 +24,9 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#3730A3', gradientStart: 'rgba(55, 48, 163, 0.4)', gradientEnd: 'rgba(55, 48, 163, 0.0)' }, // Digital Navy
-    { border: '#059669', gradientStart: 'rgba(5, 150, 105, 0.4)', gradientEnd: 'rgba(5, 150, 105, 0.0)' },   // Institutional Green
-    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }    // Muted Bronze/Orange
+    { border: '#3730A3', gradientStart: 'rgba(55, 48, 163, 0.4)', gradientEnd: 'rgba(55, 48, 163, 0.0)' },
+    { border: '#059669', gradientStart: 'rgba(5, 150, 105, 0.4)', gradientEnd: 'rgba(5, 150, 105, 0.0)' },   
+    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }    
 ];
 
 export const PRESET_CMAS = [
@@ -62,10 +62,29 @@ export const PRESET_CMAS = [
     }
 ];
 
+// Rebuilt as Archetypes with Avatars
 export const PRESET_PERSONAS = [
-    { name: "Default (Age 25)", data: { age: 25, retirementAge: 68, savings: 0, salary: 30000, contribution: 10, realSalaryGrowth: 1 } },
-    { name: "Mid-Career (Age 40)", data: { age: 40, retirementAge: 68, savings: 50000, salary: 50000, contribution: 10, realSalaryGrowth: 0 } },
-    { name: "Late Career (Age 55)", data: { age: 55, retirementAge: 67, savings: 250000, salary: 70000, contribution: 15, realSalaryGrowth: 0 } }
+    { 
+        id: "pers_genz", 
+        name: "Gen-Z Accumulator", 
+        avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=EEF2FF", 
+        desc: "Early 20s, starting early with high multi-decade compounding potential.", 
+        data: { age: 25, retirementAge: 68, savings: 5000, salary: 32000, contribution: 10, realSalaryGrowth: 1.5 } 
+    },
+    { 
+        id: "pers_mid", 
+        name: "Mid-Career Maximizer", 
+        avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Aneka&backgroundColor=ECFDF5", 
+        desc: "Peak earning years, balancing mortgage responsibilities and pension acceleration.", 
+        data: { age: 40, retirementAge: 68, savings: 85000, salary: 65000, contribution: 12, realSalaryGrowth: 0.5 } 
+    },
+    { 
+        id: "pers_late", 
+        name: "The Late Starter", 
+        avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Jude&backgroundColor=FFFBEB", 
+        desc: "Aggressive catch-up phase entering the pre-retirement de-risking window.", 
+        data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
+    }
 ];
 
 export const PRESET_PORTFOLIOS = [
