@@ -24,14 +24,14 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#3B82F6', gradientStart: 'rgba(59, 130, 246, 0.4)', gradientEnd: 'rgba(59, 130, 246, 0.0)' },
-    { border: '#10B981', gradientStart: 'rgba(16, 185, 129, 0.4)', gradientEnd: 'rgba(16, 185, 129, 0.0)' },
-    { border: '#F59E0B', gradientStart: 'rgba(245, 158, 11, 0.4)', gradientEnd: 'rgba(245, 158, 11, 0.0)' }
+    { border: '#3730A3', gradientStart: 'rgba(55, 48, 163, 0.4)', gradientEnd: 'rgba(55, 48, 163, 0.0)' }, // Digital Navy
+    { border: '#059669', gradientStart: 'rgba(5, 150, 105, 0.4)', gradientEnd: 'rgba(5, 150, 105, 0.0)' },   // Institutional Green
+    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }    // Muted Bronze/Orange
 ];
 
 export const PRESET_CMAS = [
     {
-        name: "2026 Q1 Global Equilibrium",
+        name: "2026 Q1 Global Equilibrium (Updated)",
         data: {
             r: { usEq: 0.070, devEq: 0.072, emEq: 0.086, jpnEq: 0.070, ukEq: 0.065, apacEq: 0.072, globalReits: 0.068, realEstateDirect: 0.062, infrastructure: 0.071, privEq: 0.105, privCredit: 0.082, listedAlts: 0.064, digitalAssets: 0.125, globalHighYield: 0.078, emDebt: 0.075, igCredit: 0.051, sdCredit: 0.048, globalSov: 0.042, inflLinked: 0.045, moneyMkt: 0.035 },
             v: { usEq: 0.155, devEq: 0.150, emEq: 0.220, jpnEq: 0.170, ukEq: 0.140, apacEq: 0.185, globalReits: 0.190, realEstateDirect: 0.140, infrastructure: 0.120, privEq: 0.240, privCredit: 0.100, listedAlts: 0.145, digitalAssets: 0.480, globalHighYield: 0.110, emDebt: 0.140, igCredit: 0.060, sdCredit: 0.040, globalSov: 0.070, inflLinked: 0.060, moneyMkt: 0.010 },
@@ -112,7 +112,6 @@ export const PRESET_PORTFOLIOS = [
 
 export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS.flatMap(g => g.portfolios)));
 
-// Unified Strategy Groups - Allows dynamic scaling of dropdown menus via the config
 export const STRATEGY_GROUPS = [
     {
         name: "Core Strategies",
