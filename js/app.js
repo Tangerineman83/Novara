@@ -85,7 +85,7 @@ function initTooltips() {
     }
 }
 
-// Deterministic & Dynamic Avatar Engine (Strictly V9 Compliant)
+// Deterministic & Dynamic Avatar Engine (Using exact expert dictionaries)
 function getNeutralAvatarUrl(age, seed) {
     const getSeededVal = (max, salt = '') => {
         let hash = 0;
@@ -96,13 +96,13 @@ function getNeutralAvatarUrl(age, seed) {
         return Math.abs(hash) % max;
     };
 
-    // 1. Define Trait Pools (Updated to strip old v8 prefixes and comply with v9 requirements)
-    const feminineTops = ['bigHair', 'bob', 'bun', 'curly', 'curvy', 'fro', 'straight01', 'straight02'];
-    const masculineTops = ['dreads', 'shaggyMullet', 'shortCurly', 'shortFlat', 'shortRound', 'shortWaved', 'theCaesar'];
+    // 1. Define Trait Pools using the exact API-compliant prefixes
+    const feminineTops = ['longHairBigHair', 'longHairBob', 'longHairCurly', 'longHairCurvy', 'longHairFro', 'longHairStraight', 'longHairStraight2'];
+    const masculineTops = ['shortHairDreads01', 'shortHairDreads02', 'shortHairFrizzle', 'shortHairShaggyMullet', 'shortHairShortCurly', 'shortHairShortFlat', 'shortHairShortRound', 'shortHairTheCaesar'];
     const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
     const seniorHairColors = ['platinum', 'silverGray'];
     const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
-    const glasses = ['prescription01', 'prescription02', 'round'];
+    const glasses = ['prescription01', 'prescription02'];
     const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
     const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
 
@@ -138,24 +138,17 @@ function getNeutralAvatarUrl(age, seed) {
         bg = "e0e7ff";
     }
 
-    // 4. Safely Construct URL Parameters
-    const params = new URLSearchParams();
-    params.append('seed', seed);
-    params.append('backgroundColor', bg);
-    params.append('top', selectedTop);
-    params.append('hairColor', finalHairColor);
-    params.append('clothing', finalClothing);
-
-    if (finalFacialHair) {
-        params.append('facialHair', finalFacialHair);
-        params.append('facialHairColor', finalHairColor); 
-    }
+    // 4. Safely Construct Raw URL String
+    let url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}&top=${selectedTop}&hairColor=${finalHairColor}&clothing=${finalClothing}`;
     
+    if (finalFacialHair) {
+        url += `&facialHair=${finalFacialHair}&facialHairColor=${finalHairColor}`;
+    }
     if (finalAccessories) {
-        params.append('accessories', finalAccessories);
+        url += `&accessories=${finalAccessories}`;
     }
 
-    return `https://api.dicebear.com/9.x/avataaars/svg?${params.toString()}`;
+    return url;
 }
 
 function setupEventListeners() {
