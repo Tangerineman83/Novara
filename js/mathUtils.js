@@ -1,5 +1,5 @@
 // js/mathUtils.js
-import { ASSET_CLASSES } from './config.js?v=16.5';
+import { ASSET_CLASSES } from './config.js';
 
 export function logGamma(z) {
     let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
