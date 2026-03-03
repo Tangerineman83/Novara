@@ -45,7 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         refreshPortfolioDropdowns();
         renderPortfolioPane('left', state.portfolios[0].id);
-        renderStrategyTable();
+        
+        // Start Strategy Builder with 1 blank row if no preset loads
+        renderStrategyTable(1);
         initTooltips();
 
         try {
@@ -129,6 +131,7 @@ function setupEventListeners() {
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
     window.addStrategyYearColumn = addStrategyYearColumn;
+    window.addStrategyRow = addStrategyRow;
     window.createNewPortfolio = createNewPortfolio;
     window.toggleAdv = toggleAdv;
 }
@@ -414,15 +417,15 @@ function renderPersonaCards() {
         const col = document.createElement('div');
         col.className = 'col-lg-4 col-md-6';
         col.innerHTML = `
-            <div class="card h-100 persona-card">
-                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-2">
-                    <img src="${p.avatar}" class="rounded-circle border shadow-sm" width="56" height="56" style="background: var(--bg-surface);">
-                    <div>
-                        <h6 class="fw-bold mb-1 text-dark">${p.name}</h6>
-                        <p class="small text-muted mb-0 lh-sm" style="font-size:0.75rem;">${p.desc}</p>
+            <div class="card h-100 persona-card shadow-sm">
+                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3">
+                    <img src="${p.avatar}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-input); border: 2px solid var(--border-light);">
+                    <div class="d-flex align-items-center gap-2">
+                        <h6 class="fw-bold m-0 text-dark">${p.name}</h6>
+                        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help;"></i>
                     </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body pt-0">
                     <div class="row g-2">
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="age" value="${p.data.age}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="retirementAge" value="${p.data.retirementAge}"></div>
@@ -444,6 +447,11 @@ function renderPersonaCards() {
             });
         });
     });
+    
+    setTimeout(() => {
+        const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
+    }, 50);
 }
 
 function initRunModelInputs() {
@@ -549,15 +557,15 @@ function loadStrategyPreset(gIdx, sIdx) {
     if(!preset) return;
     
     state.strategyYears = preset.points.map(p => p.years).sort((a,b)=>b-a);
-    renderStrategyTable(); 
-    
-    const table = document.getElementById('strategy-table');
-    const selects = table.querySelectorAll('.strat-port-select');
     
     const neededPortIds = new Set();
     preset.points.forEach(pt => Object.keys(pt.weights).forEach(id => neededPortIds.add(id)));
-    
     const idsArray = Array.from(neededPortIds);
+    
+    renderStrategyTable(Math.max(1, idsArray.length)); 
+    
+    const table = document.getElementById('strategy-table');
+    const selects = table.querySelectorAll('.strat-port-select');
     idsArray.forEach((id, rowIdx) => { if(selects[rowIdx]) selects[rowIdx].value = id; });
 
     preset.points.forEach(pt => {
@@ -579,7 +587,6 @@ function loadStrategyPreset(gIdx, sIdx) {
 function refreshPortfolioDropdowns() {
     const leftSel = document.getElementById('port-select-left');
     const rightSel = document.getElementById('port-select-right');
-    const stratSels = document.querySelectorAll('.strat-port-select');
     
     let html = '';
     PRESET_PORTFOLIOS.forEach(group => {
@@ -605,12 +612,6 @@ function refreshPortfolioDropdowns() {
     const currRight = rightSel?.value;
     if(rightSel) rightSel.innerHTML = `<option value="none">-- Select to Compare --</option>` + html;
     if(currRight && rightSel) rightSel.value = currRight;
-
-    stratSels.forEach(sel => {
-        const currVal = sel.value;
-        sel.innerHTML = `<option value="none">-- Select Portfolio --</option>` + html;
-        if(currVal) sel.value = currVal;
-    });
 }
 
 function createNewPortfolio(side) {
@@ -779,13 +780,21 @@ function renderStressTests() {
     if(minVal > 0) minVal = 0;
     const range = maxVal - minVal || 1;
 
-    const formatStr = (vals) => `${(Math.min(...vals)*100).toFixed(1)}% to ${(Math.max(...vals)*100).toFixed(1)}%`;
-    if (portL) document.getElementById('stress-summary-left').innerText = formatStr(scenarioResults.map(s=>s.vL));
+    const formatAvg = (vals) => {
+        const sum = vals.reduce((a,b)=>a+b, 0);
+        return `${((sum/vals.length)*100).toFixed(1)}%`;
+    };
+
+    if (portL) {
+        document.getElementById('stress-summary-left-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-left').innerText = formatAvg(scenarioResults.map(s=>s.vL));
+    }
     
     const rightContainer = document.getElementById('stress-summary-right-container');
     if (portR) {
         rightContainer.classList.remove('d-none');
-        document.getElementById('stress-summary-right').innerText = formatStr(scenarioResults.map(s=>s.vR));
+        document.getElementById('stress-summary-right-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-right').innerText = formatAvg(scenarioResults.map(s=>s.vR));
     } else {
         rightContainer.classList.add('d-none');
     }
@@ -804,7 +813,7 @@ function renderStressTests() {
         html += `<div class="d-flex align-items-center mb-3">
             <div class="pe-3 text-truncate" style="width: 220px; font-size: 0.8rem; font-weight: 600; cursor:help; color: var(--text-main);" data-bs-toggle="tooltip" data-bs-title="${sc.desc}">${sc.name}</div>
             <div class="flex-grow-1 position-relative" style="height: 24px;">
-                <div class="w-100 position-absolute top-50 start-0 translate-middle-y" style="height:4px; background: #E2E8F0; border-radius:2px;"></div>`;
+                <div class="w-100 position-absolute top-50 start-0 translate-middle-y" style="height:4px; background: var(--border-light); border-radius:2px;"></div>`;
         
         if (sc.vL !== null && sc.vR !== null) {
             const minDot = Math.min(sc.vL, sc.vR);
@@ -831,7 +840,7 @@ function renderStressTests() {
     });
 
     html += `
-        <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top">
+        <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top" style="border-color: var(--border-light) !important;">
             ${portL ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-blue);border-radius:50%;margin-right:6px;"></span>${portL.name}</div>` : ''}
             ${portR ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-purple);border-radius:50%;margin-right:6px;"></span>${portR.name}</div>` : ''}
         </div>
@@ -921,61 +930,16 @@ function renderStrategyChart() {
     });
 }
 
-function renderStrategyTable() {
+function bindStrategyTableEvents() {
     const table = document.getElementById('strategy-table');
-    if(!table) return;
-    const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
-    
-    let headHTML = '<th style="width: 250px;" class="text-start ps-4">Building Blocks</th>';
-    state.strategyYears.forEach((y, i) => {
-        headHTML += `<th>
-            <div class="input-group input-group-sm justify-content-center">
-                <input type="number" class="form-control text-center fw-bold bg-transparent strat-year-header" value="${y}" style="max-width:60px;" data-col="${i}">
-                <span class="input-group-text border-0 bg-transparent px-1">Yrs</span>
-            </div>
-        </th>`;
-    });
-    thead.innerHTML = `<tr>${headHTML}</tr>`;
-
-    tbody.innerHTML = '';
-    const frag = document.createDocumentFragment();
-    
-    for(let r=0; r<10; r++) {
-        const tr = document.createElement('tr');
-        const selCell = document.createElement('td');
-        selCell.className = "text-start ps-3";
-        
-        let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-medium border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
-        
-        PRESET_PORTFOLIOS.forEach(group => {
-            selHTML += `<optgroup label="${group.name}">`;
-            group.portfolios.forEach(p => {
-                selHTML += `<option value="${p.id}">${p.name}</option>`;
-            });
-            selHTML += `</optgroup>`;
-        });
-        
-        const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
-        if(customs.length > 0) {
-            selHTML += `<optgroup label="Custom Portfolios">`;
-            customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
-            selHTML += `</optgroup>`;
-        }
-
-        selCell.innerHTML = selHTML + `</select>`;
-        tr.appendChild(selCell);
-
-        state.strategyYears.forEach((y, i) => {
-            const td = document.createElement('td');
-            td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
-            tr.appendChild(td);
-        });
-        frag.appendChild(tr);
-    }
-    tbody.appendChild(frag);
-
     table.querySelectorAll('input, select').forEach(el => {
-        el.addEventListener('change', () => {
+        const newEl = el.cloneNode(true);
+        el.parentNode.replaceChild(newEl, el);
+        newEl.addEventListener('change', () => {
+            if (newEl.classList.contains('strat-year-header')) {
+               const colIdx = newEl.dataset.col;
+               state.strategyYears[colIdx] = parseFloat(newEl.value) || 0;
+            }
             renderStrategyChart(); 
             if(!state.autoRun) return;
             updateUIState('Updating...');
@@ -985,31 +949,92 @@ function renderStrategyTable() {
     });
 }
 
+function appendStrategyRow(tbody, r) {
+    const tr = document.createElement('tr');
+    const selCell = document.createElement('td');
+    selCell.className = "text-start ps-3 align-middle border-0";
+    
+    let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-bold border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
+    PRESET_PORTFOLIOS.forEach(group => {
+        selHTML += `<optgroup label="${group.name}">`;
+        group.portfolios.forEach(p => {
+            selHTML += `<option value="${p.id}">${p.name}</option>`;
+        });
+        selHTML += `</optgroup>`;
+    });
+    const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    if(customs.length > 0) {
+        selHTML += `<optgroup label="Custom Portfolios">`;
+        customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
+        selHTML += `</optgroup>`;
+    }
+    selCell.innerHTML = selHTML + `</select>`;
+    tr.appendChild(selCell);
+
+    state.strategyYears.forEach((y, i) => {
+        const td = document.createElement('td');
+        td.className = "align-middle border-0";
+        td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
+        tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+}
+
+function renderStrategyTable(rowCount = 1) {
+    const table = document.getElementById('strategy-table');
+    if(!table) return;
+    const thead = table.querySelector('thead'); 
+    const tbody = table.querySelector('tbody');
+    
+    let headHTML = '<th style="width: 250px;" class="text-start ps-4">Building Blocks</th>';
+    state.strategyYears.forEach((y, i) => {
+        headHTML += `<th>
+            <div class="input-group input-group-sm justify-content-center">
+                <input type="number" class="form-control text-center fw-bold bg-transparent strat-year-header border-0 shadow-none" value="${y}" style="max-width:60px;" data-col="${i}">
+                <span class="input-group-text border-0 bg-transparent px-1 text-muted">Yrs</span>
+            </div>
+        </th>`;
+    });
+    thead.innerHTML = `<tr>${headHTML}</tr>`;
+
+    tbody.innerHTML = '';
+    for(let r=0; r<rowCount; r++) {
+        appendStrategyRow(tbody, r);
+    }
+    bindStrategyTableEvents();
+}
+
+function addStrategyRow() {
+    const tbody = document.querySelector('#strategy-table tbody');
+    appendStrategyRow(tbody, tbody.children.length);
+    bindStrategyTableEvents();
+}
+
 function addStrategyYearColumn() {
     const table = document.getElementById('strategy-table');
-    const yearInputs = table.querySelectorAll('.strat-year-header');
+    const numRows = table.querySelectorAll('tbody tr').length;
     
     const portSelections = [];
-    for(let r=0; r<10; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
+    for(let r=0; r<numRows; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
 
     const weightsMatrix = [];
-    yearInputs.forEach((yInp, colIdx) => {
+    state.strategyYears.forEach((y, colIdx) => {
         const colWeights = [];
-        for(let r=0; r<10; r++) {
+        for(let r=0; r<numRows; r++) {
             const wInp = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
             colWeights.push(wInp ? wInp.value : 0);
         }
-        weightsMatrix.push({ year: parseFloat(yInp.value), colWeights });
+        weightsMatrix.push({ year: y, colWeights });
     });
 
-    weightsMatrix.push({ year: 10, colWeights: Array(10).fill(0) });
+    weightsMatrix.push({ year: 10, colWeights: Array(numRows).fill(0) });
     weightsMatrix.sort((a,b) => b.year - a.year);
 
     state.strategyYears = weightsMatrix.map(w => w.year);
-    renderStrategyTable();
+    renderStrategyTable(numRows);
 
     const newTable = document.getElementById('strategy-table');
-    for(let r=0; r<10; r++) {
+    for(let r=0; r<numRows; r++) {
         newTable.querySelectorAll('.strat-port-select')[r].value = portSelections[r];
         weightsMatrix.forEach((wm, colIdx) => {
             const wInp = newTable.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
@@ -1023,12 +1048,13 @@ function scrapeStrategyUI() {
     const table = document.getElementById('strategy-table');
     if(!table) return [];
     const yearInputs = table.querySelectorAll('.strat-year-header');
+    const numRows = table.querySelectorAll('tbody tr').length;
     const points = [];
 
     yearInputs.forEach((yInp, colIdx) => {
         const years = parseFloat(yInp.value) || 0;
         const weights = {};
-        for(let r=0; r<10; r++) {
+        for(let r=0; r<numRows; r++) {
             const portSelect = table.querySelectorAll('.strat-port-select')[r];
             const weightInput = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
             if (portSelect && weightInput && portSelect.value !== 'none') {
