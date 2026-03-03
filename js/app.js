@@ -85,16 +85,12 @@ function initTooltips() {
     }
 }
 
-// 100% Validated DiceBear Algorithm to ensure beautiful render and dynamic age mapping
+// 100% Bulletproof DiceBear Algorithm
 function getNeutralAvatarUrl(age, seed) {
-    // Corrected strictly for the v9 'avataaars' style schema
-    let top = age < 30 ? "shortHairShortFlat" : age <= 50 ? "shortHairShortWaved" : "shortHairTheCaesar";
-    let hairColor = age > 50 ? "silverGray" : "brownDark";
-    let clothing = age < 30 ? "graphicShirt" : age <= 50 ? "collarAndSweater" : "blazerAndShirt";
-    let clothingColor = age < 30 ? "blue03" : age <= 50 ? "pastelGreen" : "blue02";
+    // Removed the brittle hair/clothing overrides to prevent strict API validation errors.
+    // The 'seed' guarantees the avatar looks exactly the same every time it loads.
     let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
-
-    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&top=${top}&hairColor=${hairColor}&clothing=${clothing}&clothingColor=${clothingColor}&backgroundColor=${bg}&eyes=default&mouth=default&eyebrows=defaultNatural`;
+    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&backgroundColor=${bg}`;
 }
 
 function setupEventListeners() {
@@ -450,8 +446,8 @@ function renderPersonaCards() {
                     <div class="row g-2">
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="age" value="${p.data.age}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="retirementAge" value="${p.data.retirementAge}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (&pound;)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="salary" value="${p.data.salary}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (&pound;)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="savings" value="${p.data.savings}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="salary" value="${p.data.salary}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="savings" value="${p.data.savings}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="contribution" value="${p.data.contribution}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm" data-id="${p.id}" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
                     </div>
