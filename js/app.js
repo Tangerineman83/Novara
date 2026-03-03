@@ -413,15 +413,19 @@ function renderPersonaCards() {
     if(!container) return;
     container.innerHTML = '';
     state.personas.forEach(p => {
+        const isActive = state.activePersonaId === p.id;
+        const activeClass = isActive ? 'active-persona' : '';
+        const imgGlow = isActive ? 'box-shadow: var(--shadow-btn) !important; border-color: var(--accent-blue) !important;' : 'border: 2px solid var(--border-light);';
+        
         const col = document.createElement('div');
         col.className = 'col-lg-4 col-md-6';
         col.innerHTML = `
-            <div class="card h-100 persona-card shadow-sm">
-                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3">
-                    <img src="${p.avatar}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-input); border: 2px solid var(--border-light);">
+            <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
+                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
+                    <img src="${p.avatar}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
                     <div class="d-flex align-items-center gap-2">
                         <h6 class="fw-bold m-0 text-dark">${p.name}</h6>
-                        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help;"></i>
+                        <i class="fas fa-info-circle text-muted pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>
                     </div>
                 </div>
                 <div class="card-body pt-0">
@@ -438,6 +442,19 @@ function renderPersonaCards() {
         `;
         container.appendChild(col);
         
+        const cardEl = col.querySelector('.persona-card');
+        cardEl.addEventListener('click', (e) => {
+            if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'i') return;
+            state.activePersonaId = p.id;
+            renderPersonaCards(); 
+            updateActivePersonaDisplay(); 
+            if(state.autoRun) { 
+                updateUIState('Updating...'); 
+                clearTimeout(debounceTimer); 
+                debounceTimer = setTimeout(runSimulation, 600); 
+            }
+        });
+
         col.querySelectorAll('input').forEach(inp => {
             inp.addEventListener('change', (e) => {
                 const field = e.target.dataset.field;
@@ -479,6 +496,7 @@ function renderPersonaDropdown() {
         li.querySelector('a').addEventListener('click', (e) => {
             e.preventDefault();
             state.activePersonaId = p.id;
+            renderPersonaCards(); 
             updateActivePersonaDisplay();
             if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
         });
