@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.8';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.9';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -369,7 +369,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.8'); 
+    state.worker = new Worker('./js/worker.js?v=16.9'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -489,9 +489,10 @@ function renderPersonaDropdown() {
     
     state.personas.forEach(p => {
         const li = document.createElement('li');
-        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2 overflow-hidden" href="#" data-id="${p.id}">
+        // Removed text-truncate and overflow-hidden here so names fully display in the expanded menu
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
             <img src="${p.avatar}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
-            <span class="fw-bold small text-dark text-truncate">${p.name}</span>
+            <span class="fw-bold small text-dark">${p.name}</span>
         </a>`;
         li.querySelector('a').addEventListener('click', (e) => {
             e.preventDefault();
@@ -509,6 +510,7 @@ function updateActivePersonaDisplay() {
     const p = state.personas.find(x => x.id === state.activePersonaId);
     const content = document.getElementById('active-persona-content');
     if(p && content) {
+        // text-truncate is kept here so the closed button fits neatly in the ribbon
         content.innerHTML = `<img src="${p.avatar}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark text-truncate" style="font-size: 0.75rem">${p.name}</span>`;
     }
 }
