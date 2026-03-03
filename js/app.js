@@ -217,7 +217,7 @@ function renderAssetRows() {
         <th class="text-center" style="width: 100px;">Tail Risk</th>
         <th class="text-end" style="min-width: 90px;">Return (%)</th>
         <th class="text-end" style="min-width: 90px;">Vol (%)</th>
-        <th class="text-end pe-4 border-end" style="min-width: 90px;">Kurtosis</th>
+        <th class="text-end pe-4" style="min-width: 90px;">Kurtosis</th>
     `;
     ASSET_CLASSES.forEach(ac => {
         headerHTML += `<th class="text-center corr-col d-none" style="min-width: 50px;" title="${ac.name}">${ac.key.substring(0,6)}</th>`;
@@ -230,14 +230,14 @@ function renderAssetRows() {
     ASSET_CLASSES.forEach(asset => {
         const tr = document.createElement('tr');
         let rowHTML = `
-            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: #FFF; z-index: 1;">
+            <td class="fw-medium text-muted" style="position: sticky; left: 0; background: var(--bg-surface); z-index: 1;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${asset.color}; margin-right:6px;"></span>
                 ${asset.name}
             </td>
             <td class="text-center"><canvas id="dist-${asset.key}" class="dist-canvas" width="80" height="30"></canvas></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="r" value="${(asset.defaultR * 100).toFixed(2)}"></td>
             <td class="text-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="v" value="${(asset.defaultV * 100).toFixed(2)}"></td>
-            <td class="text-end pe-4 border-end"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
+            <td class="text-end pe-4"><input type="number" step="0.1" class="form-control form-control-sm text-end bg-transparent border-0 px-1" data-key="${asset.key}" data-field="k" value="${(asset.defaultK).toFixed(2)}"></td>
         `;
         
         ASSET_CLASSES.forEach(colAsset => {
@@ -304,8 +304,8 @@ function renderStressAssumptionsTable() {
     if (!theadTr || !tbody) return;
 
     let headHTML = `
-        <th class="border-end" style="min-width: 120px; position: sticky; left: 0; background: #F8FAFC; z-index: 3;">Category</th>
-        <th class="border-end" style="min-width: 200px; position: sticky; left: 120px; background: #F8FAFC; z-index: 3;">Asset Class</th>
+        <th class="border-end" style="min-width: 120px; position: sticky; left: 0; background: var(--bg-surface); z-index: 3;">Category</th>
+        <th class="border-end" style="min-width: 200px; position: sticky; left: 120px; background: var(--bg-surface); z-index: 3;">Asset Class</th>
     `;
     STRESS_SCENARIOS.forEach(sc => {
         headHTML += `<th class="text-center" style="min-width: 100px; font-size:0.7rem; font-weight:700;">
@@ -327,11 +327,11 @@ function renderStressAssumptionsTable() {
             bodyHTML += `<tr>`;
             
             if(idx === 0) {
-                bodyHTML += `<td rowspan="${assets.length}" class="cat-header text-center border-end" style="position: sticky; left: 0; z-index: 2; background: #FFF;">${cat}</td>`;
+                bodyHTML += `<td rowspan="${assets.length}" class="cat-header text-center border-end" style="position: sticky; left: 0; z-index: 2; background: var(--bg-surface);">${cat}</td>`;
             }
             
             bodyHTML += `
-                <td class="fw-medium text-muted border-end" style="position: sticky; left: 120px; background: #FFF; z-index: 2;">
+                <td class="fw-medium text-muted border-end" style="position: sticky; left: 120px; background: var(--bg-surface); z-index: 2;">
                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${ac.color}; margin-right:6px;"></span>
                     ${ac.name}
                 </td>`;
@@ -765,24 +765,24 @@ function renderStressTests() {
             const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
             const tooltipHtml = `<div class='text-start'><b>${sc.name}</b><br>${portL.name}: ${(sc.vL*100).toFixed(1)}%<br>${portR.name}: ${(sc.vR*100).toFixed(1)}%<hr class='my-1 border-secondary'>Gap: <b>${diffStr}</b></div>`;
 
-            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, #3B82F6, #8B5CF6); opacity:0.6;" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${tooltipHtml}"></div>`;
+            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); opacity:0.6;" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${tooltipHtml}"></div>`;
         }
 
         if (sc.vL !== null) {
             const leftPct = ((sc.vL - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:#3B82F6; border: 2px solid #FFF; border-radius:50%; z-index:2;" data-bs-toggle="tooltip" data-bs-title="${portL.name}: ${(sc.vL*100).toFixed(1)}%"></div>`;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-blue); border: 2px solid #FFF; border-radius:50%; z-index:2;" data-bs-toggle="tooltip" data-bs-title="${portL.name}: ${(sc.vL*100).toFixed(1)}%"></div>`;
         }
         if (sc.vR !== null) {
             const leftPct = ((sc.vR - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:#8B5CF6; border: 2px solid #FFF; border-radius:50%; z-index:3;" data-bs-toggle="tooltip" data-bs-title="${portR.name}: ${(sc.vR*100).toFixed(1)}%"></div>`;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-purple); border: 2px solid #FFF; border-radius:50%; z-index:3;" data-bs-toggle="tooltip" data-bs-title="${portR.name}: ${(sc.vR*100).toFixed(1)}%"></div>`;
         }
         html += `</div></div>`;
     });
 
     html += `
         <div class="d-flex justify-content-center align-items-center gap-4 mt-3 pt-3 border-top">
-            ${portL ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:#3B82F6;border-radius:50%;margin-right:6px;"></span>${portL.name}</div>` : ''}
-            ${portR ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:#8B5CF6;border-radius:50%;margin-right:6px;"></span>${portR.name}</div>` : ''}
+            ${portL ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-blue);border-radius:50%;margin-right:6px;"></span>${portL.name}</div>` : ''}
+            ${portR ? `<div class="d-flex align-items-center small fw-bold text-muted"><span style="width:10px;height:10px;background:var(--accent-purple);border-radius:50%;margin-right:6px;"></span>${portR.name}</div>` : ''}
         </div>
     `;
 
@@ -836,7 +836,7 @@ function renderStrategyChart() {
         const portfoliosInUse = new Set();
         rawPoints.forEach(pt => Object.keys(pt.weights).forEach(k => { if(pt.weights[k]>0) portfoliosInUse.add(k); }));
         
-        const genericColors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+        const genericColors = ['#3730A3', '#059669', '#D97706', '#6D28D9', '#0E7490'];
         Array.from(portfoliosInUse).forEach((portId, idx) => {
             const pName = getGlobalPortfolio(portId)?.name || portId;
             const data = rawPoints.map(pt => (pt.weights[portId] || 0) * 100);
@@ -1258,7 +1258,7 @@ function renderResultsTable(results) {
                 <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currLow).toLocaleString()}</span>${formatDiff(currLow, baseLow)}</div>
             </td>
             <td class="text-end col-median border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2"><span class="median-val">£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
             </td>
             <td class="text-end text-muted border-bottom border-light pe-4">
                 <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span>${formatDiff(currHigh, baseHigh)}</div>
