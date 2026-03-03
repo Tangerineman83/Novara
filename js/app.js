@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.6';
+import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=16.7';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -9,6 +9,8 @@ const state = {
     pieLeft: null,
     pieRight: null,
     portfolios: [], 
+    personas: [],
+    activePersonaId: null,
     strategyYears: [50, 15, 0],
     autoRun: true,
     portfolioInputsCollapsed: false,
@@ -26,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
     state.portfolios = JSON.parse(JSON.stringify(INITIAL_PORTFOLIOS));
+    state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
+    if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
+
     buildSharedLegend();
     setupEventListeners();
 
@@ -35,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStressAssumptionsTable(); 
         initPresets();
         initRunModelInputs();
+        renderPersonaCards();
         setupAutoRun();
         
         refreshPortfolioDropdowns();
@@ -47,11 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadCMAPreset(0);
                 const cmaSel = document.getElementById('run-cma-select');
                 if(cmaSel) cmaSel.value = "0";
-            }
-            if(PRESET_PERSONAS && PRESET_PERSONAS.length > 0) {
-                loadPersonaPreset(0);
-                const persSel = document.getElementById('run-persona-select');
-                if(persSel) persSel.value = "0";
             }
             if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) {
                 loadStrategyPreset(0, 0);
@@ -366,7 +367,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=16.6'); 
+    state.worker = new Worker('./js/worker.js?v=16.7'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -403,13 +404,46 @@ function initPresets() {
             }
         });
     }
+}
 
-    const persSelect = document.getElementById('persona-preset-select');
-    if (persSelect) {
-        persSelect.innerHTML = '<option value="">Load Preset...</option>';
-        PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-        persSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadPersonaPreset(e.target.value); });
-    }
+function renderPersonaCards() {
+    const container = document.getElementById('persona-cards-container');
+    if(!container) return;
+    container.innerHTML = '';
+    state.personas.forEach(p => {
+        const col = document.createElement('div');
+        col.className = 'col-lg-4 col-md-6';
+        col.innerHTML = `
+            <div class="card h-100 persona-card">
+                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-2">
+                    <img src="${p.avatar}" class="rounded-circle border shadow-sm" width="56" height="56" style="background: var(--bg-surface);">
+                    <div>
+                        <h6 class="fw-bold mb-1 text-dark">${p.name}</h6>
+                        <p class="small text-muted mb-0 lh-sm" style="font-size:0.75rem;">${p.desc}</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="age" value="${p.data.age}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="retirementAge" value="${p.data.retirementAge}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="salary" value="${p.data.salary}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="savings" value="${p.data.savings}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="contribution" value="${p.data.contribution}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm" data-id="${p.id}" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(col);
+        
+        col.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('change', (e) => {
+                const field = e.target.dataset.field;
+                p.data[field] = parseFloat(e.target.value) || 0;
+                if(state.autoRun && state.activePersonaId === p.id) runSimulation();
+            });
+        });
+    });
 }
 
 function initRunModelInputs() {
@@ -420,12 +454,38 @@ function initRunModelInputs() {
     if(cmaSelect) cmaSelect.innerHTML = html;
     if(portCmaSelect) portCmaSelect.innerHTML = html;
 
-    const persSelect = document.getElementById('run-persona-select');
-    if(persSelect) {
-        persSelect.innerHTML = '<option value="custom">Use "Personas" Tab</option>';
-        PRESET_PERSONAS.forEach((preset, index) => { persSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-    }
+    renderPersonaDropdown();
     updateStrategySelectors();
+}
+
+function renderPersonaDropdown() {
+    const menu = document.getElementById('run-persona-dropdown-menu');
+    if(!menu) return;
+    menu.innerHTML = '';
+    
+    state.personas.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
+            <img src="${p.avatar}" width="24" height="24" class="rounded-circle bg-light border shadow-sm">
+            <span class="fw-bold small text-dark">${p.name}</span>
+        </a>`;
+        li.querySelector('a').addEventListener('click', (e) => {
+            e.preventDefault();
+            state.activePersonaId = p.id;
+            updateActivePersonaDisplay();
+            if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
+        });
+        menu.appendChild(li);
+    });
+    updateActivePersonaDisplay();
+}
+
+function updateActivePersonaDisplay() {
+    const p = state.personas.find(x => x.id === state.activePersonaId);
+    const content = document.getElementById('active-persona-content');
+    if(p && content) {
+        content.innerHTML = `<img src="${p.avatar}" width="20" height="20" class="rounded-circle bg-white shadow-sm border"><span class="fw-bold text-dark" style="font-size: 0.75rem">${p.name}</span>`;
+    }
 }
 
 function updateStrategySelectors() {
@@ -451,7 +511,7 @@ function updateStrategySelectors() {
 }
 
 function setupAutoRun() {
-    const inputs = ['run-cma-select', 'run-persona-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
+    const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if(!state.autoRun) return;
@@ -482,15 +542,6 @@ function loadCMAPreset(index) {
             }
         });
     });
-}
-
-function loadPersonaPreset(index) {
-    if (!PRESET_PERSONAS[index]) return;
-    const p = PRESET_PERSONAS[index].data;
-    const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-    setVal('p-age', p.age); setVal('p-retAge', p.retirementAge);
-    setVal('p-pot', p.savings); setVal('p-salary', p.salary);
-    setVal('p-contrib', p.contribution); setVal('p-growth', p.realSalaryGrowth);
 }
 
 function loadStrategyPreset(gIdx, sIdx) {
@@ -1043,18 +1094,11 @@ function getActiveCMA() {
 }
 
 function getActivePersona() {
-    const sel = document.getElementById('run-persona-select');
-    if (!sel || sel.value === 'custom') {
-        return {
-            age: parseFloat(document.getElementById('p-age').value),
-            retirementAge: parseFloat(document.getElementById('p-retAge').value),
-            savings: parseFloat(document.getElementById('p-pot').value),
-            salary: parseFloat(document.getElementById('p-salary').value),
-            contribution: parseFloat(document.getElementById('p-contrib').value),
-            realSalaryGrowth: parseFloat(document.getElementById('p-growth').value)
-        };
+    if (state.activePersonaId) {
+        const p = state.personas.find(x => x.id === state.activePersonaId);
+        if (p) return p.data;
     }
-    return PRESET_PERSONAS[sel.value].data;
+    return state.personas[0].data;
 }
 
 function getActiveStrategies(months) {
@@ -1243,9 +1287,9 @@ function renderResultsTable(results) {
         const currHigh = res.percentiles.pUpper[last];
 
         const formatDiff = (val, base) => {
-            if(index === 0) return '';
+            if(index === 0) return '<span style="display:inline-block; width:65px;"></span>';
             const diff = ((val - base)/base)*100;
-            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold" style="font-size:0.75rem;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold text-end" style="font-size:0.75rem; display:inline-block; width:65px;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
@@ -1255,13 +1299,22 @@ function renderResultsTable(results) {
                 ${res.name}
             </td>
             <td class="text-end text-muted border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currLow).toLocaleString()}</span>${formatDiff(currLow, baseLow)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span>£${Math.round(currLow).toLocaleString()}</span>
+                    ${formatDiff(currLow, baseLow)}
+                </div>
             </td>
             <td class="text-end col-median border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span class="median-val">£${Math.round(currMed).toLocaleString()}</span>${formatDiff(currMed, baseMed)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span class="median-val">£${Math.round(currMed).toLocaleString()}</span>
+                    ${formatDiff(currMed, baseMed)}
+                </div>
             </td>
             <td class="text-end text-muted border-bottom border-light pe-4">
-                <div class="d-flex justify-content-end align-items-center gap-2"><span>£${Math.round(currHigh).toLocaleString()}</span>${formatDiff(currHigh, baseHigh)}</div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <span>£${Math.round(currHigh).toLocaleString()}</span>
+                    ${formatDiff(currHigh, baseHigh)}
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
