@@ -25,7 +25,7 @@
     <div id="page-content-wrapper">
         <nav class="navbar navbar-expand-lg pb-0">
             <div class="container-fluid px-4">
-                <button class="btn btn-light d-md-none border" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <button class="btn btn-light d-md-none" id="menu-toggle"><i class="fas fa-bars"></i></button>
                 <div id="status-indicator" class="ms-auto text-success fw-bold small bg-white px-3 py-1 rounded-pill shadow-sm border">
                     <span id="status-text">Ready</span> 
                     <div class="spinner-border spinner-border-sm text-primary d-none ms-2" id="loading-spinner" role="status"></div>
@@ -38,7 +38,7 @@
             <div id="tab-cma" class="view-section">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div class="d-flex align-items-center gap-3">
-                        <h4 class="fw-bold m-0">Markets</h4>
+                        <h4 class="fw-bold m-0 text-dark">Markets</h4>
                     </div>
                     <div class="d-flex align-items-center gap-4">
                         <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Toggle full matrix view">
@@ -71,7 +71,7 @@
                 </div>
 
                 <div class="card mb-4">
-                    <div class="card-header bg-white border-0 cursor-pointer d-flex justify-content-between align-items-center collapsed" data-bs-toggle="collapse" data-bs-target="#cma-stress-collapse" aria-expanded="false">
+                    <div class="card-header cursor-pointer d-flex justify-content-between align-items-center collapsed" data-bs-toggle="collapse" data-bs-target="#cma-stress-collapse" aria-expanded="false">
                         <div><h6 class="fw-bold m-0"><i class="fas fa-bolt text-warning me-2"></i>Macro Stress Assumptions Matrix</h6></div>
                         <i class="fas fa-chevron-down text-muted"></i>
                     </div>
@@ -88,13 +88,13 @@
 
             <div id="tab-portfolio" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold m-0">Portfolios</h4>
+                    <h4 class="fw-bold m-0 text-dark">Portfolios</h4>
                     <div class="d-flex gap-2 align-items-center">
-                        <div class="input-group input-group-sm border rounded-pill overflow-hidden bg-light pe-2 shadow-none border-0">
+                        <div class="input-group input-group-sm rounded-pill overflow-hidden bg-white pe-2 shadow-sm">
                             <span class="input-group-text bg-transparent border-0 text-muted"><i class="fas fa-globe"></i></span>
-                            <select id="portfolio-cma-select" class="form-select border-0 shadow-none bg-transparent fw-bold text-muted"></select>
+                            <select id="portfolio-cma-select" class="form-select border-0 shadow-none fw-bold text-muted"></select>
                         </div>
-                        <button class="btn btn-sm btn-light border rounded-pill" id="toggle-portfolio-inputs" title="Toggle Inputs">
+                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm" id="toggle-portfolio-inputs" title="Toggle Inputs">
                             <i class="fas fa-compress-alt text-muted"></i>
                         </button>
                     </div>
@@ -102,8 +102,8 @@
 
                 <div class="row g-4">
                     <div class="col-lg-6">
-                        <div class="card h-100 mb-0 shadow-sm">
-                            <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
+                        <div class="card h-100 mb-0">
+                            <div class="card-header d-flex justify-content-between align-items-center pb-0 border-0">
                                 <div class="d-flex align-items-center">
                                     <span class="fw-bold text-muted small text-uppercase">Primary</span>
                                     <div class="form-check form-switch m-0 ms-3 d-flex align-items-center gap-2">
@@ -112,8 +112,8 @@
                                     </div>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <select id="port-select-left" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold" style="max-width: 160px;"></select>
-                                    <button class="btn btn-sm btn-light border rounded-circle" onclick="createNewPortfolio('left')"><i class="fas fa-plus"></i></button>
+                                    <select id="port-select-left" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="max-width: 160px;"></select>
+                                    <button class="btn btn-sm btn-light border rounded-circle shadow-sm" onclick="createNewPortfolio('left')"><i class="fas fa-plus"></i></button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -134,8 +134,8 @@
                     </div>
 
                     <div class="col-lg-6">
-                        <div class="card h-100 mb-0 shadow-sm">
-                            <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
+                        <div class="card h-100 mb-0">
+                            <div class="card-header d-flex justify-content-between align-items-center pb-0 border-0">
                                 <div class="d-flex align-items-center">
                                     <span class="fw-bold text-muted small text-uppercase">Comparison</span>
                                     <div class="form-check form-switch m-0 ms-3 d-flex align-items-center gap-2">
@@ -144,8 +144,8 @@
                                     </div>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <select id="port-select-right" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold" style="max-width: 160px;"><option value="none">-- Select to Compare --</option></select>
-                                    <button class="btn btn-sm btn-light border rounded-circle" onclick="createNewPortfolio('right')"><i class="fas fa-plus"></i></button>
+                                    <select id="port-select-right" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="max-width: 160px;"><option value="none">-- Select to Compare --</option></select>
+                                    <button class="btn btn-sm btn-light border rounded-circle shadow-sm" onclick="createNewPortfolio('right')"><i class="fas fa-plus"></i></button>
                                 </div>
                             </div>
                             <div class="card-body" id="port-body-right">
@@ -170,7 +170,7 @@
                 <div class="card mt-3 mb-3"><div class="card-body py-2 px-3"><div id="shared-portfolio-legend" class="d-flex flex-wrap justify-content-center"></div></div></div>
 
                 <div class="card">
-                    <div class="card-header bg-white border-0 cursor-pointer d-flex justify-content-between align-items-center collapsed" data-bs-toggle="collapse" data-bs-target="#stress-collapse" aria-expanded="false">
+                    <div class="card-header cursor-pointer d-flex justify-content-between align-items-center collapsed" data-bs-toggle="collapse" data-bs-target="#stress-collapse" aria-expanded="false">
                         <div><h6 class="fw-bold m-0"><i class="fas fa-bolt text-warning me-2"></i>Macroeconomic Stress Scenarios: Portfolio Downside Comparison</h6></div>
                         <div class="d-flex align-items-center gap-4">
                             <div class="text-end d-none d-md-block">
@@ -193,13 +193,13 @@
 
             <div id="tab-strategy" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold m-0">Strategies</h4>
+                    <h4 class="fw-bold m-0 text-dark">Strategies</h4>
                     <div class="d-flex gap-2">
-                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold" style="width: 250px;"><option value="">Load Preset...</option></select>
-                        <button class="btn btn-sm btn-light border rounded-pill" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
+                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="width: 250px;"><option value="">Load Preset...</option></select>
+                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
                     </div>
                 </div>
-                <div class="card mb-3 shadow-sm" id="strategy-table-container">
+                <div class="card mb-3" id="strategy-table-container">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table align-middle text-center mb-0" id="strategy-table">
@@ -208,13 +208,13 @@
                             </table>
                         </div>
                     </div>
-                    <div class="card-footer bg-white border-0 p-3 d-flex justify-content-between align-items-center">
+                    <div class="card-footer border-0 p-3 d-flex justify-content-between align-items-center bg-transparent">
                         <span class="small text-muted"><i class="fas fa-info-circle"></i> Columns represent Years to Retirement.</span>
-                        <button class="btn btn-sm btn-light border rounded-pill" onclick="addStrategyYearColumn()"><i class="fas fa-plus me-1"></i> Add Time Point</button>
+                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm" onclick="addStrategyYearColumn()"><i class="fas fa-plus me-1"></i> Add Time Point</button>
                     </div>
                 </div>
-                <div class="card shadow-sm">
-                    <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                <div class="card">
+                    <div class="card-header border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
                         <span class="fw-bold small text-uppercase text-muted">Glidepath Visualizer</span>
                         <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="strat-view-toggle"><label class="form-check-label small text-muted ms-1">Look-Through Assets</label></div>
                     </div>
@@ -224,12 +224,12 @@
 
             <div id="tab-persona" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold m-0">Personas</h4>
-                    <select id="persona-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold" style="width: 220px;"><option value="">Load Preset...</option></select>
+                    <h4 class="fw-bold m-0 text-dark">Personas</h4>
+                    <select id="persona-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="width: 220px;"><option value="">Load Preset...</option></select>
                 </div>
                 <div class="row">
                     <div class="col-md-6 col-lg-4">
-                        <div class="card shadow-sm">
+                        <div class="card">
                             <div class="card-body">
                                 <div class="mb-3"><label class="form-label">Current Age</label><input type="number" id="p-age" class="form-control" value="30"></div>
                                 <div class="mb-3"><label class="form-label">Retirement Age</label><input type="number" id="p-retAge" class="form-control" value="65"></div>
@@ -244,7 +244,7 @@
             </div>
 
             <div id="tab-model" class="view-section d-none dashboard-container">
-                <div class="input-ribbon mb-3 shadow-sm">
+                <div class="input-ribbon mb-4">
                     <div class="row g-2 align-items-center">
                         <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Markets</label><select id="run-cma-select" class="form-select form-select-sm border-0 bg-light"></select></div>
                         <div class="col-md-2 col-sm-6 ribbon-col"><label class="form-label mb-1" style="font-size:0.75rem">Persona</label><select id="run-persona-select" class="form-select form-select-sm border-0 bg-light"></select></div>
@@ -257,29 +257,29 @@
                                 <div class="form-check form-switch m-0"><input class="form-check-input mt-0" type="checkbox" id="auto-update-toggle" checked></div>
                                 <button class="btn btn-sm btn-link p-0 text-muted" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="fas fa-cog"></i></button>
                             </div>
-                            <button class="btn btn-primary btn-sm w-100 shadow-sm" id="run-simulation-btn">Run Projection</button>
+                            <button class="btn btn-primary btn-sm w-100" id="run-simulation-btn">Run Projection</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="card chart-card-wrapper mb-3 shadow-sm">
-                    <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-dark m-0">Accumulation (Real Terms)</span>
+                <div class="card chart-card-wrapper mb-4">
+                    <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark m-0" style="font-size: 1.15rem;">Accumulation (Real Terms)</span>
                     </div>
                     <div class="card-body px-4 pb-4 d-flex flex-column">
                         <div class="chart-canvas-wrapper"><canvas id="mainChart"></canvas></div>
                     </div>
                 </div>
                 
-                <div class="card mb-0 shadow-sm">
+                <div class="card mb-0">
                     <div class="table-responsive px-2">
                         <table class="table align-middle border-0" id="results-table">
                             <thead>
                                 <tr>
-                                    <th class="ps-3 border-0">Outcomes at Retirement</th>
-                                    <th class="text-end border-0" id="th-lower">Lower</th>
-                                    <th class="text-end col-median border-0 rounded-start">Median</th>
-                                    <th class="text-end border-0 rounded-end pe-4" id="th-upper">Upper</th>
+                                    <th class="ps-3 border-0" style="font-size: 0.8rem;">Outcomes at Retirement</th>
+                                    <th class="text-end border-0" id="th-lower" style="font-size: 0.8rem;">Lower</th>
+                                    <th class="text-end col-median border-0 rounded-start" style="font-size: 0.8rem; color: var(--accent-blue);">Median</th>
+                                    <th class="text-end border-0 rounded-end pe-4" id="th-upper" style="font-size: 0.8rem;">Upper</th>
                                 </tr>
                             </thead>
                             <tbody>
