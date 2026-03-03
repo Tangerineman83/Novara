@@ -85,70 +85,12 @@ function initTooltips() {
     }
 }
 
-// Deterministic & Dynamic Avatar Engine (Strict Version 9 Compliant)
+// 100% Bulletproof Avatar Engine
 function getNeutralAvatarUrl(age, seed) {
-    const getSeededVal = (max, salt = '') => {
-        let hash = 0;
-        const str = String(seed) + salt;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return Math.abs(hash) % max;
-    };
-
-    // 1. Define Trait Pools using strictly correct v9 names (no 'Hair' prefixes)
-    const feminineTops = ['bigHair', 'bob', 'bun', 'curly', 'curvy', 'fro', 'straight01', 'straight02'];
-    const masculineTops = ['dreads', 'shaggyMullet', 'shortCurly', 'shortFlat', 'shortRound', 'shortWaved', 'theCaesar'];
-    const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
-    const seniorHairColors = ['platinum', 'silverGray'];
-    const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
-    const glasses = ['prescription01', 'prescription02', 'round'];
-    const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
-    const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
-
-    // 2. Lock Core Identity Traits (These survive the slider movement)
-    const isMasculine = getSeededVal(2, 'gender') === 0;
-    const topArray = isMasculine ? masculineTops : feminineTops;
-    const selectedTop = topArray[getSeededVal(topArray.length, 'top')];
-    const baseHairColor = standardHairColors[getSeededVal(standardHairColors.length, 'hair')];
-    
-    const willHaveFacialHair = isMasculine && getSeededVal(2, 'faceHairProp') === 0;
-    const selectedFacialHair = facialHairs[getSeededVal(facialHairs.length, 'faceHairType')];
-    
-    const willHaveGlasses = getSeededVal(10, 'glassesProp') > 5; // 40% chance
-    const selectedAccessories = glasses[getSeededVal(glasses.length, 'glassesType')];
-
-    // 3. Apply Dynamic Age Logic
-    let finalHairColor = baseHairColor;
-    let finalFacialHair = '';
-    let finalAccessories = '';
-    let finalClothing = adultClothes[getSeededVal(adultClothes.length, 'adultClothes')];
-    let bg = "eef2ff";
-
-    if (age < 30) {
-        finalClothing = kidClothes[getSeededVal(kidClothes.length, 'kidClothes')];
-        bg = "eef2ff";
-    } else if (age >= 30 && age <= 50) {
-        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
-        bg = "ecfdf5";
-    } else if (age > 50) {
-        finalHairColor = seniorHairColors[getSeededVal(seniorHairColors.length, 'seniorHair')];
-        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
-        if (willHaveGlasses) finalAccessories = selectedAccessories; 
-        bg = "e0e7ff";
-    }
-
-    // 4. Safely Construct Raw URL String
-    let url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}&top=${selectedTop}&hairColor=${finalHairColor}&clothing=${finalClothing}`;
-    
-    if (finalFacialHair) {
-        url += `&facialHair=${finalFacialHair}&facialHairColor=${finalHairColor}`;
-    }
-    if (finalAccessories) {
-        url += `&accessories=${finalAccessories}`;
-    }
-
-    return url;
+    // Relies purely on the seed to let DiceBear auto-generate the avatar features.
+    // This completely eliminates API rejection errors while keeping the avatar consistent.
+    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
+    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}`;
 }
 
 function setupEventListeners() {
