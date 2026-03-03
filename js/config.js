@@ -24,9 +24,9 @@ export const ASSET_CLASSES = [
 ];
 
 export const CHART_COLORS = [
-    { border: '#3730A3', gradientStart: 'rgba(55, 48, 163, 0.4)', gradientEnd: 'rgba(55, 48, 163, 0.0)' },
-    { border: '#059669', gradientStart: 'rgba(5, 150, 105, 0.4)', gradientEnd: 'rgba(5, 150, 105, 0.0)' },   
-    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }    
+    { border: '#3730A3', gradientStart: 'rgba(55, 48, 163, 0.4)', gradientEnd: 'rgba(55, 48, 163, 0.0)' }, // Digital Navy
+    { border: '#059669', gradientStart: 'rgba(5, 150, 105, 0.4)', gradientEnd: 'rgba(5, 150, 105, 0.0)' },   // Institutional Green
+    { border: '#D97706', gradientStart: 'rgba(217, 119, 6, 0.4)', gradientEnd: 'rgba(217, 119, 6, 0.0)' }    // Muted Bronze/Orange
 ];
 
 export const PRESET_CMAS = [
@@ -62,7 +62,7 @@ export const PRESET_CMAS = [
     }
 ];
 
-// Updated Personas with Seed identifiers for dynamic algorithmic generation
+// Enhanced Avatar Personas injecting Digital Brand variables into the API dynamically
 export const PRESET_PERSONAS = [
     { 
         id: "pers_genz", 
