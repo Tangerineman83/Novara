@@ -33,7 +33,9 @@ const state = {
     strategyChartInstance: null,
     pieLeft: null,
     pieRight: null,
-    portfolios: [], 
+    portfolios: [], // Strictly Custom Portfolios only
+    workingPort_left: null, // Isolated copies to prevent preset corruption
+    workingPort_right: null,
     personas: [],
     activePersonaId: null,
     strategyYears: [50, 15, 0],
@@ -52,16 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
-    // Combine Presets and Custom Data
-    state.portfolios = [];
-    PRESET_PORTFOLIOS.forEach(group => {
-        group.portfolios.forEach(p => state.portfolios.push(JSON.parse(JSON.stringify(p))));
-    });
-    UserDataEngine.load().portfolios.forEach(p => state.portfolios.push(p));
+    // Load only Custom Portfolios into state to protect the presets
+    state.portfolios = UserDataEngine.load().portfolios || [];
     
     state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
     UserDataEngine.load().personas.forEach(p => state.personas.push(p));
-    
     if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
 
     buildSharedLegend();
@@ -77,7 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAutoRun();
         
         refreshPortfolioDropdowns();
-        if (state.portfolios.length > 0) renderPortfolioPane('left', state.portfolios[0].id);
+        
+        // Render first available portfolio on load
+        const defaultPortId = state.portfolios.length > 0 ? state.portfolios[0].id : PRESET_PORTFOLIOS[0].portfolios[0].id;
+        renderPortfolioPane('left', defaultPortId);
         
         renderStrategyTable(1);
         initTooltips();
@@ -109,57 +109,16 @@ function initTooltips() {
     }
 }
 
-// 100% Bulletproof Avatar Engine
+// 100% Bulletproof Avatar Engine with Initials Fallback
 function getNeutralAvatarUrl(age, seed) {
-    const getSeededVal = (max, salt = '') => {
-        let hash = 0;
-        const str = String(seed) + salt;
-        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
-        return Math.abs(hash) % max;
-    };
+    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
+    // Dropped to 7.x to bypass strict 9.x validation blocks
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}`;
+}
 
-    const feminineTops = ['bigHair', 'bob', 'bun', 'curly', 'curvy', 'fro', 'straight01', 'straight02'];
-    const masculineTops = ['dreads', 'shaggyMullet', 'shortCurly', 'shortFlat', 'shortRound', 'shortWaved', 'theCaesar'];
-    const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
-    const seniorHairColors = ['platinum', 'silverGray'];
-    const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
-    const glasses = ['prescription01', 'prescription02', 'round'];
-    const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
-    const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
-
-    const isMasculine = getSeededVal(2, 'gender') === 0;
-    const topArray = isMasculine ? masculineTops : feminineTops;
-    const selectedTop = topArray[getSeededVal(topArray.length, 'top')];
-    const baseHairColor = standardHairColors[getSeededVal(standardHairColors.length, 'hair')];
-    const willHaveFacialHair = isMasculine && getSeededVal(2, 'faceHairProp') === 0;
-    const selectedFacialHair = facialHairs[getSeededVal(facialHairs.length, 'faceHairType')];
-    const willHaveGlasses = getSeededVal(10, 'glassesProp') > 5; 
-    const selectedAccessories = glasses[getSeededVal(glasses.length, 'glassesType')];
-
-    let finalHairColor = baseHairColor;
-    let finalFacialHair = '';
-    let finalAccessories = '';
-    let finalClothing = adultClothes[getSeededVal(adultClothes.length, 'adultClothes')];
-    let bg = "eef2ff";
-
-    if (age < 30) {
-        finalClothing = kidClothes[getSeededVal(kidClothes.length, 'kidClothes')];
-        bg = "eef2ff";
-    } else if (age >= 30 && age <= 50) {
-        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
-        bg = "ecfdf5";
-    } else if (age > 50) {
-        finalHairColor = seniorHairColors[getSeededVal(seniorHairColors.length, 'seniorHair')];
-        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
-        if (willHaveGlasses) finalAccessories = selectedAccessories; 
-        bg = "e0e7ff";
-    }
-
-    let url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}&top=${selectedTop}&hairColor=${finalHairColor}&clothing=${finalClothing}`;
-    if (finalFacialHair) url += `&facialHair=${finalFacialHair}&facialHairColor=${finalHairColor}`;
-    if (finalAccessories) url += `&accessories=${finalAccessories}`;
-
-    return url;
+// Helper to generate initials if the image is blocked by firewalls
+function getAvatarFallback(name) {
+    return `this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=eef2ff&color=3730A3&rounded=true';`;
 }
 
 function setupEventListeners() {
@@ -197,8 +156,8 @@ function setupEventListeners() {
     document.getElementById('portfolio-cma-select')?.addEventListener('change', () => {
         const leftId = document.getElementById('port-select-left').value;
         const rightId = document.getElementById('port-select-right').value;
-        if(leftId && leftId !== 'none') updatePortfolioVisuals('left', leftId);
-        if(rightId && rightId !== 'none') updatePortfolioVisuals('right', rightId);
+        if(leftId && leftId !== 'none') updatePortfolioVisuals('left');
+        if(rightId && rightId !== 'none') updatePortfolioVisuals('right');
     });
 
     document.getElementById('port-select-left')?.addEventListener('change', (e) => renderPortfolioPane('left', e.target.value));
@@ -739,7 +698,7 @@ function renderPersonaCards() {
         col.innerHTML = `
             <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
                 <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
-                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
+                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
                     <div class="d-flex flex-column w-100 pe-auto" style="pointer-events: auto;">
                         <div class="d-flex align-items-center justify-content-between w-100">
                             <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input" value="${p.name}" style="font-size:1rem;">
@@ -850,7 +809,7 @@ function renderPersonaDropdown() {
     state.personas.forEach(p => {
         const li = document.createElement('li');
         li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
-            <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
+            <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
             <span class="fw-bold small text-dark">${p.name}</span>
         </a>`;
         li.querySelector('a').addEventListener('click', (e) => {
@@ -869,7 +828,7 @@ function updateActivePersonaDisplay() {
     const p = state.personas.find(x => x.id === state.activePersonaId);
     const content = document.getElementById('active-persona-content');
     if(p && content) {
-        content.innerHTML = `<img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark" style="font-size: 0.85rem; white-space: nowrap;">${p.name}</span>`;
+        content.innerHTML = `<img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark" style="font-size: 0.85rem; white-space: nowrap;">${p.name}</span>`;
     }
 }
 
@@ -932,6 +891,7 @@ function renderPortfolioPane(side, portId) {
     const hr = document.getElementById(`port-hr-${side}`);
 
     if (portId === 'none') {
+        state[`workingPort_${side}`] = null;
         if(bodyContainer) bodyContainer.classList.add('d-none');
         if(visualsContainer) visualsContainer.classList.add('d-none');
         if(hr) hr.classList.add('d-none');
@@ -943,8 +903,12 @@ function renderPortfolioPane(side, portId) {
         if(blankMsg) blankMsg.classList.add('d-none');
     }
 
-    const portfolio = state.portfolios.find(p => p.id === portId);
-    if (!portfolio) return;
+    const original = getGlobalPortfolio(portId);
+    if (!original) return;
+    
+    // Create an isolated working copy to prevent editing presets in memory
+    state[`workingPort_${side}`] = JSON.parse(JSON.stringify(original));
+    const portfolio = state[`workingPort_${side}`];
 
     const table = document.querySelector(`#port-table-${side}`);
     table.innerHTML = '';
@@ -963,7 +927,7 @@ function renderPortfolioPane(side, portId) {
     const tbody = document.createElement('tbody');
     tbody.className = "small";
 
-    const isCustom = portId.startsWith('custom_');
+    const isCustom = portfolio.id.startsWith('custom_');
     const titleRow = document.createElement('tr');
     titleRow.innerHTML = `
         <td class="fw-bold text-muted text-uppercase align-middle">Name</td>
@@ -979,23 +943,23 @@ function renderPortfolioPane(side, portId) {
         const newName = titleRow.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
         let targetId = portfolio.id;
         
+        // If it's a preset or renamed, fork it
         if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
             targetId = 'custom_port_' + Date.now();
         }
         
-        const newPort = JSON.parse(JSON.stringify(portfolio));
-        newPort.name = newName;
-        newPort.id = targetId;
+        portfolio.name = newName;
+        portfolio.id = targetId;
         
-        UserDataEngine.saveItem('portfolios', newPort);
+        UserDataEngine.saveItem('portfolios', portfolio);
         
         const idx = state.portfolios.findIndex(p => p.id === targetId);
-        if(idx > -1) state.portfolios[idx] = newPort;
-        else state.portfolios.push(newPort);
+        if(idx > -1) state.portfolios[idx] = JSON.parse(JSON.stringify(portfolio));
+        else state.portfolios.push(JSON.parse(JSON.stringify(portfolio)));
         
         refreshPortfolioDropdowns();
         document.getElementById(`port-select-${side}`).value = targetId;
-        renderPortfolioPane(side, targetId);
+        renderPortfolioPane(side, targetId); 
         
         const btn = e.currentTarget;
         const orig = btn.innerHTML;
@@ -1009,7 +973,9 @@ function renderPortfolioPane(side, portId) {
             UserDataEngine.deleteItem('portfolios', portfolio.id);
             state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
             refreshPortfolioDropdowns();
-            renderPortfolioPane(side, 'none');
+            const fallback = PRESET_PORTFOLIOS[0].portfolios[0].id;
+            document.getElementById(`port-select-${side}`).value = fallback;
+            renderPortfolioPane(side, fallback);
         };
     }
     
@@ -1035,7 +1001,7 @@ function renderPortfolioPane(side, portId) {
                 if (type === 'weight') portfolio.weights[ac.key] = val;
                 if (type === 'alpha') { if(!portfolio.alphas) portfolio.alphas={}; portfolio.alphas[ac.key] = val; }
                 if (type === 'te') { if(!portfolio.tes) portfolio.tes={}; portfolio.tes[ac.key] = val; }
-                updatePortfolioVisuals(side, portId);
+                updatePortfolioVisuals(side);
             });
         });
         tbody.appendChild(tr);
@@ -1046,11 +1012,11 @@ function renderPortfolioPane(side, portId) {
     const newTooltips = table.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
 
-    updatePortfolioVisuals(side, portId);
+    updatePortfolioVisuals(side);
 }
 
-function updatePortfolioVisuals(side, portId) {
-    const portfolio = state.portfolios.find(p => p.id === portId);
+function updatePortfolioVisuals(side) {
+    const portfolio = state[`workingPort_${side}`];
     if (!portfolio) return;
 
     let cmaData;
@@ -1094,11 +1060,8 @@ function updatePortfolioVisuals(side, portId) {
 }
 
 function renderStressTests() {
-    const leftId = document.getElementById('port-select-left')?.value;
-    const rightId = document.getElementById('port-select-right')?.value;
-    
-    const portL = state.portfolios.find(p => p.id === leftId);
-    const portR = state.portfolios.find(p => p.id === rightId);
+    const portL = state.workingPort_left;
+    const portR = state.workingPort_right;
     
     const content = document.getElementById('stress-content');
     
