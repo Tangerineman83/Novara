@@ -921,7 +921,7 @@ function renderPortfolioPane(side, portId) {
     const nameContainer = document.getElementById(`port-name-container-${side}`);
     if(nameContainer) {
         nameContainer.innerHTML = `
-            <input type="text" class="form-control form-control-sm text-end fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
+            <input type="text" class="form-control form-control-sm text-start fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
             <button class="btn btn-sm btn-primary rounded-pill shadow-sm btn-save-port flex-shrink-0 px-3" title="Save Portfolio"><i class="fas fa-save"></i></button>
             ${isCustom ? `<button class="btn btn-sm btn-danger rounded-pill shadow-sm btn-delete-port flex-shrink-0 px-3" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
         `;
@@ -1606,34 +1606,28 @@ function renderResultsTable(results) {
         const currHigh = res.percentiles.pUpper[last];
 
         const formatDiff = (val, base) => {
-            if(index === 0) return '<span style="display:block; height: 14px;"></span>';
+            if(index === 0) return '<span style="display:block; height: 16px;"></span>';
             const diff = ((val - base)/base)*100;
-            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold text-end" style="font-size:0.7rem; display:block; line-height:1.2;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold" style="font-size:0.7rem; display:block; line-height:16px;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light); font-size:0.85rem;">
+            <td class="align-middle ps-3" style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light); font-size:0.85rem;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${color.border}; margin-right:6px;"></span>
                 ${res.name}
             </td>
-            <td class="text-end text-muted border-bottom border-light px-1 px-md-3">
-                <div class="d-flex flex-column justify-content-end align-items-end">
-                    <span style="font-size:0.85rem;">£${Math.round(currLow).toLocaleString()}</span>
-                    ${formatDiff(currLow, baseLow)}
-                </div>
+            <td class="text-end align-middle text-muted border-bottom border-light px-2 px-md-3">
+                <span style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currLow).toLocaleString()}</span>
+                ${formatDiff(currLow, baseLow)}
             </td>
-            <td class="text-end col-median border-bottom border-light px-1 px-md-3">
-                <div class="d-flex flex-column justify-content-end align-items-end">
-                    <span class="median-val" style="font-size:0.85rem;">£${Math.round(currMed).toLocaleString()}</span>
-                    ${formatDiff(currMed, baseMed)}
-                </div>
+            <td class="text-end align-middle col-median border-bottom border-light px-2 px-md-3">
+                <span class="median-val" style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currMed).toLocaleString()}</span>
+                ${formatDiff(currMed, baseMed)}
             </td>
-            <td class="text-end text-muted border-bottom border-light px-1 px-md-3">
-                <div class="d-flex flex-column justify-content-end align-items-end">
-                    <span style="font-size:0.85rem;">£${Math.round(currHigh).toLocaleString()}</span>
-                    ${formatDiff(currHigh, baseHigh)}
-                </div>
+            <td class="text-end align-middle text-muted border-bottom border-light pe-3 pe-md-4 ps-2 ps-md-3">
+                <span style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currHigh).toLocaleString()}</span>
+                ${formatDiff(currHigh, baseHigh)}
             </td>
         `;
         tbody.appendChild(tr);
