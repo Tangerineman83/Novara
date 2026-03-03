@@ -2,6 +2,31 @@
 import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=17.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
+// --- LOCAL STORAGE ENGINE ---
+const UserDataEngine = {
+    load: () => {
+        try {
+            const raw = localStorage.getItem('novara_user_data');
+            return raw ? JSON.parse(raw) : { cmas: [], portfolios: [], strategies: [], personas: [] };
+        } catch(e) { 
+            return { cmas: [], portfolios: [], strategies: [], personas: [] }; 
+        }
+    },
+    save: (data) => localStorage.setItem('novara_user_data', JSON.stringify(data)),
+    saveItem: (type, item) => {
+        let d = UserDataEngine.load();
+        const idx = d[type].findIndex(x => x.id === item.id);
+        if(idx > -1) d[type][idx] = item;
+        else d[type].push(item);
+        UserDataEngine.save(d);
+    },
+    deleteItem: (type, id) => {
+        let d = UserDataEngine.load();
+        d[type] = d[type].filter(x => x.id !== id);
+        UserDataEngine.save(d);
+    }
+};
+
 const state = {
     worker: null,
     chartInstance: null,
@@ -27,13 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
-    // Build initial portfolios dynamically from presets to avoid import errors
+    // Combine Presets and Custom Data
     state.portfolios = [];
     PRESET_PORTFOLIOS.forEach(group => {
         group.portfolios.forEach(p => state.portfolios.push(JSON.parse(JSON.stringify(p))));
     });
+    UserDataEngine.load().portfolios.forEach(p => state.portfolios.push(p));
     
     state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
+    UserDataEngine.load().personas.forEach(p => state.personas.push(p));
+    
     if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
 
     buildSharedLegend();
@@ -49,21 +77,17 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAutoRun();
         
         refreshPortfolioDropdowns();
-        renderPortfolioPane('left', state.portfolios[0].id);
+        if (state.portfolios.length > 0) renderPortfolioPane('left', state.portfolios[0].id);
         
         renderStrategyTable(1);
         initTooltips();
 
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) {
-                loadCMAPreset(0);
-                const cmaSel = document.getElementById('run-cma-select');
-                if(cmaSel) cmaSel.value = "0";
+                loadCMAPreset('preset_0');
             }
             if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) {
-                loadStrategyPreset(0, 0);
-                const stratSel = document.getElementById('run-strat-1');
-                if(stratSel) stratSel.value = "0_0";
+                loadStrategyPreset('preset_0_0');
             }
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -87,10 +111,55 @@ function initTooltips() {
 
 // 100% Bulletproof Avatar Engine
 function getNeutralAvatarUrl(age, seed) {
-    // Relies purely on the seed to let DiceBear auto-generate the avatar features.
-    // This completely eliminates API rejection errors while keeping the avatar consistent.
-    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
-    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}`;
+    const getSeededVal = (max, salt = '') => {
+        let hash = 0;
+        const str = String(seed) + salt;
+        for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+        return Math.abs(hash) % max;
+    };
+
+    const feminineTops = ['bigHair', 'bob', 'bun', 'curly', 'curvy', 'fro', 'straight01', 'straight02'];
+    const masculineTops = ['dreads', 'shaggyMullet', 'shortCurly', 'shortFlat', 'shortRound', 'shortWaved', 'theCaesar'];
+    const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
+    const seniorHairColors = ['platinum', 'silverGray'];
+    const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
+    const glasses = ['prescription01', 'prescription02', 'round'];
+    const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
+    const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
+
+    const isMasculine = getSeededVal(2, 'gender') === 0;
+    const topArray = isMasculine ? masculineTops : feminineTops;
+    const selectedTop = topArray[getSeededVal(topArray.length, 'top')];
+    const baseHairColor = standardHairColors[getSeededVal(standardHairColors.length, 'hair')];
+    const willHaveFacialHair = isMasculine && getSeededVal(2, 'faceHairProp') === 0;
+    const selectedFacialHair = facialHairs[getSeededVal(facialHairs.length, 'faceHairType')];
+    const willHaveGlasses = getSeededVal(10, 'glassesProp') > 5; 
+    const selectedAccessories = glasses[getSeededVal(glasses.length, 'glassesType')];
+
+    let finalHairColor = baseHairColor;
+    let finalFacialHair = '';
+    let finalAccessories = '';
+    let finalClothing = adultClothes[getSeededVal(adultClothes.length, 'adultClothes')];
+    let bg = "eef2ff";
+
+    if (age < 30) {
+        finalClothing = kidClothes[getSeededVal(kidClothes.length, 'kidClothes')];
+        bg = "eef2ff";
+    } else if (age >= 30 && age <= 50) {
+        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
+        bg = "ecfdf5";
+    } else if (age > 50) {
+        finalHairColor = seniorHairColors[getSeededVal(seniorHairColors.length, 'seniorHair')];
+        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
+        if (willHaveGlasses) finalAccessories = selectedAccessories; 
+        bg = "e0e7ff";
+    }
+
+    let url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}&top=${selectedTop}&hairColor=${finalHairColor}&clothing=${finalClothing}`;
+    if (finalFacialHair) url += `&facialHair=${finalFacialHair}&facialHairColor=${finalHairColor}`;
+    if (finalAccessories) url += `&accessories=${finalAccessories}`;
+
+    return url;
 }
 
 function setupEventListeners() {
@@ -122,6 +191,9 @@ function setupEventListeners() {
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
     document.getElementById('auto-update-toggle')?.addEventListener('change', (e) => { state.autoRun = e.target.checked; });
     
+    document.getElementById('cma-preset-select')?.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
+    document.getElementById('strategy-preset-select')?.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
+    
     document.getElementById('portfolio-cma-select')?.addEventListener('change', () => {
         const leftId = document.getElementById('port-select-left').value;
         const rightId = document.getElementById('port-select-right').value;
@@ -147,6 +219,264 @@ function setupEventListeners() {
     window.createNewPortfolio = createNewPortfolio;
     window.toggleAdv = toggleAdv;
 }
+
+// --- SAVE & LOAD ENGINE LOGIC ---
+
+function initPresets() {
+    refreshCMADropdowns();
+    refreshStrategyDropdowns();
+    
+    document.getElementById('btn-save-cma')?.addEventListener('click', saveCMA);
+    document.getElementById('btn-delete-cma')?.addEventListener('click', deleteCMA);
+    
+    document.getElementById('btn-save-strat')?.addEventListener('click', saveStrategy);
+    document.getElementById('btn-delete-strat')?.addEventListener('click', deleteStrategy);
+}
+
+function showSavedFeedback(btnId) {
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i>';
+    setTimeout(() => btn.innerHTML = orig, 1500);
+}
+
+function refreshCMADropdowns() {
+    const customCMAs = UserDataEngine.load().cmas;
+    
+    let presetHtml = '<optgroup label="Presets">';
+    PRESET_CMAS.forEach((p, i) => presetHtml += `<option value="preset_${i}">${p.name}</option>`);
+    presetHtml += '</optgroup>';
+    
+    let customHtml = '';
+    if(customCMAs.length > 0) {
+        customHtml = '<optgroup label="My Markets">';
+        customCMAs.forEach(c => customHtml += `<option value="${c.id}">${c.name}</option>`);
+        customHtml += '</optgroup>';
+    }
+
+    const editorSel = document.getElementById('cma-preset-select');
+    if(editorSel) {
+        const currEd = editorSel.value;
+        editorSel.innerHTML = '<option value="">Load Preset...</option>' + presetHtml + customHtml;
+        if(currEd) editorSel.value = currEd;
+    }
+
+    const runHtml = '<option value="custom">Use "Markets" Tab</option>' + presetHtml + customHtml;
+    const runSel = document.getElementById('run-cma-select');
+    if(runSel) { const c = runSel.value; runSel.innerHTML = runHtml; if(c) runSel.value = c; }
+    
+    const portSel = document.getElementById('portfolio-cma-select');
+    if(portSel) { const c = portSel.value; portSel.innerHTML = runHtml; if(c) portSel.value = c; }
+}
+
+function loadCMAPreset(id) {
+    if(!id) return;
+    let cmaObj;
+    if(id.startsWith('preset_')) {
+        cmaObj = PRESET_CMAS[parseInt(id.split('_')[1])];
+    } else {
+        cmaObj = UserDataEngine.load().cmas.find(c => c.id === id);
+    }
+    if(!cmaObj) return;
+
+    const sel = document.getElementById('cma-preset-select');
+    if(sel) sel.value = id;
+    
+    const nameInput = document.getElementById('cma-custom-name');
+    if(nameInput) {
+        nameInput.value = cmaObj.name;
+        nameInput.dataset.originalName = cmaObj.name;
+    }
+    
+    const delBtn = document.getElementById('btn-delete-cma');
+    if(delBtn) {
+        if(id.startsWith('custom_')) delBtn.classList.remove('d-none');
+        else delBtn.classList.add('d-none');
+    }
+
+    const data = cmaObj.data;
+    document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
+            const key = inp.dataset.key; const field = inp.dataset.field; 
+            if (data[field] && data[field][key] !== undefined) {
+                const val = data[field][key];
+                inp.value = (field === 'r' || field === 'v') ? (val * 100).toFixed(2) : val.toFixed(2);
+                inp.dispatchEvent(new Event('input')); 
+            }
+        });
+        
+        tr.querySelectorAll('.corr-input').forEach(inp => {
+            const row = inp.dataset.row; const col = inp.dataset.col;
+            if (data.correlations && data.correlations[row] && data.correlations[row][col] !== undefined) {
+                inp.value = data.correlations[row][col].toFixed(2);
+                inp.dispatchEvent(new Event('input')); 
+            }
+        });
+    });
+}
+
+function saveCMA() {
+    const nameInput = document.getElementById('cma-custom-name');
+    let newName = nameInput.value.trim() || 'Custom Market';
+    const oldName = nameInput.dataset.originalName;
+    let id = document.getElementById('cma-preset-select').value;
+    
+    if (!id.startsWith('custom_') || newName !== oldName) {
+        id = 'custom_cma_' + Date.now();
+    }
+    
+    UserDataEngine.saveItem('cmas', { id, name: newName, data: scrapeCMATable() });
+    refreshCMADropdowns();
+    loadCMAPreset(id);
+    showSavedFeedback('btn-save-cma');
+}
+
+function deleteCMA() {
+    const id = document.getElementById('cma-preset-select').value;
+    if(id.startsWith('custom_')) {
+        UserDataEngine.deleteItem('cmas', id);
+        refreshCMADropdowns();
+        loadCMAPreset('preset_0'); 
+    }
+}
+
+function scrapeCMATable() {
+    const r = {}, v = {}, k = {}, correlations = {};
+    ASSET_CLASSES.forEach(ac => correlations[ac.key] = {});
+
+    document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
+        tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
+            const val = parseFloat(inp.value) || 0;
+            if(inp.dataset.field === 'r') r[inp.dataset.key] = val / 100;
+            if(inp.dataset.field === 'v') v[inp.dataset.key] = val / 100;
+            if(inp.dataset.field === 'k') k[inp.dataset.key] = val; 
+        });
+        
+        tr.querySelectorAll('.corr-input').forEach(inp => {
+            const val = parseFloat(inp.value) || 0;
+            correlations[inp.dataset.row][inp.dataset.col] = val;
+        });
+    });
+    return { r, v, k, correlations };
+}
+
+function refreshStrategyDropdowns() {
+    const customStrats = UserDataEngine.load().strategies;
+    
+    let presetHtml = '';
+    STRATEGY_GROUPS.forEach((group, gIdx) => {
+        presetHtml += `<optgroup label="${group.name}">`;
+        group.strategies.forEach((strat, sIdx) => {
+            presetHtml += `<option value="preset_${gIdx}_${sIdx}">${strat.name}</option>`;
+        });
+        presetHtml += `</optgroup>`;
+    });
+
+    let customHtml = '';
+    if(customStrats.length > 0) {
+        customHtml = '<optgroup label="My Strategies">';
+        customStrats.forEach(s => customHtml += `<option value="${s.id}">${s.name}</option>`);
+        customHtml += '</optgroup>';
+    }
+
+    const editorSel = document.getElementById('strategy-preset-select');
+    if(editorSel) {
+        const currEd = editorSel.value;
+        editorSel.innerHTML = '<option value="">Load Preset...</option>' + presetHtml + customHtml;
+        if(currEd) editorSel.value = currEd;
+    }
+
+    const runHtml = '<option value="custom">Active Strategy Builder</option>' + presetHtml + customHtml;
+    ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
+        const sel = document.getElementById(id);
+        if(sel) {
+            const c = sel.value;
+            sel.innerHTML = i === 0 ? runHtml : '<option value="">None</option>' + runHtml;
+            if(c) sel.value = c;
+        }
+    });
+}
+
+function loadStrategyPreset(id) {
+    if(!id) return;
+    let stratObj;
+    if(id.startsWith('preset_')) {
+        const parts = id.split('_');
+        stratObj = STRATEGY_GROUPS[parseInt(parts[1])]?.strategies[parseInt(parts[2])];
+    } else {
+        stratObj = UserDataEngine.load().strategies.find(s => s.id === id);
+    }
+    if(!stratObj) return;
+
+    const sel = document.getElementById('strategy-preset-select');
+    if(sel) sel.value = id;
+    
+    const nameInput = document.getElementById('strat-custom-name');
+    if(nameInput) {
+        nameInput.value = stratObj.name;
+        nameInput.dataset.originalName = stratObj.name;
+    }
+    
+    const delBtn = document.getElementById('btn-delete-strat');
+    if(delBtn) {
+        if(id.startsWith('custom_')) delBtn.classList.remove('d-none');
+        else delBtn.classList.add('d-none');
+    }
+
+    state.strategyYears = stratObj.points.map(p => p.years).sort((a,b)=>b-a);
+    const neededPortIds = new Set();
+    stratObj.points.forEach(pt => Object.keys(pt.weights).forEach(pid => neededPortIds.add(pid)));
+    const idsArray = Array.from(neededPortIds);
+    
+    renderStrategyTable(Math.max(1, idsArray.length)); 
+    
+    const table = document.getElementById('strategy-table');
+    const selects = table.querySelectorAll('.strat-port-select');
+    idsArray.forEach((pid, rowIdx) => { if(selects[rowIdx]) selects[rowIdx].value = pid; });
+
+    stratObj.points.forEach(pt => {
+        const colIdx = state.strategyYears.indexOf(pt.years);
+        if(colIdx === -1) return;
+        Object.entries(pt.weights).forEach(([portId, weight]) => {
+            const rowIdx = idsArray.indexOf(portId);
+            if(rowIdx !== -1) {
+                const input = table.querySelector(`input.strat-weight-input[data-row="${rowIdx}"][data-col="${colIdx}"]`);
+                if(input) input.value = (weight * 100).toFixed(0);
+            }
+        });
+    });
+    
+    renderStrategyChart();
+    if(state.autoRun) runSimulation();
+}
+
+function saveStrategy() {
+    const nameInput = document.getElementById('strat-custom-name');
+    let newName = nameInput.value.trim() || 'Custom Strategy';
+    const oldName = nameInput.dataset.originalName;
+    let id = document.getElementById('strategy-preset-select').value;
+    
+    if (!id.startsWith('custom_') || newName !== oldName) {
+        id = 'custom_strat_' + Date.now();
+    }
+    
+    UserDataEngine.saveItem('strategies', { id, name: newName, points: scrapeStrategyUI() });
+    refreshStrategyDropdowns();
+    loadStrategyPreset(id);
+    showSavedFeedback('btn-save-strat');
+}
+
+function deleteStrategy() {
+    const id = document.getElementById('strategy-preset-select').value;
+    if(id.startsWith('custom_')) {
+        UserDataEngine.deleteItem('strategies', id);
+        refreshStrategyDropdowns();
+        loadStrategyPreset('preset_0_0'); 
+    }
+}
+
+// --- STANDARD UI LOGIC ---
 
 function toggleAdv(side) {
     state[`adv${side}`] = !state[`adv${side}`];
@@ -393,34 +723,6 @@ function initWorker() {
     };
 }
 
-function initPresets() {
-    const cmaSelect = document.getElementById('cma-preset-select');
-    if (cmaSelect) {
-        cmaSelect.innerHTML = '<option value="">Load Preset...</option>';
-        PRESET_CMAS.forEach((preset, index) => { cmaSelect.innerHTML += `<option value="${index}">${preset.name}</option>`; });
-        cmaSelect.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
-    }
-
-    const stratSelect = document.getElementById('strategy-preset-select');
-    if (stratSelect) {
-        stratSelect.innerHTML = '<option value="">Load Preset...</option>';
-        STRATEGY_GROUPS.forEach((group, gIdx) => {
-            stratSelect.innerHTML += `<optgroup label="${group.name}">`;
-            group.strategies.forEach((strat, sIdx) => {
-                stratSelect.innerHTML += `<option value="${gIdx}_${sIdx}">${strat.name}</option>`;
-            });
-            stratSelect.innerHTML += `</optgroup>`;
-        });
-        
-        stratSelect.addEventListener('change', (e) => { 
-            if(e.target.value !== "") {
-                const [gIdx, sIdx] = e.target.value.split('_');
-                loadStrategyPreset(parseInt(gIdx), parseInt(sIdx)); 
-            }
-        });
-    }
-}
-
 function renderPersonaCards() {
     const container = document.getElementById('persona-cards-container');
     if(!container) return;
@@ -429,6 +731,7 @@ function renderPersonaCards() {
     state.personas.forEach(p => {
         const isActive = state.activePersonaId === p.id;
         const activeClass = isActive ? 'active-persona' : '';
+        const isCustom = p.id.startsWith('custom_');
         const imgGlow = isActive ? 'box-shadow: var(--shadow-btn) !important; border-color: var(--accent-blue) !important;' : 'border: 2px solid var(--border-light);';
         
         const col = document.createElement('div');
@@ -436,20 +739,26 @@ function renderPersonaCards() {
         col.innerHTML = `
             <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
                 <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
-                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
-                    <div class="d-flex align-items-center gap-2">
-                        <h6 class="fw-bold m-0 text-dark">${p.name}</h6>
-                        <i class="fas fa-info-circle text-muted pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>
+                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
+                    <div class="d-flex flex-column w-100 pe-auto" style="pointer-events: auto;">
+                        <div class="d-flex align-items-center justify-content-between w-100">
+                            <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input" value="${p.name}" style="font-size:1rem;">
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-save-persona" title="Save Persona"><i class="fas fa-save text-primary"></i></button>
+                                ${isCustom ? `<button class="btn btn-sm btn-light border rounded-circle shadow-sm text-danger btn-delete-persona" title="Delete Persona"><i class="fas fa-trash"></i></button>` : ''}
+                            </div>
+                        </div>
+                        ${p.desc ? `<div class="small text-muted text-truncate" style="font-size:0.75rem;" title="${p.desc}">${p.desc}</div>` : ''}
                     </div>
                 </div>
                 <div class="card-body pt-0">
-                    <div class="row g-2">
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="age" value="${p.data.age}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="retirementAge" value="${p.data.retirementAge}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="salary" value="${p.data.salary}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="savings" value="${p.data.savings}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm" data-id="${p.id}" data-field="contribution" value="${p.data.contribution}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm" data-id="${p.id}" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
+                    <div class="row g-2 pe-auto" style="pointer-events: auto;">
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="age" value="${p.data.age}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="retirementAge" value="${p.data.retirementAge}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="salary" value="${p.data.salary}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="savings" value="${p.data.savings}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="contribution" value="${p.data.contribution}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm persona-data-input" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
                     </div>
                 </div>
             </div>
@@ -458,7 +767,7 @@ function renderPersonaCards() {
         
         const cardEl = col.querySelector('.persona-card');
         cardEl.addEventListener('click', (e) => {
-            if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'i') return;
+            if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'i') return;
             state.activePersonaId = p.id;
             renderPersonaCards(); 
             updateActivePersonaDisplay(); 
@@ -469,7 +778,7 @@ function renderPersonaCards() {
             }
         });
 
-        col.querySelectorAll('input').forEach(inp => {
+        col.querySelectorAll('.persona-data-input').forEach(inp => {
             inp.addEventListener('change', (e) => {
                 const field = e.target.dataset.field;
                 p.data[field] = parseFloat(e.target.value) || 0;
@@ -479,28 +788,58 @@ function renderPersonaCards() {
                     if (imgEl) imgEl.src = getNeutralAvatarUrl(p.data.age, p.seed || p.id);
                     renderPersonaDropdown();
                 }
-
                 if(state.autoRun && state.activePersonaId === p.id) runSimulation();
             });
         });
+
+        // Save Persona
+        col.querySelector('.btn-save-persona').onclick = (e) => {
+            e.stopPropagation();
+            const newName = col.querySelector('.persona-name-input').value.trim() || 'Custom Persona';
+            let targetId = p.id;
+            
+            if (!targetId.startsWith('custom_') || p.name !== newName) {
+                targetId = 'custom_pers_' + Date.now();
+            }
+            
+            const newP = JSON.parse(JSON.stringify(p));
+            newP.id = targetId;
+            newP.name = newName;
+            newP.seed = targetId; 
+            
+            UserDataEngine.saveItem('personas', newP);
+            
+            const idx = state.personas.findIndex(x => x.id === targetId);
+            if(idx > -1) state.personas[idx] = newP;
+            else state.personas.push(newP);
+            
+            state.activePersonaId = targetId;
+            renderPersonaCards();
+            renderPersonaDropdown();
+            
+            const btn = e.currentTarget;
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+            setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
+        };
+
+        // Delete Persona
+        const delBtn = col.querySelector('.btn-delete-persona');
+        if(delBtn) {
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                UserDataEngine.deleteItem('personas', p.id);
+                state.personas = state.personas.filter(x => x.id !== p.id);
+                if(state.activePersonaId === p.id) state.activePersonaId = state.personas[0].id;
+                renderPersonaCards();
+                renderPersonaDropdown();
+            };
+        }
     });
-    
-    setTimeout(() => {
-        const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
-    }, 50);
 }
 
 function initRunModelInputs() {
-    const cmaSelect = document.getElementById('run-cma-select');
-    const portCmaSelect = document.getElementById('portfolio-cma-select');
-    let html = '<option value="custom">Use "Markets" Tab</option>';
-    PRESET_CMAS.forEach((preset, index) => { html += `<option value="${index}">${preset.name}</option>`; });
-    if(cmaSelect) cmaSelect.innerHTML = html;
-    if(portCmaSelect) portCmaSelect.innerHTML = html;
-
     renderPersonaDropdown();
-    updateStrategySelectors();
 }
 
 function renderPersonaDropdown() {
@@ -534,28 +873,6 @@ function updateActivePersonaDisplay() {
     }
 }
 
-function updateStrategySelectors() {
-    ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
-        const sel = document.getElementById(id);
-        if(sel) {
-            const curr = sel.value;
-            let html = i === 0 ? '' : '<option value="">None</option>';
-            html += '<option value="custom">Active Strategy Builder</option>'; 
-            
-            STRATEGY_GROUPS.forEach((group, gIdx) => {
-                html += `<optgroup label="${group.name}">`;
-                group.strategies.forEach((strat, sIdx) => {
-                    html += `<option value="${gIdx}_${sIdx}">${strat.name}</option>`;
-                });
-                html += `</optgroup>`;
-            });
-
-            sel.innerHTML = html;
-            if(curr) sel.value = curr;
-        }
-    });
-}
-
 function setupAutoRun() {
     const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
     inputs.forEach(id => {
@@ -567,94 +884,39 @@ function setupAutoRun() {
     });
 }
 
-function loadCMAPreset(index) {
-    if (!PRESET_CMAS[index]) return;
-    const data = PRESET_CMAS[index].data;
-    document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
-        tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
-            const key = inp.dataset.key; const field = inp.dataset.field; 
-            if (data[field] && data[field][key] !== undefined) {
-                const val = data[field][key];
-                inp.value = (field === 'r' || field === 'v') ? (val * 100).toFixed(2) : val.toFixed(2);
-                inp.dispatchEvent(new Event('input')); 
-            }
-        });
-        
-        tr.querySelectorAll('.corr-input').forEach(inp => {
-            const row = inp.dataset.row; const col = inp.dataset.col;
-            if (data.correlations && data.correlations[row] && data.correlations[row][col] !== undefined) {
-                inp.value = data.correlations[row][col].toFixed(2);
-                inp.dispatchEvent(new Event('input')); 
-            }
-        });
-    });
-}
-
-function loadStrategyPreset(gIdx, sIdx) {
-    const preset = STRATEGY_GROUPS[gIdx]?.strategies[sIdx];
-    if(!preset) return;
-    
-    state.strategyYears = preset.points.map(p => p.years).sort((a,b)=>b-a);
-    
-    const neededPortIds = new Set();
-    preset.points.forEach(pt => Object.keys(pt.weights).forEach(id => neededPortIds.add(id)));
-    const idsArray = Array.from(neededPortIds);
-    
-    renderStrategyTable(Math.max(1, idsArray.length)); 
-    
-    const table = document.getElementById('strategy-table');
-    const selects = table.querySelectorAll('.strat-port-select');
-    idsArray.forEach((id, rowIdx) => { if(selects[rowIdx]) selects[rowIdx].value = id; });
-
-    preset.points.forEach(pt => {
-        const colIdx = state.strategyYears.indexOf(pt.years);
-        if(colIdx === -1) return;
-        Object.entries(pt.weights).forEach(([portId, weight]) => {
-            const rowIdx = idsArray.indexOf(portId);
-            if(rowIdx !== -1) {
-                const input = table.querySelector(`input.strat-weight-input[data-row="${rowIdx}"][data-col="${colIdx}"]`);
-                if(input) input.value = (weight * 100).toFixed(0);
-            }
-        });
-    });
-    
-    renderStrategyChart();
-    if(state.autoRun) runSimulation();
-}
-
 function refreshPortfolioDropdowns() {
     const leftSel = document.getElementById('port-select-left');
     const rightSel = document.getElementById('port-select-right');
     
-    let html = '';
+    let presetHtml = '';
     PRESET_PORTFOLIOS.forEach(group => {
-        html += `<optgroup label="${group.name}">`;
+        presetHtml += `<optgroup label="${group.name}">`;
         group.portfolios.forEach(p => {
-            const sp = state.portfolios.find(sp => sp.id === p.id);
-            if(sp) html += `<option value="${sp.id}">${sp.name}</option>`;
+            presetHtml += `<option value="${p.id}">${p.name}</option>`;
         });
-        html += `</optgroup>`;
+        presetHtml += `</optgroup>`;
     });
 
+    let customHtml = '';
     const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
     if(customs.length > 0) {
-        html += `<optgroup label="Custom Portfolios">`;
-        customs.forEach(p => { html += `<option value="${p.id}">${p.name}</option>`; });
-        html += `</optgroup>`;
+        customHtml += `<optgroup label="My Portfolios">`;
+        customs.forEach(p => { customHtml += `<option value="${p.id}">${p.name}</option>`; });
+        customHtml += `</optgroup>`;
     }
     
     const currLeft = leftSel?.value;
-    if(leftSel) leftSel.innerHTML = html;
+    if(leftSel) leftSel.innerHTML = presetHtml + customHtml;
     if(currLeft && leftSel) leftSel.value = currLeft;
 
     const currRight = rightSel?.value;
-    if(rightSel) rightSel.innerHTML = `<option value="none">-- Select to Compare --</option>` + html;
+    if(rightSel) rightSel.innerHTML = `<option value="none">-- Select to Compare --</option>` + presetHtml + customHtml;
     if(currRight && rightSel) rightSel.value = currRight;
 }
 
 function createNewPortfolio(side) {
-    const num = state.portfolios.length + 1;
-    const newPort = { id: `custom_${Date.now()}`, name: `Custom Portfolio ${num}`, weights: {}, alphas: {}, tes: {} };
+    const newPort = { id: `custom_port_${Date.now()}`, name: `Custom Portfolio`, weights: {}, alphas: {}, tes: {} };
+    UserDataEngine.saveItem('portfolios', newPort);
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
     document.getElementById(`port-select-${side}`).value = newPort.id;
@@ -701,13 +963,56 @@ function renderPortfolioPane(side, portId) {
     const tbody = document.createElement('tbody');
     tbody.className = "small";
 
+    const isCustom = portId.startsWith('custom_');
     const titleRow = document.createElement('tr');
-    titleRow.innerHTML = `<td class="fw-bold text-muted text-uppercase align-middle">Name</td>
-                          <td colspan="3"><input type="text" class="form-control form-control-sm text-end fw-bold" value="${portfolio.name}"></td>`;
-    titleRow.querySelector('input').addEventListener('change', (e) => {
-        portfolio.name = e.target.value; refreshPortfolioDropdowns();
-        renderStressTests();
-    });
+    titleRow.innerHTML = `
+        <td class="fw-bold text-muted text-uppercase align-middle">Name</td>
+        <td colspan="3">
+            <div class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm text-end fw-bold port-name-input" value="${portfolio.name}">
+                <button class="btn btn-sm btn-light border shadow-sm btn-save-port" title="Save Portfolio"><i class="fas fa-save text-primary"></i></button>
+                ${isCustom ? `<button class="btn btn-sm btn-light border shadow-sm text-danger btn-delete-port" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
+            </div>
+        </td>`;
+        
+    titleRow.querySelector('.btn-save-port').onclick = (e) => {
+        const newName = titleRow.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
+        let targetId = portfolio.id;
+        
+        if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
+            targetId = 'custom_port_' + Date.now();
+        }
+        
+        const newPort = JSON.parse(JSON.stringify(portfolio));
+        newPort.name = newName;
+        newPort.id = targetId;
+        
+        UserDataEngine.saveItem('portfolios', newPort);
+        
+        const idx = state.portfolios.findIndex(p => p.id === targetId);
+        if(idx > -1) state.portfolios[idx] = newPort;
+        else state.portfolios.push(newPort);
+        
+        refreshPortfolioDropdowns();
+        document.getElementById(`port-select-${side}`).value = targetId;
+        renderPortfolioPane(side, targetId);
+        
+        const btn = e.currentTarget;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
+    };
+
+    const delBtn = titleRow.querySelector('.btn-delete-port');
+    if(delBtn) {
+        delBtn.onclick = () => {
+            UserDataEngine.deleteItem('portfolios', portfolio.id);
+            state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
+            refreshPortfolioDropdowns();
+            renderPortfolioPane(side, 'none');
+        };
+    }
+    
     tbody.appendChild(titleRow);
 
     ASSET_CLASSES.forEach(ac => {
@@ -748,8 +1053,17 @@ function updatePortfolioVisuals(side, portId) {
     const portfolio = state.portfolios.find(p => p.id === portId);
     if (!portfolio) return;
 
-    const cmaSelect = document.getElementById('portfolio-cma-select');
-    let cmaData = (cmaSelect && cmaSelect.value !== "custom" && cmaSelect.value !== "") ? PRESET_CMAS[cmaSelect.value].data : getActiveCMA();
+    let cmaData;
+    const cmaSel = document.getElementById('portfolio-cma-select');
+    if (!cmaSel || cmaSel.value === 'custom') {
+        cmaData = scrapeCMATable();
+    } else if (cmaSel.value.startsWith('preset_')) {
+        const idx = parseInt(cmaSel.value.replace('preset_',''));
+        cmaData = PRESET_CMAS[idx].data;
+    } else {
+        const custom = UserDataEngine.load().cmas.find(c => c.id === cmaSel.value);
+        cmaData = custom ? custom.data : PRESET_CMAS[0].data;
+    }
 
     const stats = calcDeterministicStats(portfolio.weights, portfolio.alphas, portfolio.tes, cmaData);
     
@@ -993,6 +1307,7 @@ function appendStrategyRow(tbody, r) {
     selCell.className = "text-start ps-3 align-middle border-0";
     
     let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-bold border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
+    
     PRESET_PORTFOLIOS.forEach(group => {
         selHTML += `<optgroup label="${group.name}">`;
         group.portfolios.forEach(p => {
@@ -1000,12 +1315,14 @@ function appendStrategyRow(tbody, r) {
         });
         selHTML += `</optgroup>`;
     });
+    
     const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
     if(customs.length > 0) {
-        selHTML += `<optgroup label="Custom Portfolios">`;
+        selHTML += `<optgroup label="My Portfolios">`;
         customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
         selHTML += `</optgroup>`;
     }
+    
     selCell.innerHTML = selHTML + `</select>`;
     tr.appendChild(selCell);
 
@@ -1134,27 +1451,15 @@ function scrapeAndResolveStrategy() {
 
 function getActiveCMA() {
     const sel = document.getElementById('run-cma-select');
-    if (!sel || sel.value === 'custom') {
-        const r = {}, v = {}, k = {}, correlations = {};
-        
-        ASSET_CLASSES.forEach(ac => correlations[ac.key] = {});
-
-        document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
-            tr.querySelectorAll('input:not(.corr-input)').forEach(inp => {
-                const val = parseFloat(inp.value) || 0;
-                if(inp.dataset.field === 'r') r[inp.dataset.key] = val / 100;
-                if(inp.dataset.field === 'v') v[inp.dataset.key] = val / 100;
-                if(inp.dataset.field === 'k') k[inp.dataset.key] = val; 
-            });
-            
-            tr.querySelectorAll('.corr-input').forEach(inp => {
-                const val = parseFloat(inp.value) || 0;
-                correlations[inp.dataset.row][inp.dataset.col] = val;
-            });
-        });
-        return { r, v, k, correlations };
+    if (!sel || sel.value === 'custom') return scrapeCMATable();
+    
+    if (sel.value.startsWith('preset_')) {
+        const idx = parseInt(sel.value.replace('preset_', ''));
+        return PRESET_CMAS[idx].data;
+    } else {
+        const custom = UserDataEngine.load().cmas.find(c => c.id === sel.value);
+        return custom ? custom.data : PRESET_CMAS[0].data;
     }
-    return PRESET_CMAS[sel.value].data;
 }
 
 function getActivePersona() {
@@ -1176,11 +1481,13 @@ function getActiveStrategies(months) {
             name = "Active Builder Strategy";
             resolvedPoints = scrapeAndResolveStrategy();
         } else {
-            const parts = sel.value.split('_');
-            const gIdx = parseInt(parts[0]);
-            const sIdx = parseInt(parts[1]);
-            
-            const preset = STRATEGY_GROUPS[gIdx]?.strategies[sIdx];
+            let preset;
+            if(sel.value.startsWith('preset_')) {
+                const parts = sel.value.split('_');
+                preset = STRATEGY_GROUPS[parseInt(parts[1])]?.strategies[parseInt(parts[2])];
+            } else {
+                preset = UserDataEngine.load().strategies.find(s => s.id === sel.value);
+            }
             if (!preset) return;
             
             name = preset.name; 
