@@ -87,10 +87,11 @@ function initTooltips() {
 
 // 100% Validated DiceBear Algorithm to ensure beautiful render and dynamic age mapping
 function getNeutralAvatarUrl(age, seed) {
-    let top = age < 30 ? "shortHairShortFlat" : age <= 50 ? "shortHairShortWaved" : "shortHairTheCaesar";
-    let hairColor = age > 50 ? "SilverGray" : "BrownDark";
-    let clothing = age < 30 ? "graphicShirt" : age <= 50 ? "collarSweater" : "blazerShirt";
-    let clothingColor = age < 30 ? "Blue03" : age <= 50 ? "PastelGreen" : "Blue02";
+    // Updated to strictly match DiceBear v9 option schemas
+    let top = age < 30 ? "shortFlat" : age <= 50 ? "shortWaved" : "theCaesar";
+    let hairColor = age > 50 ? "silverGray" : "brownDark";
+    let clothing = age < 30 ? "graphicShirt" : age <= 50 ? "collarAndSweater" : "blazerAndShirt";
+    let clothingColor = age < 30 ? "blue03" : age <= 50 ? "pastelGreen" : "blue02";
     let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
 
     return `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&top=${top}&hairColor=${hairColor}&clothing=${clothing}&clothingColor=${clothingColor}&backgroundColor=${bg}&eyes=default&mouth=default&eyebrows=defaultNatural`;
