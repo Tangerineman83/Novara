@@ -62,26 +62,26 @@ export const PRESET_CMAS = [
     }
 ];
 
-// Enhanced Avatar Personas
+// Enhanced Avatar Personas injecting Digital Brand variables into the API dynamically
 export const PRESET_PERSONAS = [
     { 
         id: "pers_genz", 
-        name: "Gen-Z Accumulator", 
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=e2e8f0", 
+        name: "The Gen-Z Accumulator", 
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=GenZ&top=shortHairFrizzle&clothing=graphicShirt&clothingColor=3b82f6&skinColor=brown&backgroundColor=eef2ff", 
         desc: "Early 20s, starting early with high multi-decade compounding potential.", 
         data: { age: 25, retirementAge: 68, savings: 5000, salary: 32000, contribution: 10, realSalaryGrowth: 1.5 } 
     },
     { 
         id: "pers_mid", 
-        name: "Mid-Career Maximizer", 
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka&backgroundColor=d1fae5", 
+        name: "The Mid-Career Builder", 
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=MidCareer&top=longHairStraight&clothing=overall&accessories=round&clothingColor=059669&skinColor=black&backgroundColor=ecfdf5", 
         desc: "Peak earning years, balancing mortgage responsibilities and pension acceleration.", 
         data: { age: 40, retirementAge: 68, savings: 85000, salary: 65000, contribution: 12, realSalaryGrowth: 0.5 } 
     },
     { 
         id: "pers_late", 
         name: "The Late Starter", 
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jude&backgroundColor=fef3c7", 
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=LateStarter&hairColor=silverGray&clothing=blazerShirt&accessories=wayfarers&clothingColor=3730a3&skinColor=tanned&backgroundColor=e0e7ff", 
         desc: "Aggressive catch-up phase entering the pre-retirement de-risking window.", 
         data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
     }
