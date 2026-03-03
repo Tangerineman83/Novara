@@ -85,7 +85,7 @@ function initTooltips() {
     }
 }
 
-// Deterministic & Dynamic Avatar Engine (Using exact expert dictionaries)
+// Deterministic & Dynamic Avatar Engine (Strict Version 9 Compliant)
 function getNeutralAvatarUrl(age, seed) {
     const getSeededVal = (max, salt = '') => {
         let hash = 0;
@@ -96,13 +96,13 @@ function getNeutralAvatarUrl(age, seed) {
         return Math.abs(hash) % max;
     };
 
-    // 1. Define Trait Pools using the exact API-compliant prefixes
-    const feminineTops = ['longHairBigHair', 'longHairBob', 'longHairCurly', 'longHairCurvy', 'longHairFro', 'longHairStraight', 'longHairStraight2'];
-    const masculineTops = ['shortHairDreads01', 'shortHairDreads02', 'shortHairFrizzle', 'shortHairShaggyMullet', 'shortHairShortCurly', 'shortHairShortFlat', 'shortHairShortRound', 'shortHairTheCaesar'];
+    // 1. Define Trait Pools using strictly correct v9 names (no 'Hair' prefixes)
+    const feminineTops = ['bigHair', 'bob', 'bun', 'curly', 'curvy', 'fro', 'straight01', 'straight02'];
+    const masculineTops = ['dreads', 'shaggyMullet', 'shortCurly', 'shortFlat', 'shortRound', 'shortWaved', 'theCaesar'];
     const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
     const seniorHairColors = ['platinum', 'silverGray'];
     const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
-    const glasses = ['prescription01', 'prescription02'];
+    const glasses = ['prescription01', 'prescription02', 'round'];
     const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
     const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
 
