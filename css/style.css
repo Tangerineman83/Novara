@@ -8,7 +8,6 @@
     --text-main: #1E293B;
     --text-muted: #64748B;
     
-    /* Transition to Digital Navy / Deep Indigo */
     --accent-blue: #3730A3; 
     --accent-blue-light: #4F46E5;
     --accent-green: #059669;
@@ -19,7 +18,6 @@
     --radius-md: 12px;
     --radius-pill: 50px;
     
-    /* Soft, diffused, layered shadows instead of hard borders */
     --shadow-soft: 0 10px 40px -10px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
     --shadow-btn: 0 8px 20px -4px rgba(55, 48, 163, 0.4);
     
@@ -67,7 +65,6 @@ body {
 
 nav.navbar { background-color: transparent !important; border: none !important; box-shadow: none !important; padding-top: 1.5rem; }
 
-/* Surface & Depth: Card Styling */
 .card {
     border: none; 
     border-radius: var(--radius-lg); 
@@ -86,7 +83,6 @@ nav.navbar { background-color: transparent !important; border: none !important; 
 }
 .card-body { padding: 1.5rem; }
 
-/* Glassmorphism Input Ribbon */
 .input-ribbon { 
     background: rgba(255, 255, 255, 0.65);
     backdrop-filter: blur(16px);
@@ -124,7 +120,6 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 .form-check-input { width: 2.5em; height: 1.25em; transition: background-color 0.2s, border-color 0.2s; }
 .form-check-input:checked { background-color: var(--accent-blue); border-color: var(--accent-blue); }
 
-/* Typography & Numbers: Tabular Lining Figures for data accuracy */
 .table, input[type="number"], .stats-badge .val, .median-val {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
@@ -135,7 +130,6 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 .table-header-custom { background-color: transparent; color: var(--text-muted); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-light); }
 .table tbody td { vertical-align: middle; border-bottom: 1px solid var(--border-light); font-weight: 500; }
 
-/* Visual Hierarchy: Emphasizing the Median Column */
 .col-median { background-color: rgba(248, 250, 252, 0.5); font-weight: 700; color: var(--text-main); }
 .median-val { font-size: 1.35rem; font-weight: 800; color: var(--accent-blue); letter-spacing: -0.5px; }
 
@@ -201,6 +195,10 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 
 .dist-canvas { display: block; width: 80px; height: 30px; }
 .tooltip-inner { background-color: var(--text-main); font-weight: 500; font-family: 'Inter', sans-serif; padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; text-align: left; }
+
+.dropdown-item.active, .dropdown-item:active { background-color: #EEF2FF; color: var(--text-main); }
+.persona-card { border: 1px solid var(--border-light); transition: transform 0.2s, box-shadow 0.2s; }
+.persona-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
 
 @media (min-width: 768px) {
     #sidebar-wrapper { margin-left: 0; }
