@@ -199,9 +199,14 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 .tooltip-inner { background-color: var(--text-main); font-weight: 500; font-family: 'Inter', sans-serif; padding: 8px 12px; font-size: 0.75rem; border-radius: 8px; text-align: left; }
 
 .dropdown-item.active, .dropdown-item:active { background-color: #EEF2FF; color: var(--text-main); }
-.persona-card { border: 1px solid var(--border-light); transition: transform 0.2s, box-shadow 0.2s; }
+.persona-card { border: 1px solid var(--border-light); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
 .persona-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
-.persona-card .card-header { border-bottom: none; }
+
+.active-persona {
+    border-color: var(--accent-blue) !important;
+    box-shadow: var(--shadow-btn) !important;
+    transform: translateY(-2px);
+}
 
 @media (min-width: 768px) {
     #sidebar-wrapper { margin-left: 0; }
