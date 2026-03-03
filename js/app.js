@@ -80,6 +80,42 @@ function initTooltips() {
     }
 }
 
+// High-fidelity algorithmic avatar generator enforcing professional rules
+function getNeutralAvatarUrl(age, seed) {
+    const base = "https://api.dicebear.com/9.x/avataaars/svg?eyes=default,side&mouth=default,smile&eyebrows=defaultNatural";
+    
+    let top, hairColor, clothing, clothingColor, accessories, facialHair, bg;
+
+    if (age < 30) {
+        top = "shortHairShortFlat,longHairCurly";
+        hairColor = "2c1b18,47280b,000000"; 
+        clothing = "graphicShirt,shirtVNeck";
+        clothingColor = "3b82f6"; // Vibrant Blue
+        accessories = "probability:0";
+        facialHair = "probability:0";
+        bg = "eef2ff"; 
+    } else if (age >= 30 && age <= 50) {
+        top = "shortHairShortWaved,longHairStraight";
+        hairColor = "2c1b18,47280b,000000"; 
+        clothing = "collarSweater";
+        clothingColor = "059669"; // Institutional Green
+        accessories = "round,wayfarers";
+        facialHair = "beardLight,probability:0"; 
+        bg = "ecfdf5"; 
+    } else {
+        top = "shortHairTheCaesar";
+        hairColor = "b1b1b1"; // Silver gray
+        clothing = "blazerShirt";
+        clothingColor = "3730a3"; // Digital Navy
+        accessories = "prescription01,prescription02";
+        facialHair = "probability:0";
+        bg = "e0e7ff"; 
+    }
+
+    const skinColors = "tanned,yellow,brown,black,light";
+    return `${base}&seed=${seed}&top=${top}&hairColor=${hairColor}&clothing=${clothing}&clothingColor=${clothingColor}&accessories=${accessories}&facialHair=${facialHair}&backgroundColor=${bg}&skinColor=${skinColors}`;
+}
+
 function setupEventListeners() {
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
@@ -412,6 +448,7 @@ function renderPersonaCards() {
     const container = document.getElementById('persona-cards-container');
     if(!container) return;
     container.innerHTML = '';
+    
     state.personas.forEach(p => {
         const isActive = state.activePersonaId === p.id;
         const activeClass = isActive ? 'active-persona' : '';
@@ -422,7 +459,7 @@ function renderPersonaCards() {
         col.innerHTML = `
             <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
                 <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
-                    <img src="${p.avatar}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
+                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
                     <div class="d-flex align-items-center gap-2">
                         <h6 class="fw-bold m-0 text-dark">${p.name}</h6>
                         <i class="fas fa-info-circle text-muted pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>
@@ -459,6 +496,14 @@ function renderPersonaCards() {
             inp.addEventListener('change', (e) => {
                 const field = e.target.dataset.field;
                 p.data[field] = parseFloat(e.target.value) || 0;
+                
+                // Dynamically update avatar if age changes
+                if (field === 'age') {
+                    const imgEl = document.getElementById(`avatar-img-${p.id}`);
+                    if (imgEl) imgEl.src = getNeutralAvatarUrl(p.data.age, p.seed);
+                    renderPersonaDropdown();
+                }
+
                 if(state.autoRun && state.activePersonaId === p.id) runSimulation();
             });
         });
@@ -489,9 +534,8 @@ function renderPersonaDropdown() {
     
     state.personas.forEach(p => {
         const li = document.createElement('li');
-        // Removed text-truncate and overflow-hidden here so names fully display in the expanded menu
         li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
-            <img src="${p.avatar}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
+            <img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
             <span class="fw-bold small text-dark">${p.name}</span>
         </a>`;
         li.querySelector('a').addEventListener('click', (e) => {
@@ -510,8 +554,7 @@ function updateActivePersonaDisplay() {
     const p = state.personas.find(x => x.id === state.activePersonaId);
     const content = document.getElementById('active-persona-content');
     if(p && content) {
-        // text-truncate is kept here so the closed button fits neatly in the ribbon
-        content.innerHTML = `<img src="${p.avatar}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark text-truncate" style="font-size: 0.75rem">${p.name}</span>`;
+        content.innerHTML = `<img src="${getNeutralAvatarUrl(p.data.age, p.seed)}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark text-truncate" style="font-size: 0.75rem">${p.name}</span>`;
     }
 }
 
