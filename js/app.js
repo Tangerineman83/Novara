@@ -33,8 +33,8 @@ const state = {
     strategyChartInstance: null,
     pieLeft: null,
     pieRight: null,
-    portfolios: [], // Strictly Custom Portfolios only
-    workingPort_left: null, // Isolated copies to prevent preset corruption
+    portfolios: [], 
+    workingPort_left: null, 
     workingPort_right: null,
     personas: [],
     activePersonaId: null,
@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
-    // Load only Custom Portfolios into state to protect the presets
     state.portfolios = UserDataEngine.load().portfolios || [];
     
     state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
@@ -75,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         refreshPortfolioDropdowns();
         
-        // Render first available portfolio on load
         const defaultPortId = state.portfolios.length > 0 ? state.portfolios[0].id : PRESET_PORTFOLIOS[0].portfolios[0].id;
         renderPortfolioPane('left', defaultPortId);
         
@@ -83,12 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initTooltips();
 
         try {
-            if(PRESET_CMAS && PRESET_CMAS.length > 0) {
-                loadCMAPreset('preset_0');
-            }
-            if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) {
-                loadStrategyPreset('preset_0_0');
-            }
+            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_0');
+            if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) loadStrategyPreset('preset_0_0');
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
         }
@@ -109,14 +103,11 @@ function initTooltips() {
     }
 }
 
-// 100% Bulletproof Avatar Engine with Initials Fallback
 function getNeutralAvatarUrl(age, seed) {
     let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
-    // Dropped to 7.x to bypass strict 9.x validation blocks
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}`;
 }
 
-// Helper to generate initials if the image is blocked by firewalls
 function getAvatarFallback(name) {
     return `this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=eef2ff&color=3730A3&rounded=true';`;
 }
@@ -168,9 +159,10 @@ function setupEventListeners() {
         syncPortfolioInputsVisibility();
     });
 
-    document.getElementById('toggle-strategy-inputs')?.addEventListener('click', () => {
-        document.getElementById('strategy-table-container').classList.toggle('d-none');
+    document.querySelectorAll('.btn-toggle-strat').forEach(btn => {
+        btn.addEventListener('click', () => document.getElementById('strategy-table-container').classList.toggle('d-none'));
     });
+    
     document.getElementById('strat-view-toggle')?.addEventListener('change', renderStrategyChart);
 
     window.addStrategyYearColumn = addStrategyYearColumn;
@@ -782,7 +774,6 @@ function renderPersonaCards() {
             setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
         };
 
-        // Delete Persona
         const delBtn = col.querySelector('.btn-delete-persona');
         if(delBtn) {
             delBtn.onclick = (e) => {
@@ -906,7 +897,6 @@ function renderPortfolioPane(side, portId) {
     const original = getGlobalPortfolio(portId);
     if (!original) return;
     
-    // Create an isolated working copy to prevent editing presets in memory
     state[`workingPort_${side}`] = JSON.parse(JSON.stringify(original));
     const portfolio = state[`workingPort_${side}`];
 
@@ -928,58 +918,53 @@ function renderPortfolioPane(side, portId) {
     tbody.className = "small";
 
     const isCustom = portfolio.id.startsWith('custom_');
-    const titleRow = document.createElement('tr');
-    titleRow.innerHTML = `
-        <td class="fw-bold text-muted text-uppercase align-middle">Name</td>
-        <td colspan="3">
-            <div class="d-flex gap-2">
-                <input type="text" class="form-control form-control-sm text-end fw-bold port-name-input" value="${portfolio.name}">
-                <button class="btn btn-sm btn-light border shadow-sm btn-save-port" title="Save Portfolio"><i class="fas fa-save text-primary"></i></button>
-                ${isCustom ? `<button class="btn btn-sm btn-light border shadow-sm text-danger btn-delete-port" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
-            </div>
-        </td>`;
-        
-    titleRow.querySelector('.btn-save-port').onclick = (e) => {
-        const newName = titleRow.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
-        let targetId = portfolio.id;
-        
-        // If it's a preset or renamed, fork it
-        if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
-            targetId = 'custom_port_' + Date.now();
-        }
-        
-        portfolio.name = newName;
-        portfolio.id = targetId;
-        
-        UserDataEngine.saveItem('portfolios', portfolio);
-        
-        const idx = state.portfolios.findIndex(p => p.id === targetId);
-        if(idx > -1) state.portfolios[idx] = JSON.parse(JSON.stringify(portfolio));
-        else state.portfolios.push(JSON.parse(JSON.stringify(portfolio)));
-        
-        refreshPortfolioDropdowns();
-        document.getElementById(`port-select-${side}`).value = targetId;
-        renderPortfolioPane(side, targetId); 
-        
-        const btn = e.currentTarget;
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-        setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
-    };
-
-    const delBtn = titleRow.querySelector('.btn-delete-port');
-    if(delBtn) {
-        delBtn.onclick = () => {
-            UserDataEngine.deleteItem('portfolios', portfolio.id);
-            state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
+    const nameContainer = document.getElementById(`port-name-container-${side}`);
+    if(nameContainer) {
+        nameContainer.innerHTML = `
+            <input type="text" class="form-control form-control-sm text-end fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
+            <button class="btn btn-sm btn-primary rounded-pill shadow-sm btn-save-port flex-shrink-0 px-3" title="Save Portfolio"><i class="fas fa-save"></i></button>
+            ${isCustom ? `<button class="btn btn-sm btn-danger rounded-pill shadow-sm btn-delete-port flex-shrink-0 px-3" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
+        `;
+            
+        nameContainer.querySelector('.btn-save-port').onclick = (e) => {
+            const newName = nameContainer.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
+            let targetId = portfolio.id;
+            
+            if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
+                targetId = 'custom_port_' + Date.now();
+            }
+            
+            portfolio.name = newName;
+            portfolio.id = targetId;
+            
+            UserDataEngine.saveItem('portfolios', portfolio);
+            
+            const idx = state.portfolios.findIndex(p => p.id === targetId);
+            if(idx > -1) state.portfolios[idx] = JSON.parse(JSON.stringify(portfolio));
+            else state.portfolios.push(JSON.parse(JSON.stringify(portfolio)));
+            
             refreshPortfolioDropdowns();
-            const fallback = PRESET_PORTFOLIOS[0].portfolios[0].id;
-            document.getElementById(`port-select-${side}`).value = fallback;
-            renderPortfolioPane(side, fallback);
+            document.getElementById(`port-select-${side}`).value = targetId;
+            renderPortfolioPane(side, targetId); 
+            
+            const btn = e.currentTarget;
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
         };
+
+        const delBtn = nameContainer.querySelector('.btn-delete-port');
+        if(delBtn) {
+            delBtn.onclick = () => {
+                UserDataEngine.deleteItem('portfolios', portfolio.id);
+                state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
+                refreshPortfolioDropdowns();
+                const fallback = PRESET_PORTFOLIOS[0].portfolios[0].id;
+                document.getElementById(`port-select-${side}`).value = fallback;
+                renderPortfolioPane(side, fallback);
+            };
+        }
     }
-    
-    tbody.appendChild(titleRow);
 
     ASSET_CLASSES.forEach(ac => {
         const tr = document.createElement('tr');
@@ -1621,32 +1606,32 @@ function renderResultsTable(results) {
         const currHigh = res.percentiles.pUpper[last];
 
         const formatDiff = (val, base) => {
-            if(index === 0) return '<span style="display:inline-block; width:65px;"></span>';
+            if(index === 0) return '<span style="display:block; height: 14px;"></span>';
             const diff = ((val - base)/base)*100;
-            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold text-end" style="font-size:0.75rem; display:inline-block; width:65px;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
+            return `<span class="small ${diff>=0?'text-success':'text-danger'} fw-bold text-end" style="font-size:0.7rem; display:block; line-height:1.2;">(${diff>=0?'+':''}${diff.toFixed(1)}%)</span>`;
         };
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light);">
-                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${color.border}; margin-right:8px;"></span>
+            <td style="font-weight:600; color: var(--text-main); border-bottom: 1px solid var(--border-light); font-size:0.85rem;">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${color.border}; margin-right:6px;"></span>
                 ${res.name}
             </td>
-            <td class="text-end text-muted border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2">
-                    <span>£${Math.round(currLow).toLocaleString()}</span>
+            <td class="text-end text-muted border-bottom border-light px-1 px-md-3">
+                <div class="d-flex flex-column justify-content-end align-items-end">
+                    <span style="font-size:0.85rem;">£${Math.round(currLow).toLocaleString()}</span>
                     ${formatDiff(currLow, baseLow)}
                 </div>
             </td>
-            <td class="text-end col-median border-bottom border-light pe-3">
-                <div class="d-flex justify-content-end align-items-center gap-2">
-                    <span class="median-val">£${Math.round(currMed).toLocaleString()}</span>
+            <td class="text-end col-median border-bottom border-light px-1 px-md-3">
+                <div class="d-flex flex-column justify-content-end align-items-end">
+                    <span class="median-val" style="font-size:0.85rem;">£${Math.round(currMed).toLocaleString()}</span>
                     ${formatDiff(currMed, baseMed)}
                 </div>
             </td>
-            <td class="text-end text-muted border-bottom border-light pe-4">
-                <div class="d-flex justify-content-end align-items-center gap-2">
-                    <span>£${Math.round(currHigh).toLocaleString()}</span>
+            <td class="text-end text-muted border-bottom border-light px-1 px-md-3">
+                <div class="d-flex flex-column justify-content-end align-items-end">
+                    <span style="font-size:0.85rem;">£${Math.round(currHigh).toLocaleString()}</span>
                     ${formatDiff(currHigh, baseHigh)}
                 </div>
             </td>
