@@ -36,23 +36,22 @@
         <div class="container-fluid px-4 mt-3" style="flex-grow: 1;">
             
             <div id="tab-cma" class="view-section">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div class="d-flex align-items-center gap-3">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4 gap-3">
+                    <div class="d-flex align-items-center gap-4">
                         <h4 class="fw-bold m-0 text-dark">Markets</h4>
-                    </div>
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="form-check form-switch m-0 d-flex align-items-center gap-2 me-2" title="Toggle full matrix view">
+                        <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Toggle full matrix view">
                             <input class="form-check-input mt-0" type="checkbox" id="toggle-corr-matrix" style="cursor:pointer;">
                             <label class="form-check-label small fw-bold text-muted" for="toggle-corr-matrix" style="cursor:pointer;">Show Correlations</label>
                         </div>
-                        <div class="vr bg-secondary opacity-25"></div>
-                        <div class="d-flex align-items-center gap-2 ps-2">
-                            <input type="text" id="cma-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm" placeholder="Custom Market Name..." style="width: 190px;">
-                            <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" id="btn-save-cma" title="Save Custom Market"><i class="fas fa-save"></i></button>
-                            <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3" id="btn-delete-cma" title="Delete Custom Market"><i class="fas fa-trash"></i></button>
-                            <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 ms-2 fw-bold" style="width: 200px;">
-                                <option value="">Load Preset...</option>
-                            </select>
+                    </div>
+                    <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100 justify-content-lg-end">
+                        <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold w-100 w-md-auto" style="min-width: 200px;">
+                            <option value="">Load Preset...</option>
+                        </select>
+                        <div class="d-flex gap-2 w-100 w-md-auto">
+                            <input type="text" id="cma-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm w-100" placeholder="Custom Market Name...">
+                            <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3 flex-shrink-0" id="btn-save-cma" title="Save Custom Market"><i class="fas fa-save"></i></button>
+                            <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3 flex-shrink-0" id="btn-delete-cma" title="Delete Custom Market"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
                 </div>
@@ -109,20 +108,23 @@
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <div class="card h-100 mb-0">
-                            <div class="card-header d-flex justify-content-between align-items-center pb-0 border-0">
-                                <div class="d-flex align-items-center">
+                            <div class="card-header d-flex flex-column flex-xl-row justify-content-between align-items-start align-items-xl-center pb-3 pt-3 border-0 gap-3">
+                                <div class="d-flex align-items-center justify-content-between">
                                     <span class="fw-bold text-muted small text-uppercase">Primary</span>
                                     <div class="form-check form-switch m-0 ms-3 d-flex align-items-center gap-2">
                                         <input class="form-check-input mt-0" type="checkbox" id="adv-left" onchange="toggleAdv('left')" style="cursor:pointer; transform: scale(0.85);">
-                                        <label class="form-check-label small text-muted" for="adv-left" style="cursor:pointer; font-size: 0.75rem;">Asset Alpha/TE</label>
+                                        <label class="form-check-label small text-muted" for="adv-left" style="cursor:pointer; font-size: 0.75rem;">Alpha/TE</label>
                                     </div>
                                 </div>
-                                <div class="d-flex gap-2">
-                                    <select id="port-select-left" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="max-width: 160px;"></select>
-                                    <button class="btn btn-sm btn-light border rounded-circle shadow-sm" onclick="createNewPortfolio('left')"><i class="fas fa-plus"></i></button>
+                                <div class="d-flex flex-column flex-md-row gap-2 w-100 w-xl-auto justify-content-xl-end">
+                                    <div class="d-flex gap-2 w-100 w-md-auto">
+                                        <select id="port-select-left" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm w-100" style="min-width: 160px;"></select>
+                                        <button class="btn btn-sm btn-light border rounded-circle shadow-sm flex-shrink-0" onclick="createNewPortfolio('left')" title="New Custom Portfolio"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                    <div class="d-flex gap-2 w-100 w-md-auto" id="port-name-container-left"></div>
                                 </div>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body pt-0">
                                 <div id="port-inputs-left-container" class="table-responsive mb-3">
                                     <table class="table table-sm table-borderless align-middle mb-0" id="port-table-left"></table>
                                 </div>
@@ -141,20 +143,23 @@
 
                     <div class="col-lg-6">
                         <div class="card h-100 mb-0">
-                            <div class="card-header d-flex justify-content-between align-items-center pb-0 border-0">
-                                <div class="d-flex align-items-center">
+                            <div class="card-header d-flex flex-column flex-xl-row justify-content-between align-items-start align-items-xl-center pb-3 pt-3 border-0 gap-3">
+                                <div class="d-flex align-items-center justify-content-between">
                                     <span class="fw-bold text-muted small text-uppercase">Comparison</span>
                                     <div class="form-check form-switch m-0 ms-3 d-flex align-items-center gap-2">
                                         <input class="form-check-input mt-0" type="checkbox" id="adv-right" onchange="toggleAdv('right')" style="cursor:pointer; transform: scale(0.85);">
-                                        <label class="form-check-label small text-muted" for="adv-right" style="cursor:pointer; font-size: 0.75rem;">Asset Alpha/TE</label>
+                                        <label class="form-check-label small text-muted" for="adv-right" style="cursor:pointer; font-size: 0.75rem;">Alpha/TE</label>
                                     </div>
                                 </div>
-                                <div class="d-flex gap-2">
-                                    <select id="port-select-right" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="max-width: 160px;"><option value="none">-- Select to Compare --</option></select>
-                                    <button class="btn btn-sm btn-light border rounded-circle shadow-sm" onclick="createNewPortfolio('right')"><i class="fas fa-plus"></i></button>
+                                <div class="d-flex flex-column flex-md-row gap-2 w-100 w-xl-auto justify-content-xl-end">
+                                    <div class="d-flex gap-2 w-100 w-md-auto">
+                                        <select id="port-select-right" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm w-100" style="min-width: 160px;"><option value="none">-- Select to Compare --</option></select>
+                                        <button class="btn btn-sm btn-light border rounded-circle shadow-sm flex-shrink-0" onclick="createNewPortfolio('right')" title="New Custom Portfolio"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                    <div class="d-flex gap-2 w-100 w-md-auto" id="port-name-container-right"></div>
                                 </div>
                             </div>
-                            <div class="card-body" id="port-body-right">
+                            <div class="card-body pt-0" id="port-body-right">
                                 <div id="port-inputs-right-container" class="table-responsive mb-3 d-none">
                                     <table class="table table-sm table-borderless align-middle mb-0" id="port-table-right"></table>
                                 </div>
@@ -198,17 +203,19 @@
             </div>
 
             <div id="tab-strategy" class="view-section d-none">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold m-0 text-dark">Strategies</h4>
-                    <div class="d-flex gap-2 align-items-center">
-                        <input type="text" id="strat-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm" placeholder="Custom Strategy Name..." style="width: 190px;">
-                        <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" id="btn-save-strat" title="Save Custom Strategy"><i class="fas fa-save"></i></button>
-                        <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3" id="btn-delete-strat" title="Delete Custom Strategy"><i class="fas fa-trash"></i></button>
-                        
-                        <div class="vr bg-secondary opacity-25 mx-2"></div>
-                        
-                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="width: 220px;"><option value="">Load Preset...</option></select>
-                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4 gap-3">
+                    <div class="d-flex justify-content-between align-items-center w-100 w-lg-auto">
+                        <h4 class="fw-bold m-0 text-dark">Strategies</h4>
+                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm d-lg-none btn-toggle-strat" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
+                    </div>
+                    <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100 justify-content-lg-end">
+                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm w-100 w-md-auto" style="min-width: 200px;"><option value="">Load Preset...</option></select>
+                        <div class="d-flex gap-2 w-100 w-md-auto">
+                            <input type="text" id="strat-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm w-100" placeholder="Custom Strategy Name...">
+                            <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3 flex-shrink-0" id="btn-save-strat" title="Save Custom Strategy"><i class="fas fa-save"></i></button>
+                            <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3 flex-shrink-0" id="btn-delete-strat" title="Delete Custom Strategy"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <button class="btn btn-sm btn-light border rounded-pill shadow-sm d-none d-lg-block ms-md-2 btn-toggle-strat" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
                     </div>
                 </div>
                 <div class="card mb-3" id="strategy-table-container">
@@ -287,9 +294,9 @@
                             <thead>
                                 <tr>
                                     <th class="ps-3 border-0" style="font-size: 0.8rem;">Outcomes at Retirement</th>
-                                    <th class="text-end border-0" id="th-lower" style="font-size: 0.8rem;">Lower</th>
-                                    <th class="text-end col-median border-0 rounded-start" style="font-size: 0.8rem; color: var(--accent-blue);">Median</th>
-                                    <th class="text-end border-0 rounded-end pe-4" id="th-upper" style="font-size: 0.8rem;">Upper</th>
+                                    <th class="text-end border-0 px-1 px-md-3" id="th-lower" style="font-size: 0.8rem;">Lower</th>
+                                    <th class="text-end col-median border-0 rounded-start px-1 px-md-3" style="font-size: 0.8rem; color: var(--accent-blue);">Median</th>
+                                    <th class="text-end border-0 rounded-end pe-4 px-1 px-md-3" id="th-upper" style="font-size: 0.8rem;">Upper</th>
                                 </tr>
                             </thead>
                             <tbody>
