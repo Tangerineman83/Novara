@@ -66,7 +66,7 @@ export const PRESET_PERSONAS = [
     { 
         id: "pers_genz", 
         name: "The Gen-Z Accumulator", 
-        seed: "GenZ_Acc1",
+        seed: "LateStart_3", // <--- Swapped to Late Starter's seed
         desc: "Early 20s, starting early with high multi-decade compounding potential.", 
         data: { age: 25, retirementAge: 68, savings: 5000, salary: 32000, contribution: 10, realSalaryGrowth: 1.5 } 
     },
@@ -80,7 +80,7 @@ export const PRESET_PERSONAS = [
     { 
         id: "pers_late", 
         name: "The Late Starter", 
-        seed: "LateStart_3",
+        seed: "GenZ_Acc1", // <--- Swapped to Gen-Z's seed
         desc: "Aggressive catch-up phase entering the pre-retirement de-risking window.", 
         data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
     }
