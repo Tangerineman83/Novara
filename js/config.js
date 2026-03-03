@@ -62,26 +62,26 @@ export const PRESET_CMAS = [
     }
 ];
 
-// Updated to use highly stable base Avataaars seeds with custom soft background colors
+// Updated Personas with Seed identifiers for dynamic algorithmic generation
 export const PRESET_PERSONAS = [
     { 
         id: "pers_genz", 
         name: "The Gen-Z Accumulator", 
-        avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=Nala&backgroundColor=eef2ff", 
+        seed: "GenZ_Acc1",
         desc: "Early 20s, starting early with high multi-decade compounding potential.", 
         data: { age: 25, retirementAge: 68, savings: 5000, salary: 32000, contribution: 10, realSalaryGrowth: 1.5 } 
     },
     { 
         id: "pers_mid", 
         name: "The Mid-Career Builder", 
-        avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=Avery&backgroundColor=ecfdf5", 
+        seed: "MidCareer_Build2",
         desc: "Peak earning years, balancing mortgage responsibilities and pension acceleration.", 
         data: { age: 40, retirementAge: 68, savings: 85000, salary: 65000, contribution: 12, realSalaryGrowth: 0.5 } 
     },
     { 
         id: "pers_late", 
         name: "The Late Starter", 
-        avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=Jocelyn&backgroundColor=e0e7ff", 
+        seed: "LateStart_3",
         desc: "Aggressive catch-up phase entering the pre-retirement de-risking window.", 
         data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
     }
@@ -128,8 +128,6 @@ export const PRESET_PORTFOLIOS = [
         ]
     }
 ];
-
-export const INITIAL_PORTFOLIOS = JSON.parse(JSON.stringify(PRESET_PORTFOLIOS.flatMap(g => g.portfolios)));
 
 export const STRATEGY_GROUPS = [
     {
