@@ -40,14 +40,20 @@
                     <div class="d-flex align-items-center gap-3">
                         <h4 class="fw-bold m-0 text-dark">Markets</h4>
                     </div>
-                    <div class="d-flex align-items-center gap-4">
-                        <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Toggle full matrix view">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch m-0 d-flex align-items-center gap-2 me-2" title="Toggle full matrix view">
                             <input class="form-check-input mt-0" type="checkbox" id="toggle-corr-matrix" style="cursor:pointer;">
                             <label class="form-check-label small fw-bold text-muted" for="toggle-corr-matrix" style="cursor:pointer;">Show Correlations</label>
                         </div>
-                        <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0" style="width: 220px; font-weight: 600;">
-                            <option value="">Load Preset...</option>
-                        </select>
+                        <div class="vr bg-secondary opacity-25"></div>
+                        <div class="d-flex align-items-center gap-2 ps-2">
+                            <input type="text" id="cma-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm" placeholder="Custom Market Name..." style="width: 190px;">
+                            <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" id="btn-save-cma" title="Save Custom Market"><i class="fas fa-save"></i></button>
+                            <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3" id="btn-delete-cma" title="Delete Custom Market"><i class="fas fa-trash"></i></button>
+                            <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 ms-2 fw-bold" style="width: 200px;">
+                                <option value="">Load Preset...</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 
@@ -194,8 +200,14 @@
             <div id="tab-strategy" class="view-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="fw-bold m-0 text-dark">Strategies</h4>
-                    <div class="d-flex gap-2">
-                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="width: 250px;"><option value="">Load Preset...</option></select>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="text" id="strat-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm" placeholder="Custom Strategy Name..." style="width: 190px;">
+                        <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" id="btn-save-strat" title="Save Custom Strategy"><i class="fas fa-save"></i></button>
+                        <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3" id="btn-delete-strat" title="Delete Custom Strategy"><i class="fas fa-trash"></i></button>
+                        
+                        <div class="vr bg-secondary opacity-25 mx-2"></div>
+                        
+                        <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm" style="width: 220px;"><option value="">Load Preset...</option></select>
                         <button class="btn btn-sm btn-light border rounded-pill shadow-sm" id="toggle-strategy-inputs" title="Toggle Inputs"><i class="fas fa-compress-alt text-muted"></i></button>
                     </div>
                 </div>
