@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, INITIAL_PORTFOLIOS, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=17.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=17.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 const state = {
@@ -27,7 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
 
-    state.portfolios = JSON.parse(JSON.stringify(INITIAL_PORTFOLIOS));
+    // Build initial portfolios dynamically from presets to avoid import errors
+    state.portfolios = [];
+    PRESET_PORTFOLIOS.forEach(group => {
+        group.portfolios.forEach(p => state.portfolios.push(JSON.parse(JSON.stringify(p))));
+    });
+    
     state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
     if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
 
@@ -1389,3 +1394,4 @@ function updateUIState(status) {
     if(text) text.innerText = status;
     if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
 }
+
