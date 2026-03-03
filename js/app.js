@@ -85,12 +85,77 @@ function initTooltips() {
     }
 }
 
-// 100% Bulletproof DiceBear Algorithm
+// Deterministic & Dynamic Avatar Engine
 function getNeutralAvatarUrl(age, seed) {
-    // Removed the brittle hair/clothing overrides to prevent strict API validation errors.
-    // The 'seed' guarantees the avatar looks exactly the same every time it loads.
-    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
-    return `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&backgroundColor=${bg}`;
+    // Deterministic hasher: ensures the same seed always gets the exact same base traits
+    // to prevent the face from rapidly randomizing when dragging the age slider.
+    const getSeededVal = (max, salt = '') => {
+        let hash = 0;
+        const str = seed + salt;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash) % max;
+    };
+
+    // 1. Define Trait Pools
+    const feminineTops = ['longHairBigHair', 'longHairBob', 'longHairCurly', 'longHairCurvy', 'longHairFro', 'longHairStraight', 'longHairStraight2'];
+    const masculineTops = ['shortHairDreads01', 'shortHairDreads02', 'shortHairFrizzle', 'shortHairShaggyMullet', 'shortHairShortCurly', 'shortHairShortFlat', 'shortHairShortRound', 'shortHairTheCaesar'];
+    const standardHairColors = ['auburn', 'black', 'blonde', 'blondeGolden', 'brown', 'brownDark'];
+    const seniorHairColors = ['platinum', 'silverGray'];
+    const facialHairs = ['beardMedium', 'beardLight', 'beardMajestic', 'moustacheMagnum'];
+    const glasses = ['prescription01', 'prescription02'];
+    const kidClothes = ['hoodie', 'overall', 'shirtVNeck'];
+    const adultClothes = ['blazerAndShirt', 'blazerAndSweater', 'collarAndSweater', 'shirtCrewNeck'];
+
+    // 2. Lock Core Identity Traits (These survive the slider movement)
+    const isMasculine = getSeededVal(2, 'gender') === 0;
+    const topArray = isMasculine ? masculineTops : feminineTops;
+    const selectedTop = topArray[getSeededVal(topArray.length, 'top')];
+    const baseHairColor = standardHairColors[getSeededVal(standardHairColors.length, 'hair')];
+    const willHaveFacialHair = isMasculine && getSeededVal(2, 'faceHairProp') === 0;
+    const selectedFacialHair = facialHairs[getSeededVal(facialHairs.length, 'faceHairType')];
+    const willHaveGlasses = getSeededVal(10, 'glassesProp') > 5; // 40% chance
+
+    // 3. Apply Dynamic Age Logic
+    let finalHairColor = baseHairColor;
+    let finalFacialHair = '';
+    let finalAccessories = '';
+    let finalClothing = adultClothes[getSeededVal(adultClothes.length, 'adultClothes')];
+    let bg = "eef2ff";
+
+    if (age < 30) {
+        finalClothing = kidClothes[getSeededVal(kidClothes.length, 'kidClothes')];
+        bg = "eef2ff";
+    } else if (age >= 30 && age <= 50) {
+        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
+        bg = "ecfdf5";
+    } else if (age > 50) {
+        finalHairColor = seniorHairColors[getSeededVal(seniorHairColors.length, 'seniorHair')];
+        if (willHaveFacialHair) finalFacialHair = selectedFacialHair;
+        if (willHaveGlasses) finalAccessories = selectedGlasses;
+        bg = "e0e7ff";
+    }
+
+    // 4. Safely Construct URL Parameters
+    const params = new URLSearchParams({
+        seed: seed,
+        backgroundColor: bg,
+        top: selectedTop,
+        hairColor: finalHairColor,
+        clothing: finalClothing
+    });
+
+    if (finalFacialHair) {
+        params.append('facialHair', finalFacialHair);
+        params.append('facialHairColor', finalHairColor); 
+    }
+    
+    if (finalAccessories) {
+        params.append('accessories', finalAccessories);
+    }
+
+    return `https://api.dicebear.com/9.x/avataaars/svg?${params.toString()}`;
 }
 
 function setupEventListeners() {
