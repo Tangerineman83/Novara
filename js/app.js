@@ -145,8 +145,8 @@ function setupEventListeners() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const dateStr = new Date().toISOString().slice(0,10);
-        a.download = `novara_userdata_${dateStr}.json`;
+        // Standardized name allows users to easily overwrite their master save file
+        a.download = `novara_user_data.json`;
         a.click();
         URL.revokeObjectURL(url);
     });
