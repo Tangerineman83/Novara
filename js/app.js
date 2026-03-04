@@ -113,6 +113,7 @@ function getAvatarFallback(name) {
 }
 
 function setupEventListeners() {
+    // Top Tabs
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -135,6 +136,49 @@ function setupEventListeners() {
             
             document.getElementById(`tab-${target}`).classList.remove('d-none');
         });
+    });
+
+    // File Manager Controls
+    document.getElementById('btn-export-data')?.addEventListener('click', () => {
+        const data = UserDataEngine.load();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = new Date().toISOString().slice(0,10);
+        a.download = `novara_userdata_${dateStr}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btn-import-data')?.addEventListener('click', () => {
+        document.getElementById('file-import-data').click();
+    });
+
+    document.getElementById('file-import-data')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const json = JSON.parse(evt.target.result);
+                if(json && typeof json === 'object') {
+                    if(!json.cmas) json.cmas = [];
+                    if(!json.portfolios) json.portfolios = [];
+                    if(!json.strategies) json.strategies = [];
+                    if(!json.personas) json.personas = [];
+                    UserDataEngine.save(json);
+                    alert("Data imported successfully! The application will now reload to apply changes.");
+                    location.reload();
+                } else {
+                    alert("Invalid file format.");
+                }
+            } catch(err) {
+                alert("Error parsing JSON file. Please ensure it is a valid Novara save file.");
+            }
+            e.target.value = ''; 
+        };
+        reader.readAsText(file);
     });
 
     document.getElementById('run-simulation-btn')?.addEventListener('click', runSimulation);
@@ -169,6 +213,7 @@ function setupEventListeners() {
     window.addStrategyRow = addStrategyRow;
     window.createNewPortfolio = createNewPortfolio;
     window.toggleAdv = toggleAdv;
+    window.removeStrategyRow = removeStrategyRow; 
 }
 
 // --- SAVE & LOAD ENGINE LOGIC ---
@@ -1280,6 +1325,12 @@ function appendStrategyRow(tbody, r) {
         td.innerHTML = `<input type="number" class="form-control form-control-sm text-center bg-transparent border-0 strat-weight-input" data-row="${r}" data-col="${i}" value="0" step="5">`;
         tr.appendChild(td);
     });
+
+    const delTd = document.createElement('td');
+    delTd.className = "align-middle border-0";
+    delTd.innerHTML = `<button class="btn btn-sm btn-link text-danger border-0 shadow-none p-0" onclick="removeStrategyRow(${r})" title="Remove Portfolio"><i class="fas fa-times"></i></button>`;
+    tr.appendChild(delTd);
+
     tbody.appendChild(tr);
 }
 
@@ -1298,6 +1349,7 @@ function renderStrategyTable(rowCount = 1) {
             </div>
         </th>`;
     });
+    headHTML += `<th style="width: 40px;"></th>`; 
     thead.innerHTML = `<tr>${headHTML}</tr>`;
 
     tbody.innerHTML = '';
@@ -1311,6 +1363,41 @@ function addStrategyRow() {
     const tbody = document.querySelector('#strategy-table tbody');
     appendStrategyRow(tbody, tbody.children.length);
     bindStrategyTableEvents();
+}
+
+function removeStrategyRow(rowIdx) {
+    const table = document.getElementById('strategy-table');
+    const numRows = table.querySelectorAll('tbody tr').length;
+    if (numRows <= 1) return; 
+
+    const portSelections = [];
+    for(let r=0; r<numRows; r++) portSelections.push(table.querySelectorAll('.strat-port-select')[r].value);
+
+    const weightsMatrix = [];
+    state.strategyYears.forEach((y, colIdx) => {
+        const colWeights = [];
+        for(let r=0; r<numRows; r++) {
+            const wInp = table.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
+            colWeights.push(wInp ? wInp.value : 0);
+        }
+        weightsMatrix.push({ year: y, colWeights });
+    });
+
+    portSelections.splice(rowIdx, 1);
+    weightsMatrix.forEach(wm => wm.colWeights.splice(rowIdx, 1));
+
+    renderStrategyTable(numRows - 1);
+
+    const newTable = document.getElementById('strategy-table');
+    for(let r=0; r<numRows - 1; r++) {
+        newTable.querySelectorAll('.strat-port-select')[r].value = portSelections[r];
+        weightsMatrix.forEach((wm, colIdx) => {
+            const wInp = newTable.querySelector(`input.strat-weight-input[data-row="${r}"][data-col="${colIdx}"]`);
+            if(wInp) wInp.value = wm.colWeights[r];
+        });
+    }
+    renderStrategyChart();
+    if(state.autoRun) runSimulation();
 }
 
 function addStrategyYearColumn() {
