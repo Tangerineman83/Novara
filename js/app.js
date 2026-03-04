@@ -113,6 +113,7 @@ function getAvatarFallback(name) {
 }
 
 function setupEventListeners() {
+    // Top Tabs
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -137,6 +138,7 @@ function setupEventListeners() {
         });
     });
 
+    // File Manager Controls
     document.getElementById('btn-export-data')?.addEventListener('click', () => {
         const data = UserDataEngine.load();
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -830,6 +832,7 @@ function renderPersonaCards() {
         }
     });
     
+    // Re-initialize tooltips for new persona cards
     setTimeout(() => {
         const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
@@ -965,6 +968,55 @@ function renderPortfolioPane(side, portId) {
     const tbody = document.createElement('tbody');
     tbody.className = "small";
 
+    const isCustom = portfolio.id.startsWith('custom_');
+    const nameContainer = document.getElementById(`port-name-container-${side}`);
+    if(nameContainer) {
+        nameContainer.innerHTML = `
+            <input type="text" class="form-control form-control-sm text-start fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
+            <button class="btn btn-sm btn-primary rounded-pill shadow-sm btn-save-port flex-shrink-0 px-3" title="Save Portfolio"><i class="fas fa-save"></i></button>
+            ${isCustom ? `<button class="btn btn-sm btn-danger rounded-pill shadow-sm btn-delete-port flex-shrink-0 px-3" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
+        `;
+            
+        nameContainer.querySelector('.btn-save-port').onclick = (e) => {
+            const newName = nameContainer.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
+            let targetId = portfolio.id;
+            
+            if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
+                targetId = 'custom_port_' + Date.now();
+            }
+            
+            portfolio.name = newName;
+            portfolio.id = targetId;
+            
+            UserDataEngine.saveItem('portfolios', portfolio);
+            
+            const idx = state.portfolios.findIndex(p => p.id === targetId);
+            if(idx > -1) state.portfolios[idx] = JSON.parse(JSON.stringify(portfolio));
+            else state.portfolios.push(JSON.parse(JSON.stringify(portfolio)));
+            
+            refreshPortfolioDropdowns();
+            document.getElementById(`port-select-${side}`).value = targetId;
+            renderPortfolioPane(side, targetId); 
+            
+            const btn = e.currentTarget;
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
+        };
+
+        const delBtn = nameContainer.querySelector('.btn-delete-port');
+        if(delBtn) {
+            delBtn.onclick = () => {
+                UserDataEngine.deleteItem('portfolios', portfolio.id);
+                state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
+                refreshPortfolioDropdowns();
+                const fallback = PRESET_PORTFOLIOS[0].portfolios[0].id;
+                document.getElementById(`port-select-${side}`).value = fallback;
+                renderPortfolioPane(side, fallback);
+            };
+        }
+    }
+
     ASSET_CLASSES.forEach(ac => {
         const tr = document.createElement('tr');
         const w = portfolio.weights[ac.key] || 0;
@@ -1093,25 +1145,6 @@ function renderStressTests() {
     if(maxVal < 0) maxVal = 0;
     if(minVal > 0) minVal = 0;
     const range = maxVal - minVal || 1;
-
-    const formatAvg = (vals) => {
-        const sum = vals.reduce((a,b)=>a+b, 0);
-        return `${((sum/vals.length)*100).toFixed(1)}%`;
-    };
-
-    if (portL) {
-        document.getElementById('stress-summary-left-label').innerText = 'AVERAGE IMPACT';
-        document.getElementById('stress-summary-left').innerText = formatAvg(scenarioResults.map(s=>s.vL));
-    }
-    
-    const rightContainer = document.getElementById('stress-summary-right-container');
-    if (portR) {
-        rightContainer.classList.remove('d-none');
-        document.getElementById('stress-summary-right-label').innerText = 'AVERAGE IMPACT';
-        document.getElementById('stress-summary-right').innerText = formatAvg(scenarioResults.map(s=>s.vR));
-    } else {
-        rightContainer.classList.add('d-none');
-    }
 
     let html = '';
     
