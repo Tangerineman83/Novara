@@ -31,12 +31,31 @@ export const CHART_COLORS = [
 
 export const PRESET_CMAS = [
     {
-        name: "2026 Q1 Global Equilibrium (Updated)",
+        name: "2026 Q1 Global Equilibrium (Institutional Refined)",
         data: {
-            r: { usEq: 0.070, devEq: 0.072, emEq: 0.086, jpnEq: 0.070, ukEq: 0.065, apacEq: 0.072, globalReits: 0.068, realEstateDirect: 0.062, infrastructure: 0.071, privEq: 0.105, privCredit: 0.082, listedAlts: 0.064, digitalAssets: 0.125, globalHighYield: 0.078, emDebt: 0.075, igCredit: 0.051, sdCredit: 0.048, globalSov: 0.042, inflLinked: 0.045, moneyMkt: 0.035 },
-            v: { usEq: 0.155, devEq: 0.150, emEq: 0.220, jpnEq: 0.170, ukEq: 0.140, apacEq: 0.185, globalReits: 0.190, realEstateDirect: 0.140, infrastructure: 0.120, privEq: 0.240, privCredit: 0.100, listedAlts: 0.145, digitalAssets: 0.480, globalHighYield: 0.110, emDebt: 0.140, igCredit: 0.060, sdCredit: 0.040, globalSov: 0.070, inflLinked: 0.060, moneyMkt: 0.010 },
-            k: { usEq: 2.40, devEq: 1.90, emEq: 3.80, jpnEq: 2.10, ukEq: 1.60, apacEq: 3.10, globalReits: 2.80, realEstateDirect: 1.10, infrastructure: 1.30, privEq: 1.90, privCredit: 2.70, listedAlts: 2.10, digitalAssets: 5.50, globalHighYield: 2.90, emDebt: 3.40, igCredit: 1.50, sdCredit: 0.40, globalSov: 1.65, inflLinked: 1.80, moneyMkt: 0.15 },
+            r: { 
+                usEq: 0.070, devEq: 0.072, emEq: 0.091, jpnEq: 0.070, ukEq: 0.065, apacEq: 0.072, 
+                globalReits: 0.068, realEstateDirect: 0.067, infrastructure: 0.075, 
+                privEq: 0.105, privCredit: 0.082, listedAlts: 0.064, digitalAssets: 0.125, 
+                globalHighYield: 0.078, emDebt: 0.075, igCredit: 0.054, sdCredit: 0.048, 
+                globalSov: 0.045, inflLinked: 0.045, moneyMkt: 0.035 
+            },
+            v: { 
+                usEq: 0.155, devEq: 0.150, emEq: 0.220, jpnEq: 0.170, ukEq: 0.140, apacEq: 0.185, 
+                globalReits: 0.190, realEstateDirect: 0.140, infrastructure: 0.120, 
+                privEq: 0.240, privCredit: 0.100, listedAlts: 0.145, digitalAssets: 0.480, 
+                globalHighYield: 0.110, emDebt: 0.140, igCredit: 0.060, sdCredit: 0.040, 
+                globalSov: 0.070, inflLinked: 0.060, moneyMkt: 0.010 
+            },
+            k: { 
+                usEq: 2.55, devEq: 1.90, emEq: 4.10, jpnEq: 2.10, ukEq: 1.60, apacEq: 3.10, 
+                globalReits: 2.80, realEstateDirect: 1.10, infrastructure: 1.30, 
+                privEq: 1.90, privCredit: 3.00, listedAlts: 2.10, digitalAssets: 5.50, 
+                globalHighYield: 2.90, emDebt: 3.40, igCredit: 1.50, sdCredit: 0.40, 
+                globalSov: 1.65, inflLinked: 1.80, moneyMkt: 0.15 
+            },
             correlations: {
+                // Symmetrical matrix anchored to revised 2026 regional decoupling views
                 usEq: { usEq: 1.00, devEq: 0.75, emEq: 0.68, jpnEq: 0.45, ukEq: 0.65, apacEq: 0.55, globalReits: 0.75, realEstateDirect: 0.40, infrastructure: 0.45, privEq: 0.88, privCredit: 0.42, listedAlts: 0.65, digitalAssets: 0.62, globalHighYield: 0.62, emDebt: 0.50, igCredit: 0.35, sdCredit: 0.25, globalSov: -0.05, inflLinked: 0.12, moneyMkt: 0.00 },
                 devEq: { usEq: 0.75, devEq: 1.00, emEq: 0.75, jpnEq: 0.60, ukEq: 0.85, apacEq: 0.70, globalReits: 0.55, realEstateDirect: 0.40, infrastructure: 0.45, privEq: 0.80, privCredit: 0.40, listedAlts: 0.60, digitalAssets: 0.30, globalHighYield: 0.60, emDebt: 0.50, igCredit: 0.20, sdCredit: 0.10, globalSov: -0.10, inflLinked: -0.05, moneyMkt: 0.00 },
                 emEq: { usEq: 0.68, devEq: 0.75, emEq: 1.00, jpnEq: 0.55, ukEq: 0.65, apacEq: 0.80, globalReits: 0.50, realEstateDirect: 0.35, infrastructure: 0.40, privEq: 0.70, privCredit: 0.45, listedAlts: 0.55, digitalAssets: 0.40, globalHighYield: 0.65, emDebt: 0.70, igCredit: 0.25, sdCredit: 0.15, globalSov: -0.05, inflLinked: 0.00, moneyMkt: 0.00 },
