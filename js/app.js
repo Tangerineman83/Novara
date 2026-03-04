@@ -113,7 +113,6 @@ function getAvatarFallback(name) {
 }
 
 function setupEventListeners() {
-    // Top Tabs
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -138,14 +137,12 @@ function setupEventListeners() {
         });
     });
 
-    // File Manager Controls
     document.getElementById('btn-export-data')?.addEventListener('click', () => {
         const data = UserDataEngine.load();
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        // Standardized name allows users to easily overwrite their master save file
         a.download = `novara_user_data.json`;
         a.click();
         URL.revokeObjectURL(url);
@@ -738,9 +735,9 @@ function renderPersonaCards() {
                     <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
                     <div class="d-flex flex-column w-100 pe-auto" style="pointer-events: auto;">
                         <div class="d-flex align-items-center justify-content-between w-100">
-                            <div class="d-flex align-items-center flex-grow-1">
-                                <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem;">
-                                ${p.desc ? `<i class="fas fa-info-circle text-muted ms-2 pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>` : ''}
+                            <div class="d-flex align-items-center flex-grow-1 w-100">
+                                <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem; width: 100%; min-width: 0;">
+                                ${p.desc ? `<i class="fas fa-info-circle text-muted ms-1 pe-auto flex-shrink-0" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>` : ''}
                             </div>
                             <div class="d-flex gap-1 ms-2 flex-shrink-0">
                                 <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-save-persona" title="Save Persona"><i class="fas fa-save text-primary"></i></button>
@@ -790,7 +787,6 @@ function renderPersonaCards() {
             });
         });
 
-        // Save Persona
         col.querySelector('.btn-save-persona').onclick = (e) => {
             e.stopPropagation();
             const newName = col.querySelector('.persona-name-input').value.trim() || 'Custom Persona';
@@ -834,7 +830,6 @@ function renderPersonaCards() {
         }
     });
     
-    // Re-initialize tooltips for new persona cards
     setTimeout(() => {
         const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
@@ -970,55 +965,6 @@ function renderPortfolioPane(side, portId) {
     const tbody = document.createElement('tbody');
     tbody.className = "small";
 
-    const isCustom = portfolio.id.startsWith('custom_');
-    const nameContainer = document.getElementById(`port-name-container-${side}`);
-    if(nameContainer) {
-        nameContainer.innerHTML = `
-            <input type="text" class="form-control form-control-sm text-start fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
-            <button class="btn btn-sm btn-primary rounded-pill shadow-sm btn-save-port flex-shrink-0 px-3" title="Save Portfolio"><i class="fas fa-save"></i></button>
-            ${isCustom ? `<button class="btn btn-sm btn-danger rounded-pill shadow-sm btn-delete-port flex-shrink-0 px-3" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
-        `;
-            
-        nameContainer.querySelector('.btn-save-port').onclick = (e) => {
-            const newName = nameContainer.querySelector('.port-name-input').value.trim() || 'Custom Portfolio';
-            let targetId = portfolio.id;
-            
-            if (!targetId.startsWith('custom_') || portfolio.name !== newName) {
-                targetId = 'custom_port_' + Date.now();
-            }
-            
-            portfolio.name = newName;
-            portfolio.id = targetId;
-            
-            UserDataEngine.saveItem('portfolios', portfolio);
-            
-            const idx = state.portfolios.findIndex(p => p.id === targetId);
-            if(idx > -1) state.portfolios[idx] = JSON.parse(JSON.stringify(portfolio));
-            else state.portfolios.push(JSON.parse(JSON.stringify(portfolio)));
-            
-            refreshPortfolioDropdowns();
-            document.getElementById(`port-select-${side}`).value = targetId;
-            renderPortfolioPane(side, targetId); 
-            
-            const btn = e.currentTarget;
-            const orig = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
-        };
-
-        const delBtn = nameContainer.querySelector('.btn-delete-port');
-        if(delBtn) {
-            delBtn.onclick = () => {
-                UserDataEngine.deleteItem('portfolios', portfolio.id);
-                state.portfolios = state.portfolios.filter(p => p.id !== portfolio.id);
-                refreshPortfolioDropdowns();
-                const fallback = PRESET_PORTFOLIOS[0].portfolios[0].id;
-                document.getElementById(`port-select-${side}`).value = fallback;
-                renderPortfolioPane(side, fallback);
-            };
-        }
-    }
-
     ASSET_CLASSES.forEach(ac => {
         const tr = document.createElement('tr');
         const w = portfolio.weights[ac.key] || 0;
@@ -1074,6 +1020,21 @@ function updatePortfolioVisuals(side) {
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-unit-${side}`).innerText = stats.median20Yr.toFixed(2) + 'x';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
+
+    let totalImpact = 0;
+    STRESS_SCENARIOS.forEach(sc => {
+        let scenarioImpact = 0;
+        ASSET_CLASSES.forEach(ac => {
+            scenarioImpact += (portfolio.weights[ac.key] || 0) * (sc.returns[ac.key] || 0);
+        });
+        totalImpact += scenarioImpact;
+    });
+    const avgImpact = (totalImpact / STRESS_SCENARIOS.length) * 100;
+    const impactEl = document.getElementById(`stat-stress-${side}`);
+    if (impactEl) {
+        impactEl.innerText = `${avgImpact.toFixed(1)}%`;
+        impactEl.className = `val fw-bold ${avgImpact < 0 ? 'text-danger' : 'text-success'}`;
+    }
 
     const ctx = document.getElementById(`pie-${side}`).getContext('2d');
     const labels = []; const data = []; const bgColors = [];
