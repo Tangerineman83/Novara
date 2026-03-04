@@ -738,13 +738,15 @@ function renderPersonaCards() {
                     <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
                     <div class="d-flex flex-column w-100 pe-auto" style="pointer-events: auto;">
                         <div class="d-flex align-items-center justify-content-between w-100">
-                            <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input" value="${p.name}" style="font-size:1rem;">
-                            <div class="d-flex gap-1">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem;">
+                                ${p.desc ? `<i class="fas fa-info-circle text-muted ms-2 pe-auto" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>` : ''}
+                            </div>
+                            <div class="d-flex gap-1 ms-2 flex-shrink-0">
                                 <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-save-persona" title="Save Persona"><i class="fas fa-save text-primary"></i></button>
                                 ${isCustom ? `<button class="btn btn-sm btn-light border rounded-circle shadow-sm text-danger btn-delete-persona" title="Delete Persona"><i class="fas fa-trash"></i></button>` : ''}
                             </div>
                         </div>
-                        ${p.desc ? `<div class="small text-muted text-truncate" style="font-size:0.75rem;" title="${p.desc}">${p.desc}</div>` : ''}
                     </div>
                 </div>
                 <div class="card-body pt-0">
@@ -831,6 +833,12 @@ function renderPersonaCards() {
             };
         }
     });
+    
+    // Re-initialize tooltips for new persona cards
+    setTimeout(() => {
+        const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
+    }, 50);
 }
 
 function initRunModelInputs() {
