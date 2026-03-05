@@ -40,7 +40,8 @@ const state = {
     activePersonaId: null,
     strategyYears: [50, 15, 0],
     autoRun: true,
-    portfolioInputsCollapsed: false,
+    portInputsCollapsed_left: true,  // Default collapsed
+    portInputsCollapsed_right: true, // Default collapsed
     advLeft: false,
     advRight: false
 };
@@ -197,11 +198,6 @@ function setupEventListeners() {
     document.getElementById('port-select-left')?.addEventListener('change', (e) => renderPortfolioPane('left', e.target.value));
     document.getElementById('port-select-right')?.addEventListener('change', (e) => renderPortfolioPane('right', e.target.value));
     
-    document.getElementById('toggle-portfolio-inputs')?.addEventListener('click', () => {
-        state.portfolioInputsCollapsed = !state.portfolioInputsCollapsed;
-        syncPortfolioInputsVisibility();
-    });
-
     document.querySelectorAll('.btn-toggle-strat').forEach(btn => {
         btn.addEventListener('click', () => document.getElementById('strategy-table-container').classList.toggle('d-none'));
     });
@@ -213,6 +209,30 @@ function setupEventListeners() {
     window.createNewPortfolio = createNewPortfolio;
     window.toggleAdv = toggleAdv;
     window.removeStrategyRow = removeStrategyRow; 
+    window.togglePortfolioInputs = togglePortfolioInputs;
+}
+
+function togglePortfolioInputs(side) {
+    state[`portInputsCollapsed_${side}`] = !state[`portInputsCollapsed_${side}`];
+    syncPortfolioInputsVisibilitySide(side);
+}
+
+function syncPortfolioInputsVisibilitySide(side) {
+    const container = document.getElementById(`port-inputs-${side}-container`);
+    const hr = document.getElementById(`port-hr-${side}`);
+    const icon = document.getElementById(`icon-toggle-${side}`);
+    
+    if(container && hr) {
+        if (state[`portInputsCollapsed_${side}`]) {
+            container.classList.add('d-none'); 
+            hr.classList.add('d-none');
+            if(icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+        } else {
+            container.classList.remove('d-none'); 
+            hr.classList.remove('d-none');
+            if(icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+        }
+    }
 }
 
 // --- SAVE & LOAD ENGINE LOGIC ---
@@ -481,20 +501,6 @@ function toggleAdv(side) {
     } else {
         cols.forEach(el => el.classList.add('d-none'));
     }
-}
-
-function syncPortfolioInputsVisibility() {
-    ['left', 'right'].forEach(side => {
-        const container = document.getElementById(`port-inputs-${side}-container`);
-        const hr = document.getElementById(`port-hr-${side}`);
-        if(container && hr) {
-            if (state.portfolioInputsCollapsed) {
-                container.classList.add('d-none'); hr.classList.add('d-none');
-            } else {
-                container.classList.remove('d-none'); hr.classList.remove('d-none');
-            }
-        }
-    });
 }
 
 function hexToRgba(hex, alpha) {
@@ -832,7 +838,6 @@ function renderPersonaCards() {
         }
     });
     
-    // Re-initialize tooltips for new persona cards
     setTimeout(() => {
         const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
@@ -925,7 +930,7 @@ function createNewPortfolio(side) {
 }
 
 function renderPortfolioPane(side, portId) {
-    syncPortfolioInputsVisibility();
+    syncPortfolioInputsVisibilitySide(side);
 
     const blankMsg = document.getElementById(`port-blank-${side}`);
     const bodyContainer = document.getElementById(`port-inputs-${side}-container`);
@@ -943,6 +948,7 @@ function renderPortfolioPane(side, portId) {
     } else {
         if(visualsContainer) visualsContainer.classList.remove('d-none');
         if(blankMsg) blankMsg.classList.add('d-none');
+        syncPortfolioInputsVisibilitySide(side);
     }
 
     const original = getGlobalPortfolio(portId);
@@ -1145,6 +1151,25 @@ function renderStressTests() {
     if(maxVal < 0) maxVal = 0;
     if(minVal > 0) minVal = 0;
     const range = maxVal - minVal || 1;
+
+    const formatAvg = (vals) => {
+        const sum = vals.reduce((a,b)=>a+b, 0);
+        return `${((sum/vals.length)*100).toFixed(1)}%`;
+    };
+
+    if (portL) {
+        document.getElementById('stress-summary-left-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-left').innerText = formatAvg(scenarioResults.map(s=>s.vL));
+    }
+    
+    const rightContainer = document.getElementById('stress-summary-right-container');
+    if (portR) {
+        rightContainer.classList.remove('d-none');
+        document.getElementById('stress-summary-right-label').innerText = 'AVERAGE IMPACT';
+        document.getElementById('stress-summary-right').innerText = formatAvg(scenarioResults.map(s=>s.vR));
+    } else {
+        rightContainer.classList.add('d-none');
+    }
 
     let html = '';
     
