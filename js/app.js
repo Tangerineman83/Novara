@@ -221,15 +221,24 @@ function syncPortfolioInputsVisibilitySide(side) {
     const container = document.getElementById(`port-inputs-${side}-container`);
     const hr = document.getElementById(`port-hr-${side}`);
     const icon = document.getElementById(`icon-toggle-${side}`);
+    const nameContainer = document.getElementById(`port-name-container-${side}`);
     
     if(container && hr) {
         if (state[`portInputsCollapsed_${side}`]) {
             container.classList.add('d-none'); 
             hr.classList.add('d-none');
+            if(nameContainer) {
+                nameContainer.classList.remove('d-flex');
+                nameContainer.classList.add('d-none');
+            }
             if(icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
         } else {
             container.classList.remove('d-none'); 
             hr.classList.remove('d-none');
+            if(nameContainer) {
+                nameContainer.classList.remove('d-none');
+                nameContainer.classList.add('d-flex');
+            }
             if(icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
         }
     }
@@ -926,6 +935,9 @@ function createNewPortfolio(side) {
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
     document.getElementById(`port-select-${side}`).value = newPort.id;
+    
+    state[`portInputsCollapsed_${side}`] = false; // Auto-expand when a new portfolio is created
+    
     renderPortfolioPane(side, newPort.id);
 }
 
@@ -948,7 +960,6 @@ function renderPortfolioPane(side, portId) {
     } else {
         if(visualsContainer) visualsContainer.classList.remove('d-none');
         if(blankMsg) blankMsg.classList.add('d-none');
-        syncPortfolioInputsVisibilitySide(side);
     }
 
     const original = getGlobalPortfolio(portId);
