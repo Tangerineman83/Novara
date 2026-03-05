@@ -570,7 +570,7 @@ function renderAssetRows() {
     
     let headerHTML = `
         <th style="min-width: 180px;">Asset Class</th>
-        <th class="text-center" style="width: 100px;">Tail Risk</th>
+        <th class="text-center" style="width: 100px;">Profile</th>
         <th class="text-end" style="min-width: 90px;">Return (%)</th>
         <th class="text-end" style="min-width: 90px;">Vol (%)</th>
         <th class="text-end pe-4" style="min-width: 90px;">Kurtosis</th>
