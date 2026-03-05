@@ -1163,25 +1163,6 @@ function renderStressTests() {
     if(minVal > 0) minVal = 0;
     const range = maxVal - minVal || 1;
 
-    const formatAvg = (vals) => {
-        const sum = vals.reduce((a,b)=>a+b, 0);
-        return `${((sum/vals.length)*100).toFixed(1)}%`;
-    };
-
-    if (portL) {
-        document.getElementById('stress-summary-left-label').innerText = 'AVERAGE IMPACT';
-        document.getElementById('stress-summary-left').innerText = formatAvg(scenarioResults.map(s=>s.vL));
-    }
-    
-    const rightContainer = document.getElementById('stress-summary-right-container');
-    if (portR) {
-        rightContainer.classList.remove('d-none');
-        document.getElementById('stress-summary-right-label').innerText = 'AVERAGE IMPACT';
-        document.getElementById('stress-summary-right').innerText = formatAvg(scenarioResults.map(s=>s.vR));
-    } else {
-        rightContainer.classList.add('d-none');
-    }
-
     let html = '';
     
     html += '<div class="d-flex mb-2" style="padding-left: 220px; position:relative; height: 15px;">';
