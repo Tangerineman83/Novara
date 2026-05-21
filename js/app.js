@@ -932,10 +932,6 @@ function updatePersonaAvatar(personaId, age) {
     }, 220);
 }
 
-
-    renderPersonaDropdown();
-}
-
 function initRunModelInputs() {
     renderPersonaDropdown();
 }
