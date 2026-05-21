@@ -1,26 +1,26 @@
 // js/config.js
 
 export const ASSET_CLASSES = [
-    { key: "usEq", name: "US Equity", category: "Equities", defaultR: 0.075, defaultV: 0.16, defaultK: 1.5, color: "#1D4ED8" },
-    { key: "devEq", name: "Dev Europe Equity", category: "Equities", defaultR: 0.070, defaultV: 0.16, defaultK: 1.6, color: "#3B82F6" },
-    { key: "emEq", name: "EM Equity", category: "Equities", defaultR: 0.085, defaultV: 0.20, defaultK: 2.5, color: "#60A5FA" },
-    { key: "jpnEq", name: "Japan Equity", category: "Equities", defaultR: 0.060, defaultV: 0.15, defaultK: 1.5, color: "#93C5FD" },
-    { key: "ukEq", name: "UK Equity", category: "Equities", defaultR: 0.065, defaultV: 0.15, defaultK: 1.8, color: "#BFDBFE" },
-    { key: "apacEq", name: "Dev APAC (ex-Japan)", category: "Equities", defaultR: 0.065, defaultV: 0.16, defaultK: 1.7, color: "#DBEAFE" },
-    { key: "globalReits", name: "Global REITs", category: "Real Assets", defaultR: 0.060, defaultV: 0.18, defaultK: 2.0, color: "#6D28D9" },
-    { key: "realEstateDirect", name: "Real Estate (Direct)", category: "Real Assets", defaultR: 0.055, defaultV: 0.10, defaultK: 2.5, color: "#7E22CE" },
-    { key: "infrastructure", name: "Infrastructure", category: "Real Assets", defaultR: 0.065, defaultV: 0.11, defaultK: 2.0, color: "#A855F7" },
-    { key: "privEq", name: "Private Equity", category: "Alternatives", defaultR: 0.095, defaultV: 0.22, defaultK: 4.5, color: "#B45309" },
-    { key: "listedAlts", name: "Listed Alts", category: "Alternatives", defaultR: 0.055, defaultV: 0.12, defaultK: 1.5, color: "#F59E0B" },
-    { key: "digitalAssets", name: "Digital Assets", category: "Alternatives", defaultR: 0.120, defaultV: 0.50, defaultK: 5.0, color: "#0F172A" },
-    { key: "privCredit", name: "Private Credit", category: "Credit", defaultR: 0.075, defaultV: 0.09, defaultK: 3.5, color: "#D97706" },
-    { key: "globalHighYield", name: "Global High Yield", category: "Credit", defaultR: 0.060, defaultV: 0.10, defaultK: 2.5, color: "#047857" },
-    { key: "emDebt", name: "EM Debt", category: "Credit", defaultR: 0.065, defaultV: 0.12, defaultK: 2.5, color: "#059669" },
-    { key: "igCredit", name: "IG Credit", category: "Credit", defaultR: 0.045, defaultV: 0.06, defaultK: 1.2, color: "#10B981" },
-    { key: "sdCredit", name: "Short Duration Credit", category: "Credit", defaultR: 0.035, defaultV: 0.03, defaultK: 1.0, color: "#34D399" },
-    { key: "globalSov", name: "Global Sovereign", category: "Sov & Cash", defaultR: 0.025, defaultV: 0.05, defaultK: 0.5, color: "#0F766E" },
-    { key: "inflLinked", name: "Inflation Linked", category: "Sov & Cash", defaultR: 0.020, defaultV: 0.05, defaultK: 0.5, color: "#0E7490" },
-    { key: "moneyMkt", name: "Money Markets", category: "Sov & Cash", defaultR: 0.025, defaultV: 0.01, defaultK: 0.0, color: "#64748B" }
+    { key: "usEq",            name: "US Equity",             category: "Equities",   defaultR: 0.075, defaultV: 0.16, defaultK: 2.5, color: "#1D4ED8" },
+    { key: "devEq",           name: "Dev Europe Equity",     category: "Equities",   defaultR: 0.070, defaultV: 0.16, defaultK: 2.0, color: "#3B82F6" },
+    { key: "emEq",            name: "EM Equity",             category: "Equities",   defaultR: 0.085, defaultV: 0.20, defaultK: 4.0, color: "#60A5FA" },
+    { key: "jpnEq",           name: "Japan Equity",          category: "Equities",   defaultR: 0.060, defaultV: 0.15, defaultK: 2.0, color: "#93C5FD" },
+    { key: "ukEq",            name: "UK Equity",             category: "Equities",   defaultR: 0.065, defaultV: 0.15, defaultK: 2.2, color: "#BFDBFE" },
+    { key: "apacEq",          name: "Dev APAC (ex-Japan)",   category: "Equities",   defaultR: 0.065, defaultV: 0.16, defaultK: 3.0, color: "#DBEAFE" },
+    { key: "globalReits",     name: "Global REITs",          category: "Real Assets",defaultR: 0.060, defaultV: 0.18, defaultK: 2.8, color: "#6D28D9" },
+    { key: "realEstateDirect",name: "Real Estate (Direct)",  category: "Real Assets",defaultR: 0.055, defaultV: 0.10, defaultK: 2.0, color: "#7E22CE" },
+    { key: "infrastructure",  name: "Infrastructure",        category: "Real Assets",defaultR: 0.065, defaultV: 0.11, defaultK: 1.5, color: "#A855F7" },
+    { key: "privEq",          name: "Private Equity",        category: "Alternatives",defaultR: 0.095, defaultV: 0.22, defaultK: 3.5, color: "#B45309" },
+    { key: "listedAlts",      name: "Listed Alts",           category: "Alternatives",defaultR: 0.055, defaultV: 0.12, defaultK: 2.5, color: "#F59E0B" },
+    { key: "digitalAssets",   name: "Digital Assets",        category: "Alternatives",defaultR: 0.120, defaultV: 0.50, defaultK: 6.5, color: "#0F172A" },
+    { key: "privCredit",      name: "Private Credit",        category: "Credit",     defaultR: 0.075, defaultV: 0.09, defaultK: 4.0, color: "#D97706" },
+    { key: "globalHighYield", name: "Global High Yield",     category: "Credit",     defaultR: 0.060, defaultV: 0.10, defaultK: 3.0, color: "#047857" },
+    { key: "emDebt",          name: "EM Debt",               category: "Credit",     defaultR: 0.065, defaultV: 0.12, defaultK: 3.5, color: "#059669" },
+    { key: "igCredit",        name: "IG Credit",             category: "Credit",     defaultR: 0.045, defaultV: 0.06, defaultK: 1.5, color: "#10B981" },
+    { key: "sdCredit",        name: "Short Duration Credit", category: "Credit",     defaultR: 0.035, defaultV: 0.03, defaultK: 0.8, color: "#34D399" },
+    { key: "globalSov",       name: "Global Sovereign",      category: "Sov & Cash", defaultR: 0.025, defaultV: 0.05, defaultK: 1.0, color: "#0F766E" },
+    { key: "inflLinked",      name: "Inflation Linked",      category: "Sov & Cash", defaultR: 0.020, defaultV: 0.05, defaultK: 0.8, color: "#0E7490" },
+    { key: "moneyMkt",        name: "Money Markets",         category: "Sov & Cash", defaultR: 0.025, defaultV: 0.01, defaultK: 0.0, color: "#64748B" }
 ];
 
 export const CHART_COLORS = [

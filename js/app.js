@@ -1,6 +1,7 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=18.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=19.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
+import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
 // --- LOCAL STORAGE ENGINE ---
 const UserDataEngine = {
@@ -108,15 +109,7 @@ function initTooltips() {
     }
 }
 
-function getNeutralAvatarUrl(age, seed) {
-    let bg = age < 30 ? "eef2ff" : age <= 50 ? "ecfdf5" : "e0e7ff";
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${bg}`;
-}
-
-function getAvatarFallback(name) {
-    const safe = encodeURIComponent(name);
-    return `this.onerror=null; this.src='https://ui-avatars.com/api/?name=${safe}&background=eef2ff&color=3730A3&rounded=true';`;
-}
+// Avatar helpers are provided by avatars.js (getAvatarSVG, getAvatarBgColor, getAvatarLabel)
 
 // Escapes a string for safe use inside an HTML attribute value.
 function escAttr(s) {
@@ -797,7 +790,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=18.0'); 
+    state.worker = new Worker('./js/worker.js?v=19.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -827,21 +820,22 @@ function renderPersonaCards() {
     
     state.personas.forEach(p => {
         const isActive = state.activePersonaId === p.id;
-        const activeClass = isActive ? 'active-persona' : '';
         const isCustom = p.id.startsWith('custom_');
-        const imgGlow = isActive ? 'box-shadow: var(--shadow-btn) !important; border-color: var(--accent-blue) !important;' : 'border: 2px solid var(--border-light);';
-        
+        const bandLabel = getAvatarLabel(p.data.age);
+        const bgColor   = getAvatarBgColor(p.data.age);
+        const avatarSVG = getAvatarSVG(p.data.age);
+
         const col = document.createElement('div');
         col.className = 'col-lg-4 col-md-6';
         col.innerHTML = `
-            <div class="card h-100 persona-card shadow-sm ${activeClass}" style="cursor: pointer; transition: all 0.3s ease;" data-id="${p.id}">
-                <div class="card-header border-0 d-flex align-items-center gap-3 bg-transparent pt-4 pb-3 pe-none">
-                    <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" id="avatar-img-${p.id}" class="rounded-circle shadow-sm flex-shrink-0" width="56" height="56" style="background: var(--bg-surface); ${imgGlow}">
-                    <div class="d-flex flex-column w-100 pe-auto" style="pointer-events: auto;">
+            <div class="card h-100 persona-card shadow-sm ${isActive ? 'active-persona' : ''}" style="cursor:pointer; transition:all 0.3s ease;" data-id="${p.id}">
+                <div class="card-header border-0 d-flex align-items-center gap-3 pt-4 pb-3 pe-none" style="background:${bgColor};">
+                    <div id="avatar-wrap-${p.id}" class="persona-avatar flex-shrink-0" style="width:64px; height:64px; border-radius:50%; overflow:hidden; background:${bgColor}; box-shadow:var(--shadow-soft); transition:opacity 0.25s ease;">${avatarSVG}</div>
+                    <div class="d-flex flex-column w-100 pe-auto" style="pointer-events:auto;">
                         <div class="d-flex align-items-center justify-content-between w-100">
-                            <div class="d-flex align-items-center flex-grow-1 w-100">
-                                <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem; width: 100%; min-width: 0;">
-                                ${p.desc ? `<i class="fas fa-info-circle text-muted ms-1 pe-auto flex-shrink-0" data-bs-toggle="tooltip" data-bs-title="${p.desc}" style="cursor:help; pointer-events: auto;"></i>` : ''}
+                            <div class="d-flex flex-column flex-grow-1 w-100">
+                                <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem; width:100%; min-width:0;">
+                                <span class="persona-band-label" style="font-size:0.7rem; font-weight:700; color:var(--text-muted); letter-spacing:0.3px;">${bandLabel}</span>
                             </div>
                             <div class="d-flex gap-1 ms-2 flex-shrink-0">
                                 <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-save-persona" title="Save Persona"><i class="fas fa-save text-primary"></i></button>
@@ -851,11 +845,11 @@ function renderPersonaCards() {
                     </div>
                 </div>
                 <div class="card-body pt-0">
-                    <div class="row g-2 pe-auto" style="pointer-events: auto;">
+                    <div class="row g-2 pe-auto" style="pointer-events:auto;">
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Age</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="age" value="${p.data.age}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Retire Age</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="retirementAge" value="${p.data.retirementAge}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (£)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="salary" value="${p.data.salary}"></div>
-                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (£)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="savings" value="${p.data.savings}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Salary (\u00a3)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="salary" value="${p.data.salary}"></div>
+                        <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Current Pot (\u00a3)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="savings" value="${p.data.savings}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Contrib (%)</label><input type="number" class="form-control form-control-sm persona-data-input" data-field="contribution" value="${p.data.contribution}"></div>
                         <div class="col-6"><label class="form-label mb-1" style="font-size:0.7rem">Real Salary Gr. (%)</label><input type="number" step="0.1" class="form-control form-control-sm persona-data-input" data-field="realSalaryGrowth" value="${p.data.realSalaryGrowth}"></div>
                     </div>
@@ -863,31 +857,23 @@ function renderPersonaCards() {
             </div>
         `;
         container.appendChild(col);
-        
+
         const cardEl = col.querySelector('.persona-card');
         cardEl.addEventListener('click', (e) => {
             if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'i') return;
             state.activePersonaId = p.id;
-            // Update active styling in-place — no full rebuild needed
             document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
             cardEl.classList.add('active-persona');
-            updateActivePersonaDisplay(); 
-            if(state.autoRun) { 
-                updateUIState('Updating...'); 
-                clearTimeout(debounceTimer); 
-                debounceTimer = setTimeout(runSimulation, 600); 
-            }
+            updateActivePersonaDisplay();
+            if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
         });
 
         col.querySelectorAll('.persona-data-input').forEach(inp => {
             inp.addEventListener('change', (e) => {
                 const field = e.target.dataset.field;
                 p.data[field] = parseFloat(e.target.value) || 0;
-                
                 if (field === 'age') {
-                    // Update avatar in-place to avoid rebuilding the entire card grid
-                    const imgEl = document.getElementById(`avatar-img-${p.id}`);
-                    if (imgEl) imgEl.src = getNeutralAvatarUrl(p.data.age, p.seed || p.id);
+                    updatePersonaAvatar(p.id, p.data.age);
                     renderPersonaDropdown();
                 }
                 if(state.autoRun && state.activePersonaId === p.id) runSimulation();
@@ -898,28 +884,15 @@ function renderPersonaCards() {
             e.stopPropagation();
             const newName = col.querySelector('.persona-name-input').value.trim() || 'Custom Persona';
             let targetId = p.id;
-            
-            if (!targetId.startsWith('custom_') || p.name !== newName) {
-                targetId = 'custom_pers_' + Date.now();
-            }
-            
+            if (!targetId.startsWith('custom_') || p.name !== newName) targetId = 'custom_pers_' + Date.now();
             const newP = JSON.parse(JSON.stringify(p));
-            newP.id = targetId;
-            newP.name = newName;
-            newP.seed = targetId; 
-            
+            newP.id = targetId; newP.name = newName;
             UserDataEngine.saveItem('personas', newP);
-            
             const idx = state.personas.findIndex(x => x.id === targetId);
-            if(idx > -1) state.personas[idx] = newP;
-            else state.personas.push(newP);
-            
+            if(idx > -1) state.personas[idx] = newP; else state.personas.push(newP);
             state.activePersonaId = targetId;
-            renderPersonaCards();
-            renderPersonaDropdown();
-            
-            const btn = e.currentTarget;
-            const orig = btn.innerHTML;
+            renderPersonaCards(); renderPersonaDropdown();
+            const btn = e.currentTarget; const orig = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-check text-success"></i>';
             setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
         };
@@ -931,16 +904,36 @@ function renderPersonaCards() {
                 UserDataEngine.deleteItem('personas', p.id);
                 state.personas = state.personas.filter(x => x.id !== p.id);
                 if(state.activePersonaId === p.id) state.activePersonaId = state.personas[0].id;
-                renderPersonaCards();
-                renderPersonaDropdown();
+                renderPersonaCards(); renderPersonaDropdown();
             };
         }
     });
-    
+
     setTimeout(() => {
         const newTooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html: true}));
+        [...newTooltips].map(el => new bootstrap.Tooltip(el, {container:'body', html:true}));
     }, 50);
+}
+
+// Crossfades the avatar to the correct age band on tab-out — no card rebuild.
+function updatePersonaAvatar(personaId, age) {
+    const wrap = document.getElementById(`avatar-wrap-${personaId}`);
+    if (!wrap) return;
+    wrap.style.opacity = '0';
+    setTimeout(() => {
+        wrap.innerHTML = getAvatarSVG(age);
+        wrap.style.background = getAvatarBgColor(age);
+        const header = wrap.closest('.card-header');
+        if (header) header.style.background = getAvatarBgColor(age);
+        const bandEl = wrap.closest('.card').querySelector('.persona-band-label');
+        if (bandEl) bandEl.textContent = getAvatarLabel(age);
+        wrap.style.opacity = '1';
+        updateActivePersonaDisplay();
+    }, 220);
+}
+
+
+    renderPersonaDropdown();
 }
 
 function initRunModelInputs() {
@@ -951,17 +944,22 @@ function renderPersonaDropdown() {
     const menu = document.getElementById('run-persona-dropdown-menu');
     if(!menu) return;
     menu.innerHTML = '';
-    
     state.personas.forEach(p => {
         const li = document.createElement('li');
+        const avatarHtml = `<div style="width:24px;height:24px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>`;
         li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
-            <img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" width="24" height="24" class="rounded-circle bg-light border shadow-sm flex-shrink-0">
-            <span class="fw-bold small text-dark">${p.name}</span>
+            ${avatarHtml}
+            <div class="d-flex flex-column">
+                <span class="fw-bold small text-dark">${p.name}</span>
+                <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
+            </div>
         </a>`;
         li.querySelector('a').addEventListener('click', (e) => {
             e.preventDefault();
             state.activePersonaId = p.id;
-            renderPersonaCards(); 
+            document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
+            const activeCard = document.querySelector(`.persona-card[data-id="${p.id}"]`);
+            if (activeCard) activeCard.classList.add('active-persona');
             updateActivePersonaDisplay();
             if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
         });
@@ -974,12 +972,14 @@ function updateActivePersonaDisplay() {
     const p = state.personas.find(x => x.id === state.activePersonaId);
     const content = document.getElementById('active-persona-content');
     if(p && content) {
-        content.innerHTML = `<img src="${getNeutralAvatarUrl(p.data.age, p.seed || p.id)}" onerror="${getAvatarFallback(p.name)}" width="20" height="20" class="rounded-circle bg-white shadow-sm border flex-shrink-0"><span class="fw-bold text-dark" style="font-size: 0.85rem; white-space: nowrap;">${p.name}</span>`;
+        const avatarHtml = `<div style="width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>`;
+        content.innerHTML = `${avatarHtml}<span class="fw-bold text-dark" style="font-size:0.85rem;white-space:nowrap;">${p.name}</span>`;
     }
 }
 
+
 function setupAutoRun() {
-    const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation', 'setting-sys-kurtosis'];
+    const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if(!state.autoRun) return;
@@ -1733,14 +1733,10 @@ function runSimulation() {
     try {
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
-        const sysKInput = document.getElementById('setting-sys-kurtosis');
         
         const simCount = simInput ? parseInt(simInput.value) : 2000;
         let inflation = 2.5;
         if(infInput && infInput.value !== "") inflation = parseFloat(infInput.value);
-        
-        let sysKurtosis = 2.0;
-        if(sysKInput && sysKInput.value !== "") sysKurtosis = parseFloat(sysKInput.value);
 
         const persona = getActivePersona();
         const cma = getActiveCMA();
@@ -1754,7 +1750,7 @@ function runSimulation() {
             assetKeys: ASSET_CLASSES.map(a => a.key), 
             assetCategories: ASSET_CLASSES.map(a => ({ key: a.key, category: a.category })),
             persona, 
-            settings: { simCount, inflation, sysKurtosis }, 
+            settings: { simCount, inflation }, 
             strategies 
         };
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
