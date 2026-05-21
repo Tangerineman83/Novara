@@ -219,3 +219,20 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
     .ribbon-col { border-right: none; padding-right: 0; margin-bottom: 1rem; }
     .chart-card-wrapper { min-height: 400px; }
 }
+
+/* --- Dirty state indicator for unsaved custom inputs --- */
+.dirty-indicator {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #D97706;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.dirty-indicator.visible {
+    opacity: 1;
+}
