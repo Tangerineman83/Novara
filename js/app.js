@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=17.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=18.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 
 // --- LOCAL STORAGE ENGINE ---
@@ -12,7 +12,10 @@ const UserDataEngine = {
             return { cmas: [], portfolios: [], strategies: [], personas: [] }; 
         }
     },
-    save: (data) => localStorage.setItem('novara_user_data', JSON.stringify(data)),
+    save: (data) => {
+        try { localStorage.setItem('novara_user_data', JSON.stringify(data)); }
+        catch(e) { console.warn('Storage quota exceeded; user data could not be saved.', e); }
+    },
     saveItem: (type, item) => {
         let d = UserDataEngine.load();
         const idx = d[type].findIndex(x => x.id === item.id);
@@ -31,8 +34,8 @@ const state = {
     worker: null,
     chartInstance: null,
     strategyChartInstance: null,
-    pieLeft: null,
-    pieRight: null,
+    pie_left: null,
+    pie_right: null,
     portfolios: [], 
     workingPort_left: null, 
     workingPort_right: null,
@@ -49,6 +52,7 @@ const state = {
 let debounceTimer;
 
 window.onerror = function(message, source, lineno, colno, error) { console.error("Sys Err:", error); };
+window.addEventListener('beforeunload', () => { if (state.worker) state.worker.terminate(); });
 
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
@@ -110,7 +114,25 @@ function getNeutralAvatarUrl(age, seed) {
 }
 
 function getAvatarFallback(name) {
-    return `this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=eef2ff&color=3730A3&rounded=true';`;
+    const safe = encodeURIComponent(name);
+    return `this.onerror=null; this.src='https://ui-avatars.com/api/?name=${safe}&background=eef2ff&color=3730A3&rounded=true';`;
+}
+
+// Escapes a string for safe use inside an HTML attribute value.
+function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Marks a save section as having unsaved changes by showing a small label
+// next to the save button. Pass dirtyId=null to clear the indicator.
+function setDirty(indicatorId, isDirty) {
+    const el = document.getElementById(indicatorId);
+    if (!el) return;
+    if (isDirty) {
+        el.classList.add('visible');
+    } else {
+        el.classList.remove('visible');
+    }
 }
 
 function setupEventListeners() {
@@ -130,8 +152,8 @@ function setupEventListeners() {
             }
             if (target === 'portfolio') {
                 setTimeout(() => {
-                    if(state.pieLeft) state.pieLeft.resize();
-                    if(state.pieRight) state.pieRight.resize();
+                    if(state.pie_left) state.pie_left.resize();
+                    if(state.pie_right) state.pie_right.resize();
                 }, 50);
             }
             
@@ -168,13 +190,13 @@ function setupEventListeners() {
                     if(!json.strategies) json.strategies = [];
                     if(!json.personas) json.personas = [];
                     UserDataEngine.save(json);
-                    alert("Data imported successfully! The application will now reload to apply changes.");
-                    location.reload();
+                    showToast('Data imported successfully. Reloading to apply changes…', 'success');
+                    setTimeout(() => location.reload(), 1200);
                 } else {
-                    alert("Invalid file format.");
+                    showToast('Invalid file format. Please use a valid Novara save file.', 'error');
                 }
             } catch(err) {
-                alert("Error parsing JSON file. Please ensure it is a valid Novara save file.");
+                showToast('Could not parse file. Please ensure it is a valid Novara JSON save file.', 'error');
             }
             e.target.value = ''; 
         };
@@ -244,7 +266,56 @@ function syncPortfolioInputsVisibilitySide(side) {
     }
 }
 
-// --- SAVE & LOAD ENGINE LOGIC ---
+// --- TOAST NOTIFICATION ---
+function showToast(message, type = 'info') {
+    const existing = document.getElementById('novara-toast');
+    if (existing) existing.remove();
+
+    const colorMap = {
+        success: 'var(--accent-green)',
+        error: 'var(--accent-purple)',
+        warning: '#D97706',
+        info: 'var(--accent-blue)'
+    };
+    const iconMap = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-triangle',
+        warning: 'fa-exclamation-circle',
+        info: 'fa-info-circle'
+    };
+
+    const toast = document.createElement('div');
+    toast.id = 'novara-toast';
+    toast.style.cssText = `
+        position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+        background: var(--bg-surface); color: var(--text-main);
+        border-left: 4px solid ${colorMap[type] || colorMap.info};
+        border-radius: var(--radius-md); padding: 0.85rem 1.25rem;
+        box-shadow: var(--shadow-soft); max-width: 380px;
+        display: flex; align-items: flex-start; gap: 0.75rem;
+        font-size: 0.875rem; font-weight: 500; font-family: 'Inter', sans-serif;
+        animation: toastIn 0.25s ease;
+    `;
+    toast.innerHTML = `
+        <i class="fas ${iconMap[type] || iconMap.info}" style="color:${colorMap[type] || colorMap.info}; margin-top:2px; flex-shrink:0;"></i>
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" style="margin-left:auto; background:none; border:none; color:var(--text-muted); cursor:pointer; padding:0; line-height:1; flex-shrink:0;">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    if (!document.getElementById('novara-toast-styles')) {
+        const style = document.createElement('style');
+        style.id = 'novara-toast-styles';
+        style.textContent = `@keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => { if (document.body.contains(toast)) toast.remove(); }, 5000);
+}
+
+
 
 function initPresets() {
     refreshCMADropdowns();
@@ -353,6 +424,7 @@ function saveCMA() {
     UserDataEngine.saveItem('cmas', { id, name: newName, data: scrapeCMATable() });
     refreshCMADropdowns();
     loadCMAPreset(id);
+    setDirty('cma-dirty-indicator', false);
     showSavedFeedback('btn-save-cma');
 }
 
@@ -488,6 +560,7 @@ function saveStrategy() {
     UserDataEngine.saveItem('strategies', { id, name: newName, points: scrapeStrategyUI() });
     refreshStrategyDropdowns();
     loadStrategyPreset(id);
+    setDirty('strat-dirty-indicator', false);
     showSavedFeedback('btn-save-strat');
 }
 
@@ -618,6 +691,7 @@ function renderAssetRows() {
                 const v = parseFloat(tr.querySelector('input[data-field="v"]').value)/100 || 0;
                 const k = parseFloat(tr.querySelector('input[data-field="k"]').value) || 0;
                 drawDistributionChart(asset.key, r, v, k, asset.color);
+                setDirty('cma-dirty-indicator', true);
             });
         });
         
@@ -637,6 +711,7 @@ function renderAssetRows() {
                         symmetricCell.parentElement.style = getCorrHeatmapBg(val);
                     }
                 }
+                setDirty('cma-dirty-indicator', true);
             });
         });
         
@@ -722,14 +797,26 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=17.0'); 
+    state.worker = new Worker('./js/worker.js?v=18.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             renderChart(payload);
             renderResultsTable(payload);
-        } else if (type === 'ERROR') { updateUIState('Error'); }
+        } else if (type === 'ERROR') {
+            updateUIState('Error');
+            if (payload === 'CORRELATION_NOT_PSD') {
+                showToast(
+                    'Mathematical error: the correlation values provided are contradictory and cannot be simulated. Please review the correlation matrix and correct any inconsistencies before re-running.',
+                    'error'
+                );
+            } else if (payload === 'NO_STRATEGIES') {
+                showToast('Please select at least one strategy before running the simulation.', 'warning');
+            } else {
+                showToast('An unexpected simulation error occurred. Please check your inputs and try again.', 'error');
+            }
+        }
     };
 }
 
@@ -781,7 +868,9 @@ function renderPersonaCards() {
         cardEl.addEventListener('click', (e) => {
             if(e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'i') return;
             state.activePersonaId = p.id;
-            renderPersonaCards(); 
+            // Update active styling in-place — no full rebuild needed
+            document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
+            cardEl.classList.add('active-persona');
             updateActivePersonaDisplay(); 
             if(state.autoRun) { 
                 updateUIState('Updating...'); 
@@ -796,6 +885,7 @@ function renderPersonaCards() {
                 p.data[field] = parseFloat(e.target.value) || 0;
                 
                 if (field === 'age') {
+                    // Update avatar in-place to avoid rebuilding the entire card grid
                     const imgEl = document.getElementById(`avatar-img-${p.id}`);
                     if (imgEl) imgEl.src = getNeutralAvatarUrl(p.data.age, p.seed || p.id);
                     renderPersonaDropdown();
@@ -1117,8 +1207,8 @@ function updatePortfolioVisuals(side) {
         }
     });
 
-    if (state[`pie${side}`]) state[`pie${side}`].destroy();
-    state[`pie${side}`] = new Chart(ctx, {
+    if (state[`pie_${side}`]) state[`pie_${side}`].destroy();
+    state[`pie_${side}`] = new Chart(ctx, {
         type: 'doughnut',
         data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
@@ -1187,18 +1277,18 @@ function renderStressTests() {
             
             const diff = (sc.vR - sc.vL) * 100;
             const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
-            const tooltipHtml = `<div class='text-start'><b>${sc.name}</b><br>${portL.name}: ${(sc.vL*100).toFixed(1)}%<br>${portR.name}: ${(sc.vR*100).toFixed(1)}%<hr class='my-1 border-secondary'>Gap: <b>${diffStr}</b></div>`;
+            const tooltipHtml = `<div class='text-start'><b>${escAttr(sc.name)}</b><br>${escAttr(portL.name)}: ${(sc.vL*100).toFixed(1)}%<br>${escAttr(portR.name)}: ${(sc.vR*100).toFixed(1)}%<hr class='my-1 border-secondary'>Gap: <b>${diffStr}</b></div>`;
 
-            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); opacity:0.6;" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${tooltipHtml}"></div>`;
+            html += `<div class="dumbbell-line position-absolute top-50 translate-middle-y" style="left:${leftPct}%; width:${widthPct}%; height:6px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); opacity:0.6;" data-bs-toggle="tooltip" data-bs-html="true" data-bs-title="${escAttr(tooltipHtml)}"></div>`;
         }
 
         if (sc.vL !== null) {
             const leftPct = ((sc.vL - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-blue); border: 2px solid #FFF; border-radius:50%; z-index:2;" data-bs-toggle="tooltip" data-bs-title="${portL.name}: ${(sc.vL*100).toFixed(1)}%"></div>`;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-blue); border: 2px solid #FFF; border-radius:50%; z-index:2;" data-bs-toggle="tooltip" data-bs-title="${escAttr(portL.name)}: ${(sc.vL*100).toFixed(1)}%"></div>`;
         }
         if (sc.vR !== null) {
             const leftPct = ((sc.vR - minVal) / range) * 100;
-            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-purple); border: 2px solid #FFF; border-radius:50%; z-index:3;" data-bs-toggle="tooltip" data-bs-title="${portR.name}: ${(sc.vR*100).toFixed(1)}%"></div>`;
+            html += `<div class="dumbbell-dot position-absolute top-50 translate-middle shadow-sm" style="left:${leftPct}%; width:14px; height:14px; background-color:var(--accent-purple); border: 2px solid #FFF; border-radius:50%; z-index:3;" data-bs-toggle="tooltip" data-bs-title="${escAttr(portR.name)}: ${(sc.vR*100).toFixed(1)}%"></div>`;
         }
         html += `</div></div>`;
     });
@@ -1304,6 +1394,7 @@ function bindStrategyTableEvents() {
                const colIdx = newEl.dataset.col;
                state.strategyYears[colIdx] = parseFloat(newEl.value) || 0;
             }
+            setDirty('strat-dirty-indicator', true);
             renderStrategyChart(); 
             if(!state.autoRun) return;
             updateUIState('Updating...');
@@ -1347,7 +1438,12 @@ function appendStrategyRow(tbody, r) {
 
     const delTd = document.createElement('td');
     delTd.className = "align-middle border-0";
-    delTd.innerHTML = `<button class="btn btn-sm btn-link text-danger border-0 shadow-none p-0" onclick="removeStrategyRow(${r})" title="Remove Portfolio"><i class="fas fa-times"></i></button>`;
+    const delBtn = document.createElement('button');
+    delBtn.className = "btn btn-sm btn-link text-danger border-0 shadow-none p-0";
+    delBtn.title = "Remove Portfolio";
+    delBtn.innerHTML = '<i class="fas fa-times"></i>';
+    delBtn.addEventListener('click', () => removeStrategyRow(r));
+    delTd.appendChild(delBtn);
     tr.appendChild(delTd);
 
     tbody.appendChild(tr);
@@ -1436,7 +1532,22 @@ function addStrategyYearColumn() {
         weightsMatrix.push({ year: y, colWeights });
     });
 
-    weightsMatrix.push({ year: 10, colWeights: Array(numRows).fill(0) });
+    // Find the pair of adjacent columns with the smallest gap and insert their
+    // midpoint — prevents the fixed "10 Yrs" hardcode and avoids duplicates.
+    const sorted = [...state.strategyYears].sort((a, b) => b - a);
+    let insertYear = Math.round(sorted[sorted.length - 1] / 2);
+    let smallestGap = Infinity;
+    for (let i = 0; i < sorted.length - 1; i++) {
+        const gap = sorted[i] - sorted[i + 1];
+        if (gap < smallestGap) {
+            smallestGap = gap;
+            insertYear = Math.round((sorted[i] + sorted[i + 1]) / 2);
+        }
+    }
+    // Guarantee no duplicate
+    while (state.strategyYears.includes(insertYear)) insertYear = Math.max(0, insertYear - 1);
+
+    weightsMatrix.push({ year: insertYear, colWeights: Array(numRows).fill(0) });
     weightsMatrix.sort((a,b) => b.year - a.year);
 
     state.strategyYears = weightsMatrix.map(w => w.year);
@@ -1638,7 +1749,14 @@ function runSimulation() {
 
         if (strategies.length === 0) { updateUIState('Ready'); return; }
 
-        const payload = { cma, assetKeys: ASSET_CLASSES.map(a => a.key), persona, settings: { simCount, inflation, sysKurtosis }, strategies };
+        const payload = { 
+            cma, 
+            assetKeys: ASSET_CLASSES.map(a => a.key), 
+            assetCategories: ASSET_CLASSES.map(a => ({ key: a.key, category: a.category })),
+            persona, 
+            settings: { simCount, inflation, sysKurtosis }, 
+            strategies 
+        };
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
     } catch(e) {
         console.error("Run Error", e);

@@ -37,8 +37,9 @@ function rand_t_custom(kurtosis) {
     return t * Math.sqrt((df - 2.0) / df); 
 }
 
+// Returns a copy of the sorted array — does NOT mutate the original.
 function quantile(arr, q) {
-    const sorted = arr.sort((a, b) => a - b);
+    const sorted = [...arr].sort((a, b) => a - b);
     const pos = (sorted.length - 1) * q;
     const base = Math.floor(pos);
     const rest = pos - base;
@@ -88,35 +89,59 @@ function getRobustCholesky(matrix) {
         }
     }
     
-    const L = Array(n).fill(0).map(() => Array(n).fill(0));
-    for(let i=0; i<n; i++) L[i][i] = 1.0;
-    return L;
+    // Correlation matrix is mathematically impossible (contradictory inputs).
+    // Signal to the main thread so the user can be informed.
+    throw new Error("CORRELATION_NOT_PSD");
 }
 
-let cachedSimulationPaths = null; 
-let cachedStrategies = null;
-let cachedMonths = 0;
-let cachedStartAge = 30; 
+// Simulation cache — stored atomically so a racing second simulation
+// never leaves cachedPaths and cachedStrategies out of sync.
+let simulationCache = null;
 
 self.onmessage = function(e) {
     const { type, payload } = e.data;
+
     if (type === 'RUN_SIMULATION') {
+        // Validate payload before running
+        if (!payload || !payload.strategies || payload.strategies.length === 0) {
+            self.postMessage({ type: 'ERROR', payload: 'NO_STRATEGIES' });
+            return;
+        }
+        if (!payload.cma || !payload.cma.correlations) {
+            self.postMessage({ type: 'ERROR', payload: 'INVALID_CMA' });
+            return;
+        }
+
         try {
             const paths = runMonteCarloPaths(payload);
-            cachedSimulationPaths = paths;
-            cachedStrategies = payload.strategies;
-            cachedMonths = paths[0].length > 0 ? paths[0][0].length : 0;
-            cachedStartAge = payload.persona.age;
-            const stats = calculateStats(paths, payload.strategies, 0.90);
+            // Update cache atomically
+            simulationCache = {
+                paths,
+                strategies: payload.strategies,
+                months: paths[0].length > 0 ? paths[0][0].length : 0,
+                startAge: payload.persona.age
+            };
+            const stats = calculateStats(paths, payload.strategies, simulationCache.months, simulationCache.startAge, 0.90);
             self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (error) { self.postMessage({ type: 'ERROR', payload: error.message }); }
+        } catch (error) {
+            self.postMessage({ type: 'ERROR', payload: error.message });
+        }
+
     } else if (type === 'RECALCULATE_STATS') {
-        if (!cachedSimulationPaths) return;
+        if (!simulationCache) return;
         try {
             const confidence = payload.confidence || 0.90;
-            const stats = calculateStats(cachedSimulationPaths, cachedStrategies, confidence);
+            const stats = calculateStats(
+                simulationCache.paths,
+                simulationCache.strategies,
+                simulationCache.months,
+                simulationCache.startAge,
+                confidence
+            );
             self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (error) { self.postMessage({ type: 'ERROR', payload: error.message }); }
+        } catch (error) {
+            self.postMessage({ type: 'ERROR', payload: error.message });
+        }
     }
 };
 
@@ -127,7 +152,14 @@ function runMonteCarloPaths(data) {
     
     const coreInflation = settings.inflation; 
     const realSalaryGrowth = persona.realSalaryGrowth;
-    const sysKurtosis = settings.sysKurtosis || 2.0; 
+
+    // Core Equity Shock parameter — applies fat-tail kurtosis to assets in the
+    // Equities, Real Assets, and Alternatives categories. Credit and Sov & Cash
+    // assets are excluded: applying systemic kurtosis to cash/short-dated bonds
+    // during a crisis overstates their fat-tail behaviour and distorts
+    // diversification benefits unrealistically.
+    const coreEquityShockKurtosis = settings.sysKurtosis || 2.0;
+    const CORE_EQUITY_SHOCK_CATEGORIES = new Set(['Equities', 'Real Assets', 'Alternatives']);
     
     const monthlyInflationRate = Math.pow(1 + coreInflation / 100, 1/12);
     const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1/12);
@@ -137,15 +169,25 @@ function runMonteCarloPaths(data) {
         assetFactors[key] = {
             mean: (cma.r[key] || 0), 
             vol: (cma.v[key] || 0) / Math.sqrt(12),
-            k: (cma.k[key] || 0)
+            k: (cma.k[key] || 0),
+            applyCoreEquityShock: false // set below once category info is available
         };
     });
+
+    // Attach category info from the payload (passed from ASSET_CLASSES)
+    if (data.assetCategories) {
+        data.assetCategories.forEach(({ key, category }) => {
+            if (assetFactors[key]) {
+                assetFactors[key].applyCoreEquityShock = CORE_EQUITY_SHOCK_CATEGORIES.has(category);
+            }
+        });
+    }
 
     const n = assetKeys.length;
     const correlationMatrix = Array(n).fill(0).map(() => Array(n).fill(0));
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-            correlationMatrix[i][j] = cma.correlations[assetKeys[i]][assetKeys[j]] || 0;
+            correlationMatrix[i][j] = cma.correlations[assetKeys[i]]?.[assetKeys[j]] ?? 0;
         }
     }
     
@@ -162,7 +204,12 @@ function runMonteCarloPaths(data) {
         for (let m = 0; m < months; m++) {
             const uncorrShocks = new Float32Array(n);
             for (let i = 0; i < n; i++) {
-                const effectiveK = (i < 2) ? sysKurtosis : assetFactors[assetKeys[i]].k;
+                const fac = assetFactors[assetKeys[i]];
+                // Apply Core Equity Shock kurtosis to qualifying asset categories;
+                // all others use their own per-asset kurtosis from the CMA.
+                const effectiveK = fac.applyCoreEquityShock
+                    ? Math.max(fac.k, coreEquityShockKurtosis)
+                    : fac.k;
                 uncorrShocks[i] = rand_t_custom(effectiveK);
             }
 
@@ -195,7 +242,7 @@ function runMonteCarloPaths(data) {
                     
                     let activeShock = 0;
                     if (te > 0) {
-                        activeShock = (te / Math.sqrt(12)) * rand_t_custom(sysKurtosis);
+                        activeShock = (te / Math.sqrt(12)) * rand_t_custom(coreEquityShockKurtosis);
                     }
 
                     monthlyReturn += w * (expectedReturn + alpha + assetRandomness[key] + activeShock);
@@ -215,8 +262,7 @@ function runMonteCarloPaths(data) {
     return allStrategyPaths;
 }
 
-function calculateStats(allPaths, strategies, confidence) {
-    const months = cachedMonths;
+function calculateStats(allPaths, strategies, months, startAge, confidence) {
     const alpha = (1 - confidence) / 2;
     const pLower = alpha;
     const pUpper = 1 - alpha;
@@ -235,7 +281,7 @@ function calculateStats(allPaths, strategies, confidence) {
         return {
             name: strat.name,
             percentiles: percentiles,
-            meta: { startAge: cachedStartAge },
+            meta: { startAge },
             stats: {
                 confidence: confidence,
                 lowerBoundLabel: (pLower * 100).toFixed(0),
