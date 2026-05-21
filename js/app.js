@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=19.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=20.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -790,7 +790,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=19.0'); 
+    state.worker = new Worker('./js/worker.js?v=20.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1760,7 +1760,11 @@ function updateConfidence() {
     const slider = document.getElementById('confidence-slider');
     const val = parseInt(slider.value);
     document.getElementById('confidence-label').innerText = `${val}%`;
-    state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
+    // RECALCULATE_STATS is handled by the coordinator as pure index reads
+    // on the pre-sorted column cache — no simulation, no sort, instant response.
+    if (state.worker) {
+        state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
+    }
 }
 
 function renderChart(results) {

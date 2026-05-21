@@ -1,94 +1,32 @@
-// js/worker.js  v19.0
+// js/worker.js  v20.0
+// Coordinator worker.
+//
+// Responsibilities:
+//   1. Spawn a pool of sim-worker.js sub-workers (one per logical CPU core,
+//      capped at 8 to avoid overhead on high-core-count machines).
+//   2. Distribute the total simCount across the pool in equal chunks.
+//   3. Assemble returning Transferable buffers into a single contiguous
+//      sorted column cache — one pre-sorted Float64Array per month per strategy.
+//   4. Serve RECALCULATE_STATS requests as pure O(1) index reads on the
+//      sorted cache — zero simulation, zero sort, microsecond response.
+//
+// Path layout (inside each sub-worker chunk):
+//   buffer[month * chunkSize + simIdx]  (transposed — month-major)
+//
+// Sorted cache layout (after assembly):
+//   sortedCache[stratIdx][monthIdx]  = Float64Array(simCount), sorted ascending
 
-function randn_bm() {
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-}
+// ── Constants ────────────────────────────────────────────────────────
 
-function rand_gamma(alpha) {
-    if (alpha < 1) return rand_gamma(1.0 + alpha) * Math.pow(Math.random(), 1.0 / alpha);
-    let d = alpha - 1.0 / 3.0;
-    let c = 1.0 / Math.sqrt(9.0 * d);
-    while (true) {
-        let x = randn_bm();
-        let v = 1.0 + c * x;
-        while (v <= 0) { x = randn_bm(); v = 1.0 + c * x; }
-        v = v * v * v;
-        let u = Math.random();
-        let x2 = x * x;
-        if (u < 1.0 - 0.0331 * x2 * x2) return d * v;
-        if (Math.log(u) < 0.5 * x2 + d * (1.0 - v + Math.log(v))) return d * v;
-    }
-}
+const MAX_WORKERS = 8;
 
-function getDfFromKurtosis(k) {
-    if (k <= 0.05) return 1000;
-    return (6.0 / k) + 4.0;
-}
+// ── State ─────────────────────────────────────────────────────────────
 
-function rand_t_custom(kurtosis) {
-    if (kurtosis <= 0) return randn_bm();
-    const df = getDfFromKurtosis(kurtosis);
-    const z = randn_bm();
-    const v = rand_gamma(df / 2.0) * 2.0;
-    const t = z / Math.sqrt(v / df);
-    return t * Math.sqrt((df - 2.0) / df);
-}
+let sortedCache   = null;   // sortedCache[strat][month] = sorted Float64Array
+let cachedMeta    = null;   // { simCount, months, startAge, strategyNames }
+let pendingRun    = null;   // resolve/reject for the current run promise
 
-// Returns a copy — does NOT mutate the original array.
-function quantile(arr, q) {
-    const sorted = [...arr].sort((a, b) => a - b);
-    const pos = (sorted.length - 1) * q;
-    const base = Math.floor(pos);
-    const rest = pos - base;
-    if (sorted[base + 1] !== undefined) {
-        return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
-    }
-    return sorted[base];
-}
-
-function choleskyStrict(matrix) {
-    const n = matrix.length;
-    const L = Array(n).fill(0).map(() => Array(n).fill(0));
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j <= i; j++) {
-            let sum = 0;
-            for (let k = 0; k < j; k++) sum += L[i][k] * L[j][k];
-            if (i === j) {
-                const val = matrix[i][i] - sum;
-                if (val <= 0.000001) throw new Error("Not PSD");
-                L[i][j] = Math.sqrt(val);
-            } else {
-                L[i][j] = (matrix[i][j] - sum) / L[j][j];
-            }
-        }
-    }
-    return L;
-}
-
-function getRobustCholesky(matrix) {
-    const n = matrix.length;
-    let blend = 0.0;
-    let current = Array(n).fill(0).map((_, i) => [...matrix[i]]);
-    while (blend <= 1.0) {
-        try {
-            return choleskyStrict(current);
-        } catch (e) {
-            blend += 0.01;
-            for (let i = 0; i < n; i++)
-                for (let j = 0; j < n; j++)
-                    current[i][j] = i === j ? 1.0 : matrix[i][j] * (1.0 - blend);
-        }
-    }
-    // Correlation matrix is mathematically impossible — signal to main thread.
-    throw new Error("CORRELATION_NOT_PSD");
-}
-
-// Simulation cache — updated atomically so rapid back-to-back runs
-// never leave paths and strategies out of sync.
-let simulationCache = null;
+// ── Entry point ───────────────────────────────────────────────────────
 
 self.onmessage = function(e) {
     const { type, payload } = e.data;
@@ -102,140 +40,155 @@ self.onmessage = function(e) {
             self.postMessage({ type: 'ERROR', payload: 'INVALID_CMA' });
             return;
         }
-        try {
-            const paths = runMonteCarloPaths(payload);
-            simulationCache = {
-                paths,
-                strategies: payload.strategies,
-                months: paths[0]?.[0]?.length ?? 0,
-                startAge: payload.persona.age
-            };
-            const stats = calculateStats(
-                simulationCache.paths,
-                simulationCache.strategies,
-                simulationCache.months,
-                simulationCache.startAge,
-                0.90
-            );
-            self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (err) {
-            self.postMessage({ type: 'ERROR', payload: err.message });
-        }
+        runSimulation(payload);
 
     } else if (type === 'RECALCULATE_STATS') {
-        if (!simulationCache) return;
-        try {
-            const stats = calculateStats(
-                simulationCache.paths,
-                simulationCache.strategies,
-                simulationCache.months,
-                simulationCache.startAge,
-                payload.confidence || 0.90
-            );
-            self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
-        } catch (err) {
-            self.postMessage({ type: 'ERROR', payload: err.message });
-        }
+        if (!sortedCache || !cachedMeta) return;
+        // Pure index reads — no sort, no worker message, instant.
+        const stats = buildStatsFromCache(payload.confidence || 0.90);
+        self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
     }
 };
 
-function runMonteCarloPaths(data) {
-    const { cma, strategies, persona, settings, assetKeys } = data;
-    const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
-    const simCount = settings.simCount || 1000;
-    const coreInflation = settings.inflation;
-    const realSalaryGrowth = persona.realSalaryGrowth;
+// ── Simulation orchestration ──────────────────────────────────────────
 
-    const monthlyInflationRate    = Math.pow(1 + coreInflation / 100, 1 / 12);
-    const monthlySalaryGrowthRate = Math.pow(1 + (coreInflation + realSalaryGrowth) / 100, 1 / 12);
+function runSimulation(data) {
+    const { strategies, persona, settings } = data;
+    const simCount  = settings.simCount || 2000;
+    const months    = Math.max(1, (persona.retirementAge - persona.age) * 12);
+    const nStrats   = strategies.length;
 
-    // Each asset uses its own per-asset kurtosis from the CMA — no global override.
-    const assetFactors = {};
-    assetKeys.forEach(key => {
-        assetFactors[key] = {
-            mean: cma.r[key] || 0,
-            vol:  (cma.v[key] || 0) / Math.sqrt(12),
-            k:    cma.k[key] || 0
-        };
-    });
+    // Decide worker count — use hardware concurrency if available, cap at MAX_WORKERS
+    const numWorkers = Math.min(
+        MAX_WORKERS,
+        (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4
+    );
+    const chunkSize = Math.ceil(simCount / numWorkers);
+    const actualWorkers = Math.ceil(simCount / chunkSize); // may be < numWorkers
 
-    const n = assetKeys.length;
-    const corrMatrix = Array(n).fill(0).map(() => Array(n).fill(0));
-    for (let i = 0; i < n; i++)
-        for (let j = 0; j < n; j++)
-            corrMatrix[i][j] = cma.correlations[assetKeys[i]]?.[assetKeys[j]] ?? 0;
+    // Allocate the full sorted cache upfront.
+    // sortedCache[strat][month] will hold a sorted Float64Array once assembly is done.
+    // During assembly we accumulate raw values into assemblyBufs[strat][month].
+    const assemblyBufs = Array.from({ length: nStrats }, () =>
+        Array.from({ length: months }, () => new Float64Array(simCount))
+    );
 
-    const L = getRobustCholesky(corrMatrix);
-    const allStrategyPaths = strategies.map(() => []);
+    let chunksReceived = 0;
+    let errorFired     = false;
 
-    for (let s = 0; s < simCount; s++) {
-        let pots    = strategies.map(() => persona.savings);
-        let salaries = strategies.map(() => persona.salary);
-        let cumulativeInflation = 1.0;
-        const currentSimPaths = strategies.map(() => new Float32Array(months));
+    for (let w = 0; w < actualWorkers; w++) {
+        const chunkStart = w * chunkSize;
+        const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        for (let m = 0; m < months; m++) {
-            // Draw independent shocks using each asset's own kurtosis.
-            const uncorrShocks = new Float32Array(n);
-            for (let i = 0; i < n; i++)
-                uncorrShocks[i] = rand_t_custom(assetFactors[assetKeys[i]].k);
+        const worker = new Worker('./js/sim-worker.js?v=20.0');
 
-            // Apply Cholesky correlation structure.
-            const assetRandomness = {};
-            for (let i = 0; i < n; i++) {
-                let shock = 0;
-                for (let j = 0; j <= i; j++) shock += L[i][j] * uncorrShocks[j];
-                assetRandomness[assetKeys[i]] = assetFactors[assetKeys[i]].vol * shock;
+        worker.onmessage = function(e) {
+            worker.terminate();
+
+            if (errorFired) return;
+
+            if (e.data.type === 'ERROR') {
+                errorFired = true;
+                self.postMessage({ type: 'ERROR', payload: e.data.payload });
+                return;
             }
 
-            cumulativeInflation *= monthlyInflationRate;
+            // e.data.buffers[stratIdx] is a transferred ArrayBuffer,
+            // layout: Float32, [month * thisChunk + simInChunk]
+            const { chunkStart: cs, chunkSize: cs2, buffers } = e.data;
 
-            for (let si = 0; si < strategies.length; si++) {
-                const monthData = strategies[si].monthlyData[m];
-                let monthlyReturn = 0;
-
-                for (let i = 0; i < n; i++) {
-                    const key = assetKeys[i];
-                    const w = monthData.weights[key] || 0;
-                    if (w === 0) continue;
-                    const fac = assetFactors[key];
-                    const expectedReturn = fac.mean / 12;
-                    const alpha = (monthData.alphas?.[key] ?? 0) / 12;
-                    const te    = monthData.tes?.[key] ?? 0;
-                    // Active (manager) shock also uses the asset's own kurtosis.
-                    const activeShock = te > 0 ? (te / Math.sqrt(12)) * rand_t_custom(fac.k) : 0;
-                    monthlyReturn += w * (expectedReturn + alpha + assetRandomness[key] + activeShock);
+            for (let si = 0; si < nStrats; si++) {
+                const src = new Float32Array(buffers[si]);
+                for (let m = 0; m < months; m++) {
+                    const dst     = assemblyBufs[si][m];
+                    const srcBase = m * cs2;
+                    for (let s = 0; s < cs2; s++) {
+                        dst[cs + s] = src[srcBase + s];
+                    }
                 }
-
-                const contribution = (salaries[si] * (persona.contribution / 100)) / 12;
-                pots[si] = (pots[si] + contribution) * (1 + monthlyReturn);
-                salaries[si] *= monthlySalaryGrowthRate;
-                currentSimPaths[si][m] = pots[si] / cumulativeInflation;
             }
-        }
-        for (let si = 0; si < strategies.length; si++)
-            allStrategyPaths[si].push(currentSimPaths[si]);
+
+            chunksReceived++;
+
+            if (chunksReceived === actualWorkers) {
+                // All chunks received — sort every column once and cache.
+                sortedCache = assemblyBufs.map(stratBufs =>
+                    stratBufs.map(col => {
+                        col.sort(); // native typed sort — no comparator needed
+                        return col; // col is now permanently sorted
+                    })
+                );
+
+                cachedMeta = {
+                    simCount,
+                    months,
+                    startAge:      persona.age,
+                    strategyNames: strategies.map(s => s.name)
+                };
+
+                const stats = buildStatsFromCache(0.90);
+                self.postMessage({ type: 'SIMULATION_COMPLETE', payload: stats });
+            }
+        };
+
+        worker.onerror = function(err) {
+            worker.terminate();
+            if (!errorFired) {
+                errorFired = true;
+                self.postMessage({ type: 'ERROR', payload: err.message || 'SIM_WORKER_ERROR' });
+            }
+        };
+
+        // Send payload — note monthlyData can be large; strategies are sent by
+        // structured clone (not Transferable) because all workers need them.
+        worker.postMessage({
+            chunkStart,
+            chunkSize: thisChunk,
+            data
+        });
     }
-    return allStrategyPaths;
 }
 
-function calculateStats(allPaths, strategies, months, startAge, confidence) {
+// ── Stats from cache — pure index reads ───────────────────────────────
+//
+// For a given confidence level, the lower and upper bounds are:
+//   pLower = (1 - confidence) / 2
+//   pUpper = 1 - pLower
+//
+// Because sortedCache[strat][month] is pre-sorted, the value at any
+// percentile p is simply:
+//   sorted[Math.round(p * (simCount - 1))]
+//
+// Moving the slider from 90% → 80% → 90% reads the same indices from
+// the same unchanged sorted array — results are bit-for-bit identical.
+
+function buildStatsFromCache(confidence) {
+    const { simCount, months, startAge, strategyNames } = cachedMeta;
     const pLower = (1 - confidence) / 2;
     const pUpper = 1 - pLower;
+    const last   = simCount - 1;
 
-    return strategies.map((strat, index) => {
-        const paths = allPaths[index];
-        const percentiles = { pLower: [], pMedian: [], pUpper: [] };
+    return strategyNames.map((name, si) => {
+        const stratCols = sortedCache[si];
+        const pLowerArr = new Float32Array(months);
+        const pMediaArr = new Float32Array(months);
+        const pUpperArr = new Float32Array(months);
+
         for (let m = 0; m < months; m++) {
-            const slices = paths.map(p => p[m]);
-            percentiles.pLower.push(quantile(slices, pLower));
-            percentiles.pMedian.push(quantile(slices, 0.50));
-            percentiles.pUpper.push(quantile(slices, pUpper));
+            const col = stratCols[m];
+            pLowerArr[m] = col[Math.round(pLower * last)];
+            pMediaArr[m] = col[Math.round(0.50   * last)];
+            pUpperArr[m] = col[Math.round(pUpper * last)];
         }
+
         return {
-            name: strat.name,
-            percentiles,
-            meta: { startAge },
+            name,
+            percentiles: {
+                pLower: Array.from(pLowerArr),
+                pMedian: Array.from(pMediaArr),
+                pUpper: Array.from(pUpperArr)
+            },
+            meta:  { startAge },
             stats: {
                 confidence,
                 lowerBoundLabel: (pLower * 100).toFixed(0),
