@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=17.0">
+    <link rel="stylesheet" href="css/style.css?v=18.0">
 </head>
 <body>
 
@@ -56,8 +56,9 @@
                         <select id="cma-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold w-100 w-md-auto" style="min-width: 200px;">
                             <option value="">Load Preset...</option>
                         </select>
-                        <div class="d-flex gap-2 w-100 w-md-auto">
+                        <div class="d-flex gap-2 w-100 w-md-auto align-items-center">
                             <input type="text" id="cma-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm w-100" placeholder="Custom Market Name...">
+                            <span id="cma-dirty-indicator" class="dirty-indicator"><i class="fas fa-circle" style="font-size:0.5rem;"></i> unsaved</span>
                             <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3 flex-shrink-0" id="btn-save-cma" title="Save Custom Market"><i class="fas fa-save"></i></button>
                             <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3 flex-shrink-0" id="btn-delete-cma" title="Delete Custom Market"><i class="fas fa-trash"></i></button>
                         </div>
@@ -211,8 +212,9 @@
                     </div>
                     <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100 justify-content-lg-end">
                         <select id="strategy-preset-select" class="form-select form-select-sm rounded-pill bg-light border-0 fw-bold shadow-sm w-100 w-md-auto" style="min-width: 200px;"><option value="">Load Preset...</option></select>
-                        <div class="d-flex gap-2 w-100 w-md-auto">
+                        <div class="d-flex gap-2 w-100 w-md-auto align-items-center">
                             <input type="text" id="strat-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm w-100" placeholder="Custom Strategy Name...">
+                            <span id="strat-dirty-indicator" class="dirty-indicator"><i class="fas fa-circle" style="font-size:0.5rem;"></i> unsaved</span>
                             <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3 flex-shrink-0" id="btn-save-strat" title="Save Custom Strategy"><i class="fas fa-save"></i></button>
                             <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3 flex-shrink-0" id="btn-delete-strat" title="Delete Custom Strategy"><i class="fas fa-trash"></i></button>
                         </div>
@@ -341,6 +343,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=17.0"></script>
+<script type="module" src="js/app.js?v=18.0"></script>
 </body>
 </html>
