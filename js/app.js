@@ -806,8 +806,13 @@ function initWorker() {
                 );
             } else if (payload === 'NO_STRATEGIES') {
                 showToast('Please select at least one strategy before running the simulation.', 'warning');
+            } else if (payload === 'INVALID_CMA') {
+                showToast('Invalid market assumptions — please reload a CMA preset and try again.', 'error');
             } else {
-                showToast('An unexpected simulation error occurred. Please check your inputs and try again.', 'error');
+                showToast(
+                    `Simulation error: ${payload || 'unknown'}. Please check your inputs and try again.`,
+                    'error'
+                );
             }
         }
     };

@@ -80,7 +80,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./js/sim-worker.js?v=20.0');
+        const worker = new Worker('./sim-worker.js?v=20.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -135,7 +135,11 @@ function runSimulation(data) {
             worker.terminate();
             if (!errorFired) {
                 errorFired = true;
-                self.postMessage({ type: 'ERROR', payload: err.message || 'SIM_WORKER_ERROR' });
+                // err.message is often empty for load failures (404 etc.)
+                // Include filename and line number where available.
+                const detail = [err.message, err.filename, err.lineno]
+                    .filter(Boolean).join(' line ') || 'SIM_WORKER_LOAD_ERROR';
+                self.postMessage({ type: 'ERROR', payload: detail });
             }
         };
 
