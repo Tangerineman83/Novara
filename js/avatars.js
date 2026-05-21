@@ -4,12 +4,12 @@
 // Zero dependencies. Returns an SVG string ready for innerHTML injection.
 
 export const AVATAR_BANDS = [
-    { minAge: 18, maxAge: 25, label: "The Graduate",    bgColor: "#EEF2FF", accentA: "#4F46E5", accentB: "#818CF8", accentC: "#E0E7FF" },
-    { minAge: 26, maxAge: 35, label: "The Climber",     bgColor: "#ECFDF5", accentA: "#059669", accentB: "#34D399", accentC: "#D1FAE5" },
-    { minAge: 36, maxAge: 45, label: "The Builder",     bgColor: "#FFF7ED", accentA: "#D97706", accentB: "#FBBF24", accentC: "#FEF3C7" },
-    { minAge: 46, maxAge: 55, label: "The Strategist",  bgColor: "#EFF6FF", accentA: "#1D4ED8", accentB: "#60A5FA", accentC: "#DBEAFE" },
-    { minAge: 56, maxAge: 64, label: "The Coaster",     bgColor: "#F5F3FF", accentA: "#7C3AED", accentB: "#A78BFA", accentC: "#EDE9FE" },
-    { minAge: 65, maxAge: 99, label: "The Enjoyer",     bgColor: "#FFF1F2", accentA: "#BE123C", accentB: "#FB7185", accentC: "#FFE4E6" },
+    { minAge: 18, maxAge: 25, label: "Just Launched",      bgColor: "#EEF2FF", accentA: "#4F46E5", accentB: "#818CF8", accentC: "#E0E7FF" },
+    { minAge: 26, maxAge: 35, label: "Full Throttle",      bgColor: "#ECFDF5", accentA: "#059669", accentB: "#34D399", accentC: "#D1FAE5" },
+    { minAge: 36, maxAge: 45, label: "In the Thick of It", bgColor: "#FFF7ED", accentA: "#D97706", accentB: "#FBBF24", accentC: "#FEF3C7" },
+    { minAge: 46, maxAge: 55, label: "Eyes on the Horizon",bgColor: "#EFF6FF", accentA: "#1D4ED8", accentB: "#60A5FA", accentC: "#DBEAFE" },
+    { minAge: 56, maxAge: 64, label: "Final Approach",     bgColor: "#F5F3FF", accentA: "#7C3AED", accentB: "#A78BFA", accentC: "#EDE9FE" },
+    { minAge: 65, maxAge: 99, label: "Free Range",         bgColor: "#FFF1F2", accentA: "#BE123C", accentB: "#FB7185", accentC: "#FFE4E6" },
 ];
 
 export function getAvatarBand(age) {

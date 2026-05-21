@@ -83,24 +83,24 @@ export const PRESET_CMAS = [
 
 export const PRESET_PERSONAS = [
     { 
-        id: "pers_genz", 
-        name: "The Gen-Z Accumulator", 
-        seed: "GenZ_Acc1",
-        desc: "Early 20s, starting early with high multi-decade compounding potential.", 
+        id: "pers_1", 
+        name: "Maya", 
+        seed: "Maya_1",
+        desc: "Starting early with decades of compounding ahead. Every contribution now is worth multiples later.", 
         data: { age: 25, retirementAge: 68, savings: 5000, salary: 32000, contribution: 10, realSalaryGrowth: 1.5 } 
     },
     { 
-        id: "pers_mid", 
-        name: "The Mid-Career Builder", 
-        seed: "MidCareer_Build2",
-        desc: "Peak earning years, balancing mortgage responsibilities and pension acceleration.", 
+        id: "pers_2", 
+        name: "James", 
+        seed: "James_2",
+        desc: "Navigating peak earning years alongside mortgage, family, and the pension acceleration window.", 
         data: { age: 40, retirementAge: 68, savings: 85000, salary: 65000, contribution: 12, realSalaryGrowth: 0.5 } 
     },
     { 
-        id: "pers_late", 
-        name: "The Late Starter", 
-        seed: "LateStart_3",
-        desc: "Aggressive catch-up phase entering the pre-retirement de-risking window.", 
+        id: "pers_3", 
+        name: "Priya", 
+        seed: "Priya_3",
+        desc: "Pushing hard in the final stretch — higher contributions and a sharper focus on the finish line.", 
         data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
     }
 ];
