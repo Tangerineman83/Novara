@@ -236,3 +236,16 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 .dirty-indicator.visible {
     opacity: 1;
 }
+
+/* --- Persona avatar crossfade --- */
+.persona-avatar {
+    transition: opacity 0.25s ease;
+}
+.persona-avatar svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.persona-band-label {
+    transition: opacity 0.25s ease;
+}
