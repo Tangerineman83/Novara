@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=31.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=32.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=31.0'); 
+    state.worker = new Worker('./js/worker.js?v=32.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1513,8 +1513,11 @@ function buildVFMStrategies(horizonMonths, cma) {
                 });
                 totalMonthlyRet += monthRet;
             });
-            // Monthly return is already annual/12 from CMA; annualise the average
-            const annualisedArithReturn = (totalMonthlyRet / horizonMonths) * 12;
+            // cma.r values are annual decimals (e.g. 0.065 = 6.5% p.a.).
+            // Accumulating w_i * r_i each month and dividing by horizonMonths
+            // gives the time-weighted annual arithmetic return directly.
+            // No further scaling needed — do NOT multiply by 12.
+            const annualisedArithReturn = totalMonthlyRet / horizonMonths;
 
             resolved.push({
                 name:                strat.name,
