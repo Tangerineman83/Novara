@@ -89,7 +89,10 @@ self.onmessage = function(e) {
     const { cma, strategies, persona, settings, assetKeys } = data;
 
     const n       = assetKeys.length;
-    const months  = Math.max(1, (persona.retirementAge - persona.age) * 12);
+    const retirementMonths = Math.max(1, (persona.retirementAge - persona.age) * 12);
+    const months = data.horizonMonths
+        ? Math.min(data.horizonMonths, retirementMonths)
+        : retirementMonths;
     const inflation = settings.inflation;
 
     // Pre-compute df/scale once per asset

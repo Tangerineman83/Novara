@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=25.0');
+        const worker = new Worker('./sim-worker.js?v=26.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -254,7 +254,7 @@ function runVFMSimulation(data) {
             monthlyData: s.monthlyData.slice(0, months)
         }));
 
-        const worker = new Worker('./sim-worker.js?v=25.0');
+        const worker = new Worker('./sim-worker.js?v=26.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -278,6 +278,11 @@ function runVFMSimulation(data) {
             }
 
             chunksReceived++;
+            // Report progress to main thread after each chunk
+            self.postMessage({
+                type: 'VFM_PROGRESS',
+                payload: { done: chunksReceived, total: actualWorkers }
+            });
             if (chunksReceived === actualWorkers) {
                 const result = buildVFMStats(terminalPots, strategies, simCount, months, persona);
                 self.postMessage({ type: 'VFM_COMPLETE', payload: result });
@@ -299,6 +304,7 @@ function runVFMSimulation(data) {
             chunkSize: thisChunk,
             data: {
                 ...data,
+                horizonMonths: months,
                 strategies: strategies.map(s => ({
                     ...s,
                     monthlyData: s.monthlyData.slice(0, months)

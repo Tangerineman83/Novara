@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=25.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=26.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=25.0'); 
+    state.worker = new Worker('./js/worker.js?v=26.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1151,8 +1151,10 @@ function initWorker() {
             renderResultsTable(payload);
         } else if (type === 'VFM_COMPLETE') {
             renderVFMTable(payload);
+        } else if (type === 'VFM_PROGRESS') {
+            updateVFMProgress(payload.done, payload.total);
         } else if (type === 'VFM_ERROR') {
-            vfmSetStatus('error', 'Simulation error — check inputs and retry.');
+            vfmShowError('Simulation error — check inputs and retry.');
             state.vfm.running = false;
         } else if (type === 'ERROR') {
             updateUIState('Error');
@@ -1417,19 +1419,43 @@ function updateVFMPersonaDisplay() {
     `;
 }
 
-function vfmSetStatus(state_, message) {
-    const el = document.getElementById('vfm-status-text');
-    const wrap = document.getElementById('vfm-status');
-    if (!el) return;
-    if (state_ === 'running') {
-        wrap.innerHTML = `<div class="vfm-spinner"></div><span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">${message}</span>`;
-    } else if (state_ === 'done') {
-        wrap.innerHTML = `<i class="fas fa-check-circle" style="color:var(--accent-green);font-size:0.9rem;"></i><span style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">${message}</span>`;
-    } else if (state_ === 'error') {
-        wrap.innerHTML = `<i class="fas fa-exclamation-circle" style="color:#DC2626;font-size:0.9rem;"></i><span style="font-size:0.78rem;font-weight:600;color:#DC2626;">${message}</span>`;
-    } else {
-        wrap.innerHTML = `<span id="vfm-status-text" style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">${message}</span>`;
-    }
+function vfmShowIdle(message) {
+    document.getElementById('vfm-status-idle').textContent = message;
+    document.getElementById('vfm-status-idle').classList.remove('d-none');
+    document.getElementById('vfm-progress-wrap').classList.add('d-none');
+    document.getElementById('vfm-done-wrap').classList.add('d-none');
+}
+
+function vfmShowProgress(message) {
+    document.getElementById('vfm-status-idle').classList.add('d-none');
+    document.getElementById('vfm-done-wrap').classList.add('d-none');
+    document.getElementById('vfm-progress-wrap').classList.remove('d-none');
+    document.getElementById('vfm-progress-label').textContent = message;
+    document.getElementById('vfm-progress-bar').style.width = '0%';
+    document.getElementById('vfm-progress-pct').textContent = '0%';
+}
+
+function updateVFMProgress(done, total) {
+    const pct = Math.round((done / total) * 100);
+    const bar = document.getElementById('vfm-progress-bar');
+    const lbl = document.getElementById('vfm-progress-pct');
+    if (bar) bar.style.width = pct + '%';
+    if (lbl) lbl.textContent = pct + '%';
+}
+
+function vfmShowDone(message) {
+    document.getElementById('vfm-progress-wrap').classList.add('d-none');
+    document.getElementById('vfm-status-idle').classList.add('d-none');
+    document.getElementById('vfm-done-wrap').classList.remove('d-none');
+    document.getElementById('vfm-done-text').textContent = message;
+}
+
+function vfmShowError(message) {
+    document.getElementById('vfm-progress-wrap').classList.add('d-none');
+    document.getElementById('vfm-done-wrap').classList.add('d-none');
+    document.getElementById('vfm-status-idle').classList.remove('d-none');
+    document.getElementById('vfm-status-idle').style.color = '#DC2626';
+    document.getElementById('vfm-status-idle').textContent = message;
 }
 
 function buildVFMStrategies(horizonMonths) {
@@ -1488,15 +1514,12 @@ function runVFM() {
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
 
     state.vfm.running = true;
-    vfmSetStatus('running', `Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
+    vfmShowProgress(`Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
 
-    // Show loading state in table
+    // Clear table while running
     document.getElementById('vfm-tbody').innerHTML = `
-        <tr><td colspan="6" class="text-center py-5">
-            <div class="d-flex align-items-center justify-content-center gap-2" style="color:var(--accent-blue);">
-                <div class="vfm-spinner"></div>
-                <span style="font-size:0.85rem;font-weight:600;">Computing league table…</span>
-            </div>
+        <tr><td colspan="6" class="text-center text-muted py-5" style="font-size:0.85rem;">
+            Computing league table…
         </td></tr>`;
 
     state.worker.postMessage({
@@ -1599,7 +1622,7 @@ function renderVFMTable(results) {
 
     const persona = state.personas.find(p => p.id === state.vfm.activePersonaId);
     const pName   = persona ? personaDisplayName(persona) : '';
-    vfmSetStatus('done', `${pName} · ${horizonYears}-year horizon · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
+    vfmShowDone(`${pName} · ${horizonYears}-year horizon · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
 }
 
 function setupAutoRun() {
