@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=22.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=23.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
+    document.getElementById('asset-detail-overlay')?.addEventListener('click', closeAssetDetailPanelOnOverlay);
 
     state.portfolios = UserDataEngine.load().portfolios || [];
     
@@ -585,6 +586,306 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// ── CMA Commentary System ──────────────────────────────────────────────────
+// Loads cma_commentary.md once, caches it, then extracts the block matching
+// the active CMA's cma_id and the clicked asset's key.
+
+let _commentaryCache = null;
+
+async function loadCommentary() {
+    if (_commentaryCache !== null) return _commentaryCache;
+    try {
+        const res = await fetch('./commentary/cma_commentary.md');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        _commentaryCache = await res.text();
+    } catch(e) {
+        console.warn('Commentary file could not be loaded:', e.message);
+        _commentaryCache = '';
+    }
+    return _commentaryCache;
+}
+
+function extractCommentaryBlock(markdown, cmaId, assetId) {
+    // Skip the HTML comment instructions block, then find matching --- delimiters
+    const bodyStart = markdown.indexOf('-->\n\n');
+    const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
+    // Split on block boundaries
+    const blockPattern = /---\ncma_id:\s*(\S+)\nasset_id:\s*(\S+)\n---\n([\s\S]*?)(?=\n---\ncma_id:|\s*$)/g;
+    let match;
+    while ((match = blockPattern.exec(body)) !== null) {
+        if (match[1] === cmaId && match[2] === assetId) {
+            return match[3].trim();
+        }
+    }
+    return null;
+}
+
+function renderMarkdown(md) {
+    if (!md) return '<p class="text-muted fst-italic">No commentary available for this asset in the selected CMA.</p>';
+    let html = md
+        // Pipe tables
+        .replace(/^\|(.+)\|$/gm, (line) => {
+            const cells = line.split('|').slice(1,-1).map(c => c.trim());
+            return '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+        })
+        .replace(/^\|[-| :]+\|$/gm, '') // remove separator rows
+        // Wrap consecutive <tr> lines in a table
+        .replace(/((?:<tr>.*<\/tr>\n?)+)/g, (rows) => {
+            const rowArr = rows.trim().split('\n');
+            const header = rowArr[0].replace(/<td>/g,'<th>').replace(/<\/td>/g,'</th>');
+            const body   = rowArr.slice(1).join('\n');
+            return `<table class="table table-sm table-borderless commentary-table mb-3"><thead>${header}</thead><tbody>${body}</tbody></table>`;
+        })
+        // H2 headings
+        .replace(/^## (.+)$/gm, '<h6 class="commentary-heading mt-3 mb-2">$1</h6>')
+        // Bold
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // Bullet lists — collect consecutive items
+        .replace(/((?:^- .+\n?)+)/gm, (block) => {
+            const items = block.trim().split('\n').map(l => `<li>${l.replace(/^- /,'')}</li>`).join('');
+            return `<ul class="commentary-list mb-2">${items}</ul>`;
+        })
+        // Paragraphs (double newline separated)
+        .replace(/\n{2,}/g, '</p><p>')
+        .replace(/\n/g, ' ');
+    return `<p>${html}</p>`.replace(/<p><\/p>/g,'').replace(/<p>(<[uth])/g,'$1').replace(/(<\/[uth][^>]*>)<\/p>/g,'$1');
+}
+
+// ── Asset Detail Panel ────────────────────────────────────────────────────────
+
+function getActiveCMAId() {
+    const sel = document.getElementById('cma-preset-select');
+    const id = sel?.value;
+    if (!id) return null;
+    if (id.startsWith('preset_')) {
+        const idx = parseInt(id.split('_')[1]);
+        return PRESET_CMAS[idx]?.cma_id || null;
+    }
+    const custom = UserDataEngine.load().cmas?.find(c => c.id === id);
+    return custom?.cma_id || null;
+}
+
+function getAssetCMAValues(assetKey) {
+    // Read current live values from the CMA table inputs
+    const rInp = document.querySelector(`#cma-table input[data-key="${assetKey}"][data-field="r"]`);
+    const vInp = document.querySelector(`#cma-table input[data-key="${assetKey}"][data-field="v"]`);
+    const kInp = document.querySelector(`#cma-table input[data-key="${assetKey}"][data-field="k"]`);
+    return {
+        r: rInp ? parseFloat(rInp.value) / 100 : 0,
+        v: vInp ? parseFloat(vInp.value) / 100 : 0,
+        k: kInp ? parseFloat(kInp.value) : 0
+    };
+}
+
+const CONVICTION_MAP  = { low: 1, medium: 2, 'medium-high': 3, high: 4 };
+const RISK_COLOR_MAP  = { low: '#059669', moderate: '#D97706', elevated: '#DC2626', high: '#7C3AED' };
+
+async function openAssetDetailPanel(asset) {
+    const panel     = document.getElementById('asset-detail-panel');
+    const overlay   = document.getElementById('asset-detail-overlay');
+    if (!panel || !overlay) return;
+
+    const { r, v, k } = getAssetCMAValues(asset.key);
+    const cmaId       = getActiveCMAId();
+    const markdown    = await loadCommentary();
+    const commentary  = cmaId ? extractCommentaryBlock(markdown, cmaId, asset.key) : null;
+
+    // Derive distribution stats for panel chart labels
+    const df      = k > 0.05 ? (6 / k) + 4 : 1000;
+    const sigma1  = v;
+    const sigma2  = v * 2;
+
+    // Conviction text from positioning section
+    const convictionMatch = commentary?.match(/\*\*((?:high|medium[- ]?high|medium|low[- ]?medium|low) conviction)/i);
+    const convictionText  = convictionMatch ? convictionMatch[1] : '';
+    const convictionLevel = convictionText.toLowerCase().replace(/\s+conviction/,'').trim();
+    const convictionDots  = Array.from({length:4}, (_,i) =>
+        `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;background:${i < (CONVICTION_MAP[convictionLevel]||2) ? asset.color : '#E2E8F0'};"></span>`
+    ).join('');
+
+    // Risk rating — infer from kurtosis if not in commentary
+    const riskLevel = k >= 4 ? 'high' : k >= 2.5 ? 'elevated' : k >= 1.5 ? 'moderate' : 'low';
+    const riskColor = RISK_COLOR_MAP[riskLevel] || '#64748B';
+
+    panel.innerHTML = `
+        <div class="d-flex align-items-start justify-content-between mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${asset.color};flex-shrink:0;"></span>
+                <div>
+                    <h5 class="mb-0 fw-bold" style="font-size:1rem;color:var(--text-main);">${asset.name}</h5>
+                    <span class="text-muted" style="font-size:0.75rem;font-weight:600;">${asset.category}</span>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;background:${riskColor}20;color:${riskColor};text-transform:uppercase;letter-spacing:0.5px;">${riskLevel} risk</span>
+                <button id="close-asset-panel" class="btn btn-sm btn-light border rounded-circle" style="width:28px;height:28px;padding:0;line-height:28px;text-align:center;">
+                    <i class="fas fa-times" style="font-size:0.7rem;"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Key metrics strip -->
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;">
+                <div class="fw-bold" style="font-size:1rem;color:${asset.color};">${(r*100).toFixed(2)}%</div>
+                <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Return p.a.</div>
+            </div>
+            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;">
+                <div class="fw-bold" style="font-size:1rem;color:var(--text-main);">${(v*100).toFixed(1)}%</div>
+                <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Volatility p.a.</div>
+            </div>
+            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;">
+                <div class="fw-bold" style="font-size:1rem;color:var(--text-main);">${k.toFixed(2)}</div>
+                <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Kurtosis</div>
+            </div>
+            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;">
+                <div class="fw-bold d-flex justify-content-center align-items-center" style="font-size:0.85rem;height:24px;">${convictionDots}</div>
+                <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Conviction</div>
+            </div>
+        </div>
+
+        <!-- Distribution chart with labelled axes -->
+        <div class="mb-3">
+            <div class="text-muted mb-1" style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Annual Return Distribution</div>
+            <div style="position:relative;">
+                <canvas id="panel-dist-chart" width="340" height="140" style="width:100%;height:140px;display:block;"></canvas>
+                <div id="panel-dist-axis" style="display:flex;justify-content:space-between;padding:0 4px;margin-top:2px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Commentary -->
+        <div class="commentary-body" style="font-size:0.82rem;line-height:1.6;color:var(--text-main);">
+            ${renderMarkdown(commentary)}
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-3 pt-2 border-top" style="font-size:0.68rem;color:var(--text-muted);">
+            ${cmaId ? `CMA: ${cmaId.replace(/_/g,' ')}` : 'No CMA ID available'}
+            ${!commentary ? ' · <em>No commentary available — add a block to cma_commentary.md</em>' : ''}
+        </div>
+    `;
+
+    // Draw enlarged distribution chart with axis labels
+    requestAnimationFrame(() => {
+        drawPanelDistributionChart(asset.key, r, v, k, asset.color);
+    });
+
+    document.getElementById('close-asset-panel')?.addEventListener('click', closeAssetDetailPanel);
+
+    overlay.classList.remove('d-none');
+    panel.classList.remove('d-none');
+    requestAnimationFrame(() => {
+        overlay.style.opacity = '1';
+        panel.style.transform = 'translateX(0)';
+        panel.style.opacity   = '1';
+    });
+}
+
+function closeAssetDetailPanel() {
+    const panel   = document.getElementById('asset-detail-panel');
+    const overlay = document.getElementById('asset-detail-overlay');
+    if (!panel || !overlay) return;
+    panel.style.transform = 'translateX(24px)';
+    panel.style.opacity   = '0';
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+        panel.classList.add('d-none');
+        overlay.classList.add('d-none');
+    }, 220);
+}
+
+function drawPanelDistributionChart(assetKey, r, v, kurtosis, colorHex) {
+    const canvas = document.getElementById('panel-dist-chart');
+    if (!canvas) return;
+    const ctx    = canvas.getContext('2d');
+    const W      = canvas.offsetWidth  || 340;
+    const H      = 140;
+    canvas.width  = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    const PAD_L = 8, PAD_R = 8, PAD_T = 8, PAD_B = 28;
+    const chartW = W - PAD_L - PAD_R;
+    const chartH = H - PAD_T - PAD_B;
+
+    const vol  = Math.max(v, 0.001);
+    const k    = Math.max(kurtosis, 0.01);
+    const df   = k > 0.05 ? (6 / k) + 4 : 1000;
+    const s    = vol * Math.sqrt((df - 2) / df);
+
+    // import logGamma from mathUtils via module scope
+    const coef  = Math.exp(logGamma((df+1)/2) - logGamma(df/2)) / (Math.sqrt(Math.PI*df)*s);
+    const exp_  = -(df+1)/2;
+
+    const minX = Math.min(-0.6, r - 3.5*vol);
+    const maxX = Math.max( 0.6, r + 3.5*vol);
+
+    const pts = [];
+    const steps = 200;
+    for (let i = 0; i <= steps; i++) {
+        const x  = minX + (maxX-minX)*(i/steps);
+        const y  = coef * Math.pow(1 + Math.pow((x-r)/s,2)/df, exp_);
+        pts.push({x, y});
+    }
+    const maxY = Math.max(...pts.map(p=>p.y));
+
+    const toCanvasX = x => PAD_L + ((x-minX)/(maxX-minX))*chartW;
+    const toCanvasY = y => PAD_T + chartH - (y/maxY)*chartH*0.92;
+
+    // ±1σ shaded band
+    const x1L = toCanvasX(r - vol), x1R = toCanvasX(r + vol);
+    ctx.fillStyle = hexToRgba(colorHex, 0.12);
+    ctx.fillRect(x1L, PAD_T, x1R-x1L, chartH);
+
+    // ±2σ lighter band
+    const x2L = toCanvasX(r - 2*vol), x2R = toCanvasX(r + 2*vol);
+    ctx.fillStyle = hexToRgba(colorHex, 0.06);
+    ctx.fillRect(x2L, PAD_T, x2R-x2L, chartH);
+
+    // Distribution fill
+    ctx.beginPath();
+    ctx.moveTo(toCanvasX(pts[0].x), PAD_T+chartH);
+    pts.forEach(p => ctx.lineTo(toCanvasX(p.x), toCanvasY(p.y)));
+    ctx.lineTo(toCanvasX(pts[pts.length-1].x), PAD_T+chartH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T+chartH);
+    grad.addColorStop(0, hexToRgba(colorHex, 0.55));
+    grad.addColorStop(1, hexToRgba(colorHex, 0.05));
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = colorHex; ctx.lineWidth = 1.8; ctx.stroke();
+
+    // Mean line
+    const meanX = toCanvasX(r);
+    ctx.beginPath(); ctx.moveTo(meanX, PAD_T); ctx.lineTo(meanX, PAD_T+chartH);
+    ctx.strokeStyle = hexToRgba(colorHex, 0.6); ctx.lineWidth = 1.2;
+    ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+
+    // X-axis labels
+    ctx.fillStyle = '#94A3B8'; ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center';
+    const labelValues = [];
+    for (let pct = Math.ceil(minX*100/10)*10; pct <= Math.floor(maxX*100); pct+=10) {
+        labelValues.push(pct/100);
+    }
+    // Max 7 labels to avoid crowding
+    const step = Math.ceil(labelValues.length/7);
+    labelValues.filter((_,i)=>i%step===0).forEach(val => {
+        const cx = toCanvasX(val);
+        if (cx < PAD_L+8 || cx > W-PAD_R-8) return;
+        ctx.fillText((val*100).toFixed(0)+'%', cx, H-6);
+        ctx.beginPath(); ctx.moveTo(cx, PAD_T+chartH); ctx.lineTo(cx, PAD_T+chartH+3);
+        ctx.strokeStyle='#CBD5E1'; ctx.lineWidth=1; ctx.setLineDash([]); ctx.stroke();
+    });
+
+    // Legend: mean and ±1σ
+    ctx.textAlign='left'; ctx.font='9px Inter,sans-serif'; ctx.fillStyle='#64748B';
+    ctx.fillText(`μ=${(r*100).toFixed(1)}%  ±1σ=${(vol*100).toFixed(1)}%  k=${kurtosis.toFixed(2)}`, PAD_L, PAD_T+10);
+}
+
+function closeAssetDetailPanelOnOverlay(e) {
+    if (e.target.id === 'asset-detail-overlay') closeAssetDetailPanel();
+}
+
 function drawDistributionChart(assetKey, r, v, kurtosis, colorHex) {
     const canvas = document.getElementById(`dist-${assetKey}`);
     if (!canvas) return;
@@ -676,6 +977,10 @@ function renderAssetRows() {
         
         tr.innerHTML = rowHTML;
         frag.appendChild(tr);
+
+        // Click on asset name cell opens the detail panel
+        tr.querySelector('td:first-child').style.cursor = 'pointer';
+        tr.querySelector('td:first-child').addEventListener('click', () => openAssetDetailPanel(asset));
         
         const inputs = tr.querySelectorAll('input[data-field="r"], input[data-field="v"], input[data-field="k"]');
         inputs.forEach(inp => {
@@ -790,7 +1095,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=22.0'); 
+    state.worker = new Worker('./js/worker.js?v=23.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {

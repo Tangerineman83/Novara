@@ -32,6 +32,7 @@ export const CHART_COLORS = [
 export const PRESET_CMAS = [
     {
         name: "May 2026 — Global Equilibrium (Institutional)",
+        cma_id: "novara_cma_2026_05",
         data: {
             r: {
                 usEq: 0.065,
@@ -127,6 +128,7 @@ export const PRESET_CMAS = [
 
     {
         name: "March 2026 — Global Equilibrium (Institutional)",
+        cma_id: "novara_cma_2026_03",
         data: {
             r: { 
                 usEq: 0.070, devEq: 0.072, emEq: 0.091, jpnEq: 0.070, ukEq: 0.065, apacEq: 0.072, 
