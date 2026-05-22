@@ -242,7 +242,60 @@ export const PRESET_PORTFOLIOS = [
             { id: "p_npt_growth", name: "NPT Sustainable Growth", weights: { usEq: 0.556, devEq: 0.133, emEq: 0.090, jpnEq: 0.052, ukEq: 0.033, apacEq: 0.019, globalReits: 0.048, realEstateDirect: 0.019, infrastructure: 0.05 }, alphas: {}, tes: {} },
             { id: "p_npt_retire", name: "NPT Retirement (40% Equity)", weights: { usEq: 0.23, devEq: 0.08, emEq: 0.04, ukEq: 0.05, igCredit: 0.30, sdCredit: 0.20, moneyMkt: 0.10 }, alphas: {}, tes: {} }
         ]
-    }
+    },
+    // ─── V3: DC Provider Default Portfolios (May 2026) ───────────────────
+    // Source: provider_strategies_v3.js — all portfolios verified at sum=1.000
+    // See source file for full methodology, confidence levels and changelog.
+    {
+        name: "AON",
+        portfolios: [
+            { id: "p_aon_growth",  name: "Aon Retirement Pathway — Growth",      weights: { usEq:0.445, devEq:0.208, emEq:0.090, jpnEq:0.059, ukEq:0.030, apacEq:0.074, globalReits:0.046, realEstateDirect:0.031, infrastructure:0.014, moneyMkt:0.003 }, alphas:{}, tes:{} },
+            { id: "p_aon_retire",  name: "Aon Retirement Pathway — At-Retirement", weights: { usEq:0.167, devEq:0.077, emEq:0.033, jpnEq:0.022, ukEq:0.011, apacEq:0.027, globalReits:0.013, realEstateDirect:0.008, infrastructure:0.004, igCredit:0.015, globalSov:0.064, inflLinked:0.300, sdCredit:0.107, moneyMkt:0.026, privCredit:0.100, listedAlts:0.026 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "Lifesight",
+        portfolios: [
+            { id: "p_lifesight_equity", name: "LifeSight Equity Fund (Growth)",    weights: { usEq:0.424, devEq:0.140, emEq:0.072, jpnEq:0.048, ukEq:0.032, apacEq:0.040, listedAlts:0.044, igCredit:0.055, globalSov:0.045, sdCredit:0.060, privCredit:0.040 }, alphas:{}, tes:{} },
+            { id: "p_lifesight_dgf",    name: "LifeSight DGF (At-Retirement)",     weights: { usEq:0.120, devEq:0.048, emEq:0.024, jpnEq:0.018, ukEq:0.016, apacEq:0.012, globalReits:0.025, realEstateDirect:0.020, infrastructure:0.025, privEq:0.015, privCredit:0.020, igCredit:0.110, globalSov:0.100, inflLinked:0.040, globalHighYield:0.030, sdCredit:0.040, emDebt:0.020, moneyMkt:0.300, listedAlts:0.017 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "Cushon",
+        portfolios: [
+            { id: "p_cushon_growth",  name: "Cushon Sustainable — Growth",        weights: { usEq:0.481, devEq:0.120, emEq:0.075, jpnEq:0.045, ukEq:0.022, apacEq:0.007, infrastructure:0.075, listedAlts:0.040, privEq:0.025, realEstateDirect:0.010, igCredit:0.060, globalHighYield:0.025, globalSov:0.015 }, alphas:{}, tes:{} },
+            { id: "p_cushon_retire",  name: "Cushon Sustainable — At-Retirement", weights: { usEq:0.150, devEq:0.060, emEq:0.025, ukEq:0.025, jpnEq:0.015, apacEq:0.010, infrastructure:0.020, privEq:0.015, igCredit:0.175, sdCredit:0.140, globalHighYield:0.050, globalSov:0.135, inflLinked:0.050, moneyMkt:0.100, emDebt:0.015, listedAlts:0.015 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "Smart",
+        portfolios: [
+            { id: "p_smart_growth",  name: "Smart Sustainable Growth (Target State)", weights: { usEq:0.524, devEq:0.116, emEq:0.080, jpnEq:0.040, ukEq:0.024, apacEq:0.016, igCredit:0.060, globalHighYield:0.020, globalSov:0.020, privCredit:0.070, privEq:0.015, infrastructure:0.015 }, alphas:{}, tes:{} },
+            { id: "p_smart_retire",  name: "Smart Income Fund (At-Retirement)",    weights: { usEq:0.130, devEq:0.055, emEq:0.025, ukEq:0.025, jpnEq:0.015, privCredit:0.030, privEq:0.010, infrastructure:0.010, igCredit:0.185, sdCredit:0.150, globalHighYield:0.050, globalSov:0.140, inflLinked:0.050, moneyMkt:0.105, emDebt:0.020 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "SEI",
+        portfolios: [
+            { id: "p_sei_growth",  name: "SEI Flexi Default — Growth (Factor Equity)", weights: { usEq:0.430, devEq:0.175, emEq:0.090, jpnEq:0.060, ukEq:0.055, apacEq:0.040, listedAlts:0.050, globalHighYield:0.020, igCredit:0.020, sdCredit:0.010, globalSov:0.010, inflLinked:0.010, emDebt:0.010, realEstateDirect:0.010, moneyMkt:0.010 }, alphas:{}, tes:{} },
+            { id: "p_sei_retire",  name: "SEI Flexi Default — At-Retirement (Age 65)", weights: { usEq:0.191, devEq:0.084, emEq:0.034, jpnEq:0.027, ukEq:0.024, apacEq:0.024, igCredit:0.030, globalSov:0.067, emDebt:0.015, globalHighYield:0.037, globalReits:0.055, listedAlts:0.040, sdCredit:0.087, inflLinked:0.035, moneyMkt:0.250 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "TPT",
+        portfolios: [
+            { id: "p_tpt_growth",  name: "TPT Sustainable TDF — Growth",          weights: { usEq:0.445, devEq:0.180, emEq:0.100, jpnEq:0.055, ukEq:0.010, apacEq:0.045, globalReits:0.025, realEstateDirect:0.015, privEq:0.035, listedAlts:0.030, infrastructure:0.010, igCredit:0.020, moneyMkt:0.010, sdCredit:0.010, globalHighYield:0.010 }, alphas:{}, tes:{} },
+            { id: "p_tpt_retire",  name: "TPT Sustainable TDF — At-Retirement",   weights: { usEq:0.120, devEq:0.050, emEq:0.020, jpnEq:0.015, ukEq:0.010, apacEq:0.015, globalReits:0.010, privEq:0.010, listedAlts:0.010, igCredit:0.180, sdCredit:0.150, globalHighYield:0.050, globalSov:0.140, inflLinked:0.080, moneyMkt:0.080, emDebt:0.040, privCredit:0.020 }, alphas:{}, tes:{} }
+        ]
+    },
+    {
+        name: "TPP",
+        portfolios: [
+            { id: "p_tpp_growth",  name: "The People's Pension — Growth",         weights: { usEq:0.420, devEq:0.165, emEq:0.090, jpnEq:0.055, ukEq:0.055, apacEq:0.040, globalReits:0.030, igCredit:0.055, sdCredit:0.025, globalHighYield:0.015, globalSov:0.020, moneyMkt:0.025, listedAlts:0.005 }, alphas:{}, tes:{} },
+            { id: "p_tpp_retire",  name: "The People's Pension — At-Retirement",  weights: { usEq:0.175, devEq:0.070, emEq:0.030, ukEq:0.030, jpnEq:0.020, apacEq:0.015, igCredit:0.169, sdCredit:0.141, globalHighYield:0.038, globalSov:0.122, inflLinked:0.056, moneyMkt:0.100, emDebt:0.024, globalReits:0.010 }, alphas:{}, tes:{} }
+        ]
+    },
+
 ];
 
 export const STRATEGY_GROUPS = [
@@ -263,7 +316,22 @@ export const STRATEGY_GROUPS = [
             { name: "Aviva My Future Vision (LTAF)", points: [ { years: 50, weights: { "p_av_vision_growth": 1.0 } }, { years: 15, weights: { "p_av_vision_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
             { name: "Standard Life SMA", points: [ { years: 50, weights: { "p_sl_sma_growth": 1.0 } }, { years: 15, weights: { "p_sl_sma_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
             { name: "Standard Life Future Opps", points: [ { years: 50, weights: { "p_sl_future_growth": 1.0 } }, { years: 15, weights: { "p_sl_future_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] }
+            { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] },
+            // ─── V3 PROVIDER STRATEGIES (DC Defaults, May 2026) ──────────────────
+            { name: "Aon Managed Retirement Pathway Fund",
+              points: [ { years: 50, weights: { "p_aon_growth": 1.0 } }, { years: 15, weights: { "p_aon_growth": 1.0 } }, { years: 0, weights: { "p_aon_retire": 1.0 } } ] },
+            { name: "LifeSight Drawdown Lifecycle (WTW)",
+              points: [ { years: 50, weights: { "p_lifesight_equity": 1.0 } }, { years: 25, weights: { "p_lifesight_equity": 1.0 } }, { years: 0, weights: { "p_lifesight_dgf": 1.0 } } ] },
+            { name: "Cushon Sustainable Investment Strategy",
+              points: [ { years: 50, weights: { "p_cushon_growth": 1.0 } }, { years: 7, weights: { "p_cushon_growth": 1.0 } }, { years: 0, weights: { "p_cushon_retire": 1.0 } } ] },
+            { name: "Smart Pension Sustainable Growth Default",
+              points: [ { years: 50, weights: { "p_smart_growth": 1.0 } }, { years: 8, weights: { "p_smart_growth": 1.0 } }, { years: 0, weights: { "p_smart_retire": 1.0 } } ] },
+            { name: "SEI Master Trust Flexi Access Default",
+              points: [ { years: 50, weights: { "p_sei_growth": 1.0 } }, { years: 15, weights: { "p_sei_growth": 1.0 } }, { years: 0, weights: { "p_sei_retire": 1.0 } } ] },
+            { name: "TPT Sustainable Future Target Date Fund",
+              points: [ { years: 50, weights: { "p_tpt_growth": 1.0 } }, { years: 19, weights: { "p_tpt_growth": 1.0 } }, { years: 0, weights: { "p_tpt_retire": 1.0 } } ] },
+            { name: "The People's Pension (B&CE) Balanced Default",
+              points: [ { years: 50, weights: { "p_tpp_growth": 1.0 } }, { years: 10, weights: { "p_tpp_growth": 1.0 } }, { years: 0, weights: { "p_tpp_retire": 1.0 } } ] },
         ]
     }
 ];
