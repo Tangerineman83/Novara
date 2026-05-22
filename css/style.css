@@ -294,3 +294,71 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
     white-space: nowrap;
     width: 18%;
 }
+
+/* --- VFM Time Machine --- */
+.vfm-horizon-btn {
+    background: var(--bg-main);
+    border: 1px solid var(--border-light);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 14px;
+    transition: all 0.15s ease;
+}
+.vfm-horizon-btn:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+.vfm-horizon-btn.active-horizon {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+    box-shadow: var(--shadow-btn);
+}
+.vfm-provider-row {
+    background: var(--bg-surface);
+}
+.vfm-benchmark-row {
+    background: #F8FAFC;
+}
+.vfm-benchmark-row td {
+    color: var(--text-muted) !important;
+    font-style: italic;
+}
+.vfm-medal {
+    font-size: 1rem;
+    line-height: 1;
+}
+.vfm-rank-num {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    width: 20px;
+    text-align: center;
+    display: inline-block;
+}
+.vfm-beat-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border-light);
+    margin-top: 3px;
+    overflow: hidden;
+}
+.vfm-beat-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+@keyframes vfmSpin {
+    to { transform: rotate(360deg); }
+}
+.vfm-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border-light);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: vfmSpin 0.7s linear infinite;
+    flex-shrink: 0;
+}
