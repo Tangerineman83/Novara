@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=24.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=25.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -37,6 +37,11 @@ const state = {
     strategyChartInstance: null,
     pie_left: null,
     pie_right: null,
+    vfm: {
+        activePersonaId: null,
+        horizonYears: 5,
+        running: false
+    },
     portfolios: [], 
     workingPort_left: null, 
     workingPort_right: null,
@@ -61,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
     document.getElementById('asset-detail-overlay')?.addEventListener('click', closeAssetDetailPanelOnOverlay);
     document.getElementById('btn-add-persona')?.addEventListener('click', addNewPersona);
+    initVFMTab();
 
     state.portfolios = UserDataEngine.load().portfolios || [];
     
@@ -150,6 +156,13 @@ function setupEventListeners() {
                     if(state.pie_left) state.pie_left.resize();
                     if(state.pie_right) state.pie_right.resize();
                 }, 50);
+            }
+            if (target === 'vfm') {
+                renderVFMPersonaDropdown();
+                // Auto-run on first visit if a persona is set
+                if (state.vfm.activePersonaId && !state.vfm.running) {
+                    setTimeout(runVFM, 100);
+                }
             }
             
             document.getElementById(`tab-${target}`).classList.remove('d-none');
@@ -1129,13 +1142,18 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=24.0'); 
+    state.worker = new Worker('./js/worker.js?v=25.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             updateUIState('Ready');
             renderChart(payload);
             renderResultsTable(payload);
+        } else if (type === 'VFM_COMPLETE') {
+            renderVFMTable(payload);
+        } else if (type === 'VFM_ERROR') {
+            vfmSetStatus('error', 'Simulation error — check inputs and retry.');
+            state.vfm.running = false;
         } else if (type === 'ERROR') {
             updateUIState('Error');
             if (payload === 'CORRELATION_NOT_PSD') {
@@ -1339,6 +1357,249 @@ function addNewPersona() {
         newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => newCard.querySelector('.persona-name-input')?.select(), 300);
     }
+}
+
+// ── VFM Time Machine ──────────────────────────────────────────────────────
+
+function initVFMTab() {
+    // Persona dropdown — independent from main projections
+    renderVFMPersonaDropdown();
+
+    // Horizon buttons
+    document.querySelectorAll('.vfm-horizon-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.vfm-horizon-btn').forEach(b => b.classList.remove('active-horizon'));
+            btn.classList.add('active-horizon');
+            state.vfm.horizonYears = parseInt(btn.dataset.years);
+            if (state.vfm.activePersonaId) runVFM();
+        });
+    });
+}
+
+function renderVFMPersonaDropdown() {
+    const menu    = document.getElementById('vfm-persona-dropdown-menu');
+    const content = document.getElementById('vfm-persona-content');
+    if (!menu) return;
+    menu.innerHTML = '';
+
+    state.personas.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
+            <div style="width:24px;height:24px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
+            <div class="d-flex flex-column">
+                <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
+                <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
+            </div>
+        </a>`;
+        li.querySelector('a').addEventListener('click', e => {
+            e.preventDefault();
+            state.vfm.activePersonaId = p.id;
+            updateVFMPersonaDisplay();
+            runVFM();
+        });
+        menu.appendChild(li);
+    });
+
+    // Set initial persona if not already set
+    if (!state.vfm.activePersonaId && state.personas.length > 0) {
+        state.vfm.activePersonaId = state.personas[0].id;
+    }
+    updateVFMPersonaDisplay();
+}
+
+function updateVFMPersonaDisplay() {
+    const p       = state.personas.find(x => x.id === state.vfm.activePersonaId);
+    const content = document.getElementById('vfm-persona-content');
+    if (!p || !content) return;
+    content.innerHTML = `
+        <div style="width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
+        <span class="fw-bold text-dark" style="font-size:0.85rem;white-space:nowrap;">${personaDisplayName(p)}</span>
+    `;
+}
+
+function vfmSetStatus(state_, message) {
+    const el = document.getElementById('vfm-status-text');
+    const wrap = document.getElementById('vfm-status');
+    if (!el) return;
+    if (state_ === 'running') {
+        wrap.innerHTML = `<div class="vfm-spinner"></div><span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">${message}</span>`;
+    } else if (state_ === 'done') {
+        wrap.innerHTML = `<i class="fas fa-check-circle" style="color:var(--accent-green);font-size:0.9rem;"></i><span style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">${message}</span>`;
+    } else if (state_ === 'error') {
+        wrap.innerHTML = `<i class="fas fa-exclamation-circle" style="color:#DC2626;font-size:0.9rem;"></i><span style="font-size:0.78rem;font-weight:600;color:#DC2626;">${message}</span>`;
+    } else {
+        wrap.innerHTML = `<span id="vfm-status-text" style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">${message}</span>`;
+    }
+}
+
+function buildVFMStrategies(horizonMonths) {
+    // Resolve all strategies from config — Provider (group 1) + Core (group 0)
+    // Each strategy is tagged with isProvider for table formatting.
+    const resolved = [];
+
+    STRATEGY_GROUPS.forEach((group, gIdx) => {
+        const isProvider = gIdx === 1;
+        group.strategies.forEach(strat => {
+            const resolvedPoints = strat.points.map(pt => {
+                const weights  = {};
+                const alphas   = {};
+                const tes      = {};
+                ASSET_CLASSES.forEach(ac => {
+                    weights[ac.key] = 0;
+                    alphas[ac.key]  = 0;
+                    tes[ac.key]     = 0;
+                });
+                Object.entries(pt.weights).forEach(([portId, weight]) => {
+                    const port = getGlobalPortfolio(portId);
+                    if (port) {
+                        ASSET_CLASSES.forEach(ac => {
+                            weights[ac.key] += (port.weights[ac.key] || 0) * weight;
+                            alphas[ac.key]  += (port.alphas?.[ac.key] || 0) * weight;
+                            tes[ac.key]     += (port.tes?.[ac.key]    || 0) * weight;
+                        });
+                    }
+                });
+                return { years: pt.years, weights, alphas, tes };
+            });
+
+            resolved.push({
+                name:       strat.name,
+                isProvider,
+                monthlyData: interpolateWeights(resolvedPoints, horizonMonths)
+            });
+        });
+    });
+    return resolved;
+}
+
+function runVFM() {
+    if (state.vfm.running) return;
+    const persona = state.personas.find(p => p.id === state.vfm.activePersonaId);
+    if (!persona) return;
+
+    const horizonYears  = state.vfm.horizonYears;
+    const horizonMonths = horizonYears * 12;
+    const strategies    = buildVFMStrategies(horizonMonths);
+    const cma           = getActiveCMA();
+
+    const simInput = document.getElementById('setting-sim-count');
+    const infInput = document.getElementById('setting-inflation');
+    const simCount = simInput ? parseInt(simInput.value) : 10000;
+    const inflation = infInput ? parseFloat(infInput.value) : 2.5;
+
+    state.vfm.running = true;
+    vfmSetStatus('running', `Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
+
+    // Show loading state in table
+    document.getElementById('vfm-tbody').innerHTML = `
+        <tr><td colspan="6" class="text-center py-5">
+            <div class="d-flex align-items-center justify-content-center gap-2" style="color:var(--accent-blue);">
+                <div class="vfm-spinner"></div>
+                <span style="font-size:0.85rem;font-weight:600;">Computing league table…</span>
+            </div>
+        </td></tr>`;
+
+    state.worker.postMessage({
+        type: 'VFM_RUN',
+        payload: {
+            cma,
+            strategies,
+            persona:       persona.data,
+            settings:      { simCount, inflation },
+            assetKeys:     ASSET_CLASSES.map(a => a.key),
+            horizonMonths
+        }
+    });
+}
+
+function renderVFMTable(results) {
+    state.vfm.running = false;
+
+    const horizonYears = state.vfm.horizonYears;
+    const tbody        = document.getElementById('vfm-tbody');
+    if (!tbody) return;
+
+    // Separate providers and benchmarks
+    const providers   = results.filter(r => r.isProvider);
+    const benchmarks  = results.filter(r => !r.isProvider);
+
+    // Rank providers by median annualised return descending
+    const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
+
+    // Field median pot (for vs-field-median column) — median of all provider medianPots
+    const providerMedians = rankedProviders.map(r => r.medianPot).sort((a, b) => a - b);
+    const fieldMedianPot  = providerMedians[Math.floor(providerMedians.length / 2)];
+
+    const MEDALS = ['🥇', '🥈', '🥉'];
+
+    function formatTableValue(v) {
+        const abs = Math.abs(v);
+        let step = abs < 100000 ? 1000 : abs < 1000000 ? 10000 : abs < 10000000 ? 50000 : 100000;
+        return '£' + (Math.round(v / step) * step).toLocaleString();
+    }
+
+    function beatBar(p) {
+        const pct    = Math.round(p * 100);
+        const color  = p >= 0.55 ? 'var(--accent-green)' : p >= 0.45 ? 'var(--accent-blue)' : '#94A3B8';
+        return `<div style="font-size:0.82rem;font-weight:700;color:${color};">${pct}%</div>
+                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${pct}%;background:${color};"></div></div>`;
+    }
+
+    function vsFieldCell(diff) {
+        if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">~0</span>`;
+        const sign  = diff > 0 ? '+' : '';
+        const color = diff > 0 ? 'var(--accent-green)' : '#DC2626';
+        const step  = Math.abs(diff) < 100000 ? 1000 : 10000;
+        const fmt   = sign + '£' + (Math.round(diff / step) * step).toLocaleString();
+        return `<span style="color:${color};font-weight:700;font-size:0.82rem;">${fmt}</span>`;
+    }
+
+    let html = '';
+
+    // Provider rows — ranked
+    rankedProviders.forEach((r, idx) => {
+        const rank    = idx + 1;
+        const medal   = rank <= 3 ? `<span class="vfm-medal">${MEDALS[rank-1]}</span>` : `<span class="vfm-rank-num">${rank}</span>`;
+        const retPct  = (r.annualisedReturn * 100).toFixed(2) + '%';
+        const vsProv  = r.medianPot - fieldMedianPot;
+
+        html += `<tr class="vfm-provider-row">
+            <td class="text-center ps-3" style="width:36px;">${medal}</td>
+            <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
+            <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${retPct} p.a.</td>
+            <td class="text-end" style="font-size:0.85rem;">${formatTableValue(r.medianPot)}</td>
+            <td class="text-end">${vsFieldCell(vsProv)}</td>
+            <td class="text-end pe-4">${beatBar(r.pBeatMedian)}</td>
+        </tr>`;
+    });
+
+    // Divider
+    html += `<tr style="background:#F1F5F9;">
+        <td colspan="6" style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 1rem;">
+            Novara Benchmarks — reference only
+        </td>
+    </tr>`;
+
+    // Benchmark rows — unranked, muted styling
+    benchmarks.forEach(r => {
+        const retPct = (r.annualisedReturn * 100).toFixed(2) + '%';
+        const vsBmk  = r.medianPot - fieldMedianPot;
+
+        html += `<tr class="vfm-benchmark-row">
+            <td class="ps-3" style="width:36px;"></td>
+            <td style="font-size:0.85rem;">${r.name}</td>
+            <td class="text-end" style="font-size:0.85rem;">${retPct} p.a.</td>
+            <td class="text-end" style="font-size:0.85rem;">${formatTableValue(r.medianPot)}</td>
+            <td class="text-end">${vsFieldCell(vsBmk)}</td>
+            <td class="text-end pe-4">${beatBar(r.pBeatMedian)}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+
+    const persona = state.personas.find(p => p.id === state.vfm.activePersonaId);
+    const pName   = persona ? personaDisplayName(persona) : '';
+    vfmSetStatus('done', `${pName} · ${horizonYears}-year horizon · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
 }
 
 function setupAutoRun() {
