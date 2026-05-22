@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=21.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=22.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTooltips();
 
         try {
-            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_0');
+            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_1');
             if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) loadStrategyPreset('preset_0_0');
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -426,7 +426,7 @@ function deleteCMA() {
     if(id.startsWith('custom_')) {
         UserDataEngine.deleteItem('cmas', id);
         refreshCMADropdowns();
-        loadCMAPreset('preset_0'); 
+        loadCMAPreset('preset_1'); // Fall back to May 2026
     }
 }
 
@@ -790,7 +790,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=21.0'); 
+    state.worker = new Worker('./js/worker.js?v=22.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1735,7 +1735,7 @@ function runSimulation() {
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
         
-        const simCount = simInput ? parseInt(simInput.value) : 2000;
+        const simCount = simInput ? parseInt(simInput.value) : 10000;
         let inflation = 2.5;
         if(infInput && infInput.value !== "") inflation = parseFloat(infInput.value);
 
@@ -1817,6 +1817,28 @@ function renderResultsTable(results) {
     if(!tbody) return;
     tbody.innerHTML = '';
     
+    // Rounds output table values to a magnitude-appropriate step.
+    // Chart hover tooltips intentionally bypass this and show raw figures.
+    //
+    // Rounding ladder:
+    //   < £100k          → nearest £1,000
+    //   £100k – £999k    → nearest £10,000
+    //   £1m – £9.99m     → nearest £50,000
+    //   £10m+            → nearest £100,000
+    //
+    // At 10,000 sims the p95 band has ~±£14k run-to-run variation,
+    // so nearest £10k makes that noise invisible to the user.
+    function formatTableValue(v) {
+        const abs = Math.abs(v);
+        let step;
+        if      (abs <  100_000)   step =   1_000;
+        else if (abs <  1_000_000) step =  10_000;
+        else if (abs < 10_000_000) step =  50_000;
+        else                       step = 100_000;
+        const rounded = Math.round(v / step) * step;
+        return '£' + rounded.toLocaleString();
+    }
+
     const baseRes = results[0];
     const lastIdx = baseRes.percentiles.pMedian.length - 1;
     const baseLow = baseRes.percentiles.pLower[lastIdx];
@@ -1843,15 +1865,15 @@ function renderResultsTable(results) {
                 ${res.name}
             </td>
             <td class="text-end align-middle text-muted border-bottom border-light px-2 px-md-3">
-                <span style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currLow).toLocaleString()}</span>
+                <span style="font-size:0.85rem; display:block; line-height:1.2;">${formatTableValue(currLow)}</span>
                 ${formatDiff(currLow, baseLow)}
             </td>
             <td class="text-end align-middle col-median border-bottom border-light px-2 px-md-3">
-                <span class="median-val" style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currMed).toLocaleString()}</span>
+                <span class="median-val" style="font-size:0.85rem; display:block; line-height:1.2;">${formatTableValue(currMed)}</span>
                 ${formatDiff(currMed, baseMed)}
             </td>
             <td class="text-end align-middle text-muted border-bottom border-light pe-3 pe-md-4 ps-2 ps-md-3">
-                <span style="font-size:0.85rem; display:block; line-height:1.2;">£${Math.round(currHigh).toLocaleString()}</span>
+                <span style="font-size:0.85rem; display:block; line-height:1.2;">${formatTableValue(currHigh)}</span>
                 ${formatDiff(currHigh, baseHigh)}
             </td>
         `;
