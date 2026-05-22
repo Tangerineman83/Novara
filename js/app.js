@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=26.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=27.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=26.0'); 
+    state.worker = new Worker('./js/worker.js?v=27.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1513,6 +1513,16 @@ function runVFM() {
     const simCount = simInput ? parseInt(simInput.value) : 10000;
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
 
+    // Normalised persona: £10,000 initial pot, zero contributions.
+    // Used for the annualised return column only — isolates strategy investment
+    // quality from persona-specific contribution effects.
+    const normalisedPersona = {
+        ...persona.data,
+        savings:      10000,
+        salary:       0,
+        contribution: 0
+    };
+
     state.vfm.running = true;
     vfmShowProgress(`Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
 
@@ -1527,9 +1537,10 @@ function runVFM() {
         payload: {
             cma,
             strategies,
-            persona:       persona.data,
-            settings:      { simCount, inflation },
-            assetKeys:     ASSET_CLASSES.map(a => a.key),
+            persona:           persona.data,
+            normalisedPersona,
+            settings:          { simCount, inflation },
+            assetKeys:         ASSET_CLASSES.map(a => a.key),
             horizonMonths
         }
     });
@@ -1537,92 +1548,79 @@ function runVFM() {
 
 function renderVFMTable(results) {
     state.vfm.running = false;
-
     const horizonYears = state.vfm.horizonYears;
     const tbody        = document.getElementById('vfm-tbody');
     if (!tbody) return;
 
-    // Separate providers and benchmarks
-    const providers   = results.filter(r => r.isProvider);
-    const benchmarks  = results.filter(r => !r.isProvider);
-
-    // Rank providers by median annualised return descending
+    const providers  = results.filter(r => r.isProvider);
+    const benchmarks = results.filter(r => !r.isProvider);
     const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
 
-    // Field median pot (for vs-field-median column) — median of all provider medianPots
+    // Merge benchmarks inline at correct position by annualised return — no rank, muted style
+    const allRanked = rankedProviders.map((r, i) => ({ ...r, providerRank: i + 1 }));
+    benchmarks.forEach(b => {
+        const pos = allRanked.findIndex(r => r.isProvider && b.annualisedReturn > r.annualisedReturn);
+        const entry = { ...b, providerRank: null };
+        if (pos === -1) allRanked.push(entry);
+        else allRanked.splice(pos, 0, entry);
+    });
+
     const providerMedians = rankedProviders.map(r => r.medianPot).sort((a, b) => a - b);
     const fieldMedianPot  = providerMedians[Math.floor(providerMedians.length / 2)];
+    const MEDALS = ['\u{1F947}','\u{1F948}','\u{1F949}'];
 
-    const MEDALS = ['🥇', '🥈', '🥉'];
-
-    function formatTableValue(v) {
+    function fmt(v) {
         const abs = Math.abs(v);
-        let step = abs < 100000 ? 1000 : abs < 1000000 ? 10000 : abs < 10000000 ? 50000 : 100000;
-        return '£' + (Math.round(v / step) * step).toLocaleString();
+        const step = abs < 100000 ? 1000 : abs < 1000000 ? 10000 : 50000;
+        return '\u00a3' + (Math.round(v / step) * step).toLocaleString();
     }
-
-    function beatBar(p) {
-        const pct    = Math.round(p * 100);
-        const color  = p >= 0.55 ? 'var(--accent-green)' : p >= 0.45 ? 'var(--accent-blue)' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${color};">${pct}%</div>
-                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${pct}%;background:${color};"></div></div>`;
+    function beatBar(p, muted) {
+        const pct = Math.round(p * 100);
+        const col = muted ? '#94A3B8' : p >= 0.55 ? 'var(--accent-green)' : p >= 0.45 ? 'var(--accent-blue)' : '#94A3B8';
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${pct}%</div><div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${pct}%;background:${col};"></div></div>`;
     }
-
-    function vsFieldCell(diff) {
+    function vsCell(diff, muted) {
         if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">~0</span>`;
-        const sign  = diff > 0 ? '+' : '';
-        const color = diff > 0 ? 'var(--accent-green)' : '#DC2626';
-        const step  = Math.abs(diff) < 100000 ? 1000 : 10000;
-        const fmt   = sign + '£' + (Math.round(diff / step) * step).toLocaleString();
-        return `<span style="color:${color};font-weight:700;font-size:0.82rem;">${fmt}</span>`;
+        const sign = diff > 0 ? '+' : '';
+        const col  = muted ? 'var(--text-muted)' : diff > 0 ? 'var(--accent-green)' : '#DC2626';
+        const step = Math.abs(diff) < 100000 ? 1000 : 10000;
+        return `<span style="color:${col};font-weight:700;font-size:0.82rem;">${sign}\u00a3${(Math.round(diff/step)*step).toLocaleString()}</span>`;
     }
 
     let html = '';
-
-    // Provider rows — ranked
-    rankedProviders.forEach((r, idx) => {
-        const rank    = idx + 1;
-        const medal   = rank <= 3 ? `<span class="vfm-medal">${MEDALS[rank-1]}</span>` : `<span class="vfm-rank-num">${rank}</span>`;
-        const retPct  = (r.annualisedReturn * 100).toFixed(2) + '%';
-        const vsProv  = r.medianPot - fieldMedianPot;
-
-        html += `<tr class="vfm-provider-row">
-            <td class="text-center ps-3" style="width:36px;">${medal}</td>
-            <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
-            <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${retPct} p.a.</td>
-            <td class="text-end" style="font-size:0.85rem;">${formatTableValue(r.medianPot)}</td>
-            <td class="text-end">${vsFieldCell(vsProv)}</td>
-            <td class="text-end pe-4">${beatBar(r.pBeatMedian)}</td>
-        </tr>`;
-    });
-
-    // Divider
-    html += `<tr style="background:#F1F5F9;">
-        <td colspan="6" style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 1rem;">
-            Novara Benchmarks — reference only
-        </td>
-    </tr>`;
-
-    // Benchmark rows — unranked, muted styling
-    benchmarks.forEach(r => {
-        const retPct = (r.annualisedReturn * 100).toFixed(2) + '%';
-        const vsBmk  = r.medianPot - fieldMedianPot;
-
-        html += `<tr class="vfm-benchmark-row">
-            <td class="ps-3" style="width:36px;"></td>
-            <td style="font-size:0.85rem;">${r.name}</td>
-            <td class="text-end" style="font-size:0.85rem;">${retPct} p.a.</td>
-            <td class="text-end" style="font-size:0.85rem;">${formatTableValue(r.medianPot)}</td>
-            <td class="text-end">${vsFieldCell(vsBmk)}</td>
-            <td class="text-end pe-4">${beatBar(r.pBeatMedian)}</td>
-        </tr>`;
+    let provRank = 0;
+    allRanked.forEach(r => {
+        const isBmk = !r.isProvider;
+        const vs    = r.medianPot - fieldMedianPot;
+        const ret   = (r.annualisedReturn * 100).toFixed(2) + '% p.a.';
+        if (isBmk) {
+            html += `<tr class="vfm-benchmark-row">
+                <td class="ps-3" style="width:36px;"></td>
+                <td style="font-size:0.85rem;font-style:italic;">${r.name} <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">benchmark</span></td>
+                <td class="text-end" style="font-size:0.85rem;">${ret}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmt(r.medianPot)}</td>
+                <td class="text-end">${vsCell(vs, true)}</td>
+                <td class="text-end pe-4">${beatBar(r.pBeatMedian, true)}</td>
+            </tr>`;
+        } else {
+            provRank++;
+            const medal = provRank <= 3
+                ? `<span class="vfm-medal">${MEDALS[provRank-1]}</span>`
+                : `<span class="vfm-rank-num">${provRank}</span>`;
+            html += `<tr class="vfm-provider-row">
+                <td class="text-center ps-3" style="width:36px;">${medal}</td>
+                <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
+                <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmt(r.medianPot)}</td>
+                <td class="text-end">${vsCell(vs, false)}</td>
+                <td class="text-end pe-4">${beatBar(r.pBeatMedian, false)}</td>
+            </tr>`;
+        }
     });
 
     tbody.innerHTML = html;
-
-    const persona = state.personas.find(p => p.id === state.vfm.activePersonaId);
-    const pName   = persona ? personaDisplayName(persona) : '';
-    vfmShowDone(`${pName} · ${horizonYears}-year horizon · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
+    const p = state.personas.find(x => x.id === state.vfm.activePersonaId);
+    vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${horizonYears}-year horizon \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
 }
 
 function setupAutoRun() {

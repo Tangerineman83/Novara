@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=26.0');
+        const worker = new Worker('./sim-worker.js?v=27.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -219,145 +219,137 @@ function buildStatsFromCache(confidence) {
 // re-running the simulation when the user switches horizons.
 
 function runVFMSimulation(data) {
-    const { cma, strategies, persona, settings } = data;
-    const simCount   = settings.simCount || 10000;
-    const months     = data.horizonMonths; // fixed horizon, not full retirement
-    const nStrats    = strategies.length;
-    const inflation  = settings.inflation || 2.5;
+    const { cma, strategies, persona, normalisedPersona, settings } = data;
+    const simCount      = settings.simCount || 10000;
+    const months        = data.horizonMonths;
+    const nStrats       = strategies.length;
 
-    const numWorkers   = Math.min(MAX_WORKERS,
+    const numWorkers    = Math.min(MAX_WORKERS,
         (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4);
-    const chunkSize    = Math.ceil(simCount / numWorkers);
+    const chunkSize     = Math.ceil(simCount / numWorkers);
     const actualWorkers = Math.ceil(simCount / chunkSize);
 
-    // assemblyBufs[strat][sim] = terminal pot (only last month stored)
-    // We only need the terminal month for the league table stats.
-    // Store as Float64Array for precision in annualised return calc.
-    const terminalPots = Array.from({ length: nStrats }, () => new Float64Array(simCount));
+    // Two separate pot arrays:
+    // realPots  — real persona with contributions, for Projected Pot and P(Beat Median)
+    // normPots  — £10k zero-contribution persona, for Annualised Return p.a.
+    const realPots = Array.from({ length: nStrats }, () => new Float64Array(simCount));
+    const normPots = Array.from({ length: nStrats }, () => new Float64Array(simCount));
 
-    // We also need full paths for beat-median — but storing 10 strategies ×
-    // 10k sims × up to 120 months (10yr) = 12M floats = 48MB. Instead we
-    // compute beat-median directly in each sub-worker chunk and accumulate
-    // counts, passing only the terminal pot column back. Beat-median is
-    // computed post-assembly once all terminal pots are known.
+    const trimmedStrategies = strategies.map(s => ({
+        ...s,
+        monthlyData: s.monthlyData.slice(0, months)
+    }));
 
-    let chunksReceived = 0;
-    let errorFired     = false;
+    const basePayload = {
+        horizonMonths: months,
+        cma,
+        assetKeys: data.assetKeys,
+        settings,
+        strategies: trimmedStrategies
+    };
 
-    for (let w = 0; w < actualWorkers; w++) {
-        const chunkStart = w * chunkSize;
-        const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
+    // Progress tracks pairs: each chunk spawns 2 sub-workers (real + norm).
+    // We count each sub-worker completion separately; fire VFM_COMPLETE when all done.
+    let completedHalves = 0;
+    const totalHalves   = actualWorkers * 2;
+    let errorFired      = false;
 
-        // Override monthlyData to only run for horizonMonths
-        const trimmedStrategies = strategies.map(s => ({
-            ...s,
-            monthlyData: s.monthlyData.slice(0, months)
-        }));
+    function handleChunkResult(pots, cs, cs2, buffers) {
+        for (let si = 0; si < nStrats; si++) {
+            const src      = new Float32Array(buffers[si]);
+            const lastBase = (months - 1) * cs2;
+            for (let s = 0; s < cs2; s++) pots[si][cs + s] = src[lastBase + s];
+        }
+        completedHalves++;
+        // Report progress once per pair (every 2 completions)
+        if (completedHalves % 2 === 0) {
+            self.postMessage({
+                type: 'VFM_PROGRESS',
+                payload: { done: completedHalves / 2, total: actualWorkers }
+            });
+        }
+        if (completedHalves === totalHalves) {
+            const result = buildVFMStats(realPots, normPots, strategies, simCount, months);
+            self.postMessage({ type: 'VFM_COMPLETE', payload: result });
+        }
+    }
 
-        const worker = new Worker('./sim-worker.js?v=26.0');
-
-        worker.onmessage = function(e) {
-            worker.terminate();
+    function makeWorker(persona_, pots, cs, cs2) {
+        const w = new Worker('./sim-worker.js?v=27.0');
+        w.onmessage = function(e) {
+            w.terminate();
             if (errorFired) return;
             if (e.data.type === 'ERROR') {
                 errorFired = true;
                 self.postMessage({ type: 'VFM_ERROR', payload: e.data.payload });
                 return;
             }
-
-            const { chunkStart: cs, chunkSize: cs2, buffers } = e.data;
-
-            // Extract only the terminal month from each strategy buffer
-            // Buffer layout: [month * chunkSize + sim]
-            for (let si = 0; si < nStrats; si++) {
-                const src      = new Float32Array(buffers[si]);
-                const lastBase = (months - 1) * cs2;
-                for (let s = 0; s < cs2; s++) {
-                    terminalPots[si][cs + s] = src[lastBase + s];
-                }
-            }
-
-            chunksReceived++;
-            // Report progress to main thread after each chunk
-            self.postMessage({
-                type: 'VFM_PROGRESS',
-                payload: { done: chunksReceived, total: actualWorkers }
-            });
-            if (chunksReceived === actualWorkers) {
-                const result = buildVFMStats(terminalPots, strategies, simCount, months, persona);
-                self.postMessage({ type: 'VFM_COMPLETE', payload: result });
-            }
+            handleChunkResult(pots, e.data.chunkStart, e.data.chunkSize, e.data.buffers);
         };
-
-        worker.onerror = function(err) {
-            worker.terminate();
+        w.onerror = function(err) {
+            w.terminate();
             if (!errorFired) {
                 errorFired = true;
                 const detail = [err.message, err.filename, err.lineno]
-                    .filter(Boolean).join(' line ') || 'VFM_WORKER_ERROR';
+                    .filter(Boolean).join(' ') || 'VFM_WORKER_ERROR';
                 self.postMessage({ type: 'VFM_ERROR', payload: detail });
             }
         };
+        w.postMessage({ chunkStart: cs, chunkSize: cs2,
+            data: { ...basePayload, persona: persona_ } });
+    }
 
-        worker.postMessage({
-            chunkStart,
-            chunkSize: thisChunk,
-            data: {
-                ...data,
-                horizonMonths: months,
-                strategies: strategies.map(s => ({
-                    ...s,
-                    monthlyData: s.monthlyData.slice(0, months)
-                }))
-            }
-        });
+    for (let w = 0; w < actualWorkers; w++) {
+        const cs  = w * chunkSize;
+        const cs2 = Math.min(chunkSize, simCount - cs);
+        makeWorker(persona,             realPots, cs, cs2);
+        makeWorker(normalisedPersona,   normPots, cs, cs2);
     }
 }
 
-function buildVFMStats(terminalPots, strategies, simCount, months, persona) {
-    const nStrats  = strategies.length;
-    const years    = months / 12;
-    const initPot  = persona.savings; // starting pot for annualised return calc
+function buildVFMStats(realPots, normPots, strategies, simCount, months) {
+    const nStrats = strategies.length;
+    const years   = months / 12;
 
-    // Median terminal pot per strategy
-    const medians = terminalPots.map(pots => {
+    // Median real terminal pot per strategy (persona-specific, with contributions)
+    const medianRealPots = realPots.map(pots => {
         const sorted = Float64Array.from(pots).sort();
         return sorted[Math.round(0.5 * (simCount - 1))];
     });
 
-    // Cross-strategy median: median of all terminal pots across all strategies
-    // For each simulation path s, average the terminal pots (equal-weight blend),
-    // then take the median of those averages.
+    // Median normalised terminal pot per strategy (£10k, zero contributions)
+    // Used for annualised return: (medNormPot / 10000)^(1/years) - 1
+    // This correctly isolates investment quality from contribution effects.
+    const NORM_INIT = 10000;
+    const annualisedReturns = normPots.map(pots => {
+        const sorted = Float64Array.from(pots).sort();
+        const med    = sorted[Math.round(0.5 * (simCount - 1))];
+        return Math.pow(Math.max(med, 1) / NORM_INIT, 1 / years) - 1;
+    });
+
+    // Cross-strategy median: for each path, average all real terminal pots
     const crossPots = new Float64Array(simCount);
     for (let s = 0; s < simCount; s++) {
         let sum = 0;
-        for (let si = 0; si < nStrats; si++) sum += terminalPots[si][s];
+        for (let si = 0; si < nStrats; si++) sum += realPots[si][s];
         crossPots[s] = sum / nStrats;
     }
     crossPots.sort();
     const crossMedian = crossPots[Math.round(0.5 * (simCount - 1))];
 
-    // P(beat cross-median) per strategy
-    const pBeatMedian = terminalPots.map(pots => {
+    // P(beat cross-median) using real pots
+    const pBeatMedian = realPots.map(pots => {
         let count = 0;
         for (let s = 0; s < simCount; s++) if (pots[s] > crossMedian) count++;
         return count / simCount;
     });
 
-    // Median annualised return: (medianPot / initPot)^(1/years) - 1
-    // initPot alone understates the invested base because of ongoing contributions.
-    // Use median terminal pot directly — the annualised return is implicitly
-    // money-weighted because contributions are included in the simulation.
-    const annualisedReturns = medians.map(med =>
-        Math.pow(Math.max(med, 0.01) / Math.max(initPot, 1), 1 / years) - 1
-    );
-
     return strategies.map((strat, i) => ({
         name:             strat.name,
         isProvider:       strat.isProvider,
-        medianPot:        medians[i],
+        medianPot:        medianRealPots[i],
         annualisedReturn: annualisedReturns[i],
-        vsFieldMedian:    medians[i] - crossMedian,
+        vsFieldMedian:    medianRealPots[i] - crossMedian,
         pBeatMedian:      pBeatMedian[i]
     }));
 }
