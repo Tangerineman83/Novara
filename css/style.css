@@ -249,3 +249,48 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 .persona-band-label {
     transition: opacity 0.25s ease;
 }
+
+/* --- Asset Detail Panel --- */
+#asset-detail-panel .commentary-heading {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 4px;
+}
+#asset-detail-panel .commentary-list {
+    padding-left: 1.2rem;
+    font-size: 0.82rem;
+}
+#asset-detail-panel .commentary-list li {
+    margin-bottom: 4px;
+    line-height: 1.5;
+}
+#asset-detail-panel .commentary-table {
+    font-size: 0.78rem;
+}
+#asset-detail-panel .commentary-table th {
+    font-weight: 700;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-light);
+    padding: 4px 8px 4px 0;
+    background: transparent;
+}
+#asset-detail-panel .commentary-table td {
+    padding: 3px 8px 3px 0;
+    vertical-align: top;
+    border: none;
+}
+#asset-detail-panel .commentary-table td:first-child {
+    font-weight: 600;
+    color: var(--text-main);
+    width: 42%;
+}
+#asset-detail-panel .commentary-table td:nth-child(2) {
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    width: 18%;
+}
