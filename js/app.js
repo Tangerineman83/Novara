@@ -1,8 +1,7 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=23.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=24.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
-import { COMMENTARY_FALLBACK } from './commentary-fallback.js';
 
 // --- LOCAL STORAGE ENGINE ---
 const UserDataEngine = {
@@ -61,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
     document.getElementById('asset-detail-overlay')?.addEventListener('click', closeAssetDetailPanelOnOverlay);
+    document.getElementById('btn-add-persona')?.addEventListener('click', addNewPersona);
 
     state.portfolios = UserDataEngine.load().portfolios || [];
     
@@ -599,14 +599,12 @@ async function loadCommentary() {
         const res = await fetch('./commentary/cma_commentary.md');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        // Strip HTML comment header if present, keep only block body
+        // Strip HTML comment instructions header, keep only block body
         const start = text.indexOf('-->\n\n');
         _commentaryCache = start >= 0 ? text.slice(start + 5) : text;
     } catch(e) {
-        // Fetch unavailable (e.g. file:// protocol) — use inline fallback.
-        // COMMENTARY_FALLBACK is already the body content with no HTML header.
-        console.info('Commentary fetch unavailable, using inline fallback:', e.message);
-        _commentaryCache = COMMENTARY_FALLBACK;
+        console.warn('Commentary could not be loaded:', e.message);
+        _commentaryCache = '';
     }
     return _commentaryCache;
 }
@@ -667,6 +665,11 @@ function getActiveCMAId() {
     }
     const custom = UserDataEngine.load().cmas?.find(c => c.id === id);
     return custom?.cma_id || null;
+}
+
+// Returns "Name (age)" — used everywhere a persona is named in the UI.
+function personaDisplayName(p) {
+    return `${p.name} (${p.data.age})`;
 }
 
 function getAssetCMAValues(assetKey) {
@@ -1126,7 +1129,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=23.0'); 
+    state.worker = new Worker('./js/worker.js?v=24.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1176,7 +1179,7 @@ function renderPersonaCards() {
                         <div class="d-flex align-items-center justify-content-between w-100">
                             <div class="d-flex flex-column flex-grow-1 w-100">
                                 <input type="text" class="form-control form-control-sm fw-bold text-dark border-0 px-0 bg-transparent shadow-none persona-name-input text-start" value="${p.name}" style="font-size:1rem; width:100%; min-width:0;">
-                                <span class="persona-band-label" style="font-size:0.7rem; font-weight:700; color:var(--text-muted); letter-spacing:0.3px;">${bandLabel}</span>
+                                <span class="persona-band-label" style="font-size:0.7rem; font-weight:700; color:var(--text-muted); letter-spacing:0.3px;">${bandLabel} · Age ${p.data.age}</span>
                             </div>
                             <div class="d-flex gap-1 ms-2 flex-shrink-0">
                                 <button class="btn btn-sm btn-light border rounded-circle shadow-sm btn-save-persona" title="Save Persona"><i class="fas fa-save text-primary"></i></button>
@@ -1267,7 +1270,7 @@ function updatePersonaAvatar(personaId, age) {
         const header = wrap.closest('.card-header');
         if (header) header.style.background = getAvatarBgColor(age);
         const bandEl = wrap.closest('.card').querySelector('.persona-band-label');
-        if (bandEl) bandEl.textContent = getAvatarLabel(age);
+        if (bandEl) bandEl.textContent = `${getAvatarLabel(age)} · Age ${age}`;
         wrap.style.opacity = '1';
         updateActivePersonaDisplay();
     }, 220);
@@ -1287,7 +1290,7 @@ function renderPersonaDropdown() {
         li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
             ${avatarHtml}
             <div class="d-flex flex-column">
-                <span class="fw-bold small text-dark">${p.name}</span>
+                <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
             </div>
         </a>`;
@@ -1310,10 +1313,33 @@ function updateActivePersonaDisplay() {
     const content = document.getElementById('active-persona-content');
     if(p && content) {
         const avatarHtml = `<div style="width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>`;
-        content.innerHTML = `${avatarHtml}<span class="fw-bold text-dark" style="font-size:0.85rem;white-space:nowrap;">${p.name}</span>`;
+        content.innerHTML = `${avatarHtml}<span class="fw-bold text-dark" style="font-size:0.85rem;white-space:nowrap;">${personaDisplayName(p)}</span>`;
     }
 }
 
+
+function addNewPersona() {
+    // Create a new blank persona using the first preset as a structural template.
+    // Defaults to age 30 so the avatar starts in the "Full Throttle" band.
+    const newId = 'custom_pers_' + Date.now();
+    const newPersona = {
+        id:   newId,
+        name: 'New Persona',
+        seed: newId,
+        desc: '',
+        data: { age: 30, retirementAge: 68, savings: 0, salary: 0, contribution: 10, realSalaryGrowth: 0.5 }
+    };
+    state.personas.push(newPersona);
+    state.activePersonaId = newId;
+    renderPersonaCards();
+    renderPersonaDropdown();
+    // Focus the name input on the new card so the user can type immediately
+    const newCard = document.querySelector(`.persona-card[data-id="${newId}"]`);
+    if (newCard) {
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => newCard.querySelector('.persona-name-input')?.select(), 300);
+    }
+}
 
 function setupAutoRun() {
     const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];

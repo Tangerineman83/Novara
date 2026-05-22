@@ -80,7 +80,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=23.0');
+        const worker = new Worker('./sim-worker.js?v=24.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
