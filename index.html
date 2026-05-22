@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=24.0">
+    <link rel="stylesheet" href="css/style.css?v=25.0">
 </head>
 <body>
 
@@ -18,6 +18,7 @@
             <a href="#" class="list-group-item" data-tab="portfolio"><i class="fas fa-cubes me-3"></i>Portfolios</a>
             <a href="#" class="list-group-item" data-tab="strategy"><i class="fas fa-route me-3"></i>Strategies</a>
             <a href="#" class="list-group-item" data-tab="persona"><i class="fas fa-user me-3"></i>Personas</a>
+            <a href="#" class="list-group-item" data-tab="vfm"><i class="fas fa-trophy me-3"></i>VFM Time Machine</a>
             <a href="#" class="list-group-item" data-tab="model"><i class="fas fa-play-circle me-3"></i>Projections</a>
         </div>
         <div class="p-3 mt-auto border-top border-light">
@@ -256,6 +257,78 @@
                     </div>
             </div>
 
+            <!-- VFM Time Machine Tab -->
+            <div id="tab-vfm" class="view-section d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold m-0 text-dark">VFM Time Machine</h4>
+                        <p class="text-muted mb-0" style="font-size:0.8rem;">Provider strategy league table — ranked by projected median outcome for the selected persona and horizon.</p>
+                    </div>
+                </div>
+
+                <!-- Controls ribbon -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body py-3">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4 col-sm-6">
+                                <label class="form-label mb-1" style="font-size:0.75rem;font-weight:700;">Persona</label>
+                                <div class="dropdown w-100">
+                                    <button class="form-select form-select-sm border-0 bg-light w-100 text-start d-flex align-items-center shadow-none" type="button" data-bs-toggle="dropdown" id="vfm-persona-btn" style="min-height:31px;padding-top:0.25rem;padding-bottom:0.25rem;">
+                                        <div id="vfm-persona-content" class="d-flex align-items-center gap-2 overflow-hidden"></div>
+                                    </button>
+                                    <ul class="dropdown-menu shadow-sm border-0 rounded-3 w-100" id="vfm-persona-dropdown-menu"></ul>
+                                </div>
+                            </div>
+                            <div class="col-md-5 col-sm-6">
+                                <label class="form-label mb-1" style="font-size:0.75rem;font-weight:700;">Time Horizon</label>
+                                <div class="d-flex gap-2 flex-wrap" id="vfm-horizon-btns">
+                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="1">1 yr</button>
+                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="3">3 yrs</button>
+                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn active-horizon" data-years="5">5 yrs</button>
+                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="7">7 yrs</button>
+                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="10">10 yrs</button>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-12">
+                                <div id="vfm-status" class="d-flex align-items-center gap-2" style="font-size:0.78rem;font-weight:600;color:var(--text-muted);min-height:31px;">
+                                    <span id="vfm-status-text">Select a persona to begin</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- League table -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-0">
+                        <div id="vfm-table-wrap" style="overflow-x:auto;">
+                            <table class="table align-middle mb-0" id="vfm-table">
+                                <thead class="table-header-custom">
+                                    <tr>
+                                        <th style="width:36px;padding-left:1rem;"></th>
+                                        <th>Strategy</th>
+                                        <th class="text-end" style="min-width:120px;">Median Return p.a.</th>
+                                        <th class="text-end" style="min-width:120px;">Projected Pot</th>
+                                        <th class="text-end" style="min-width:110px;">vs Field Median</th>
+                                        <th class="text-end pe-4" style="min-width:130px;">P(Beat Median)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vfm-tbody">
+                                    <tr><td colspan="6" class="text-center text-muted py-5" style="font-size:0.85rem;">Run the league table by selecting a persona above.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="d-flex gap-4 mt-3 flex-wrap" style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--bg-surface);border:1px solid var(--border-light);margin-right:4px;"></span>Provider Strategy — ranked</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#F8FAFC;border:1px solid var(--border-light);margin-right:4px;"></span>Novara Benchmark — reference only, unranked</span>
+                    <span>P(Beat Median) = % of simulated paths where this strategy exceeds the cross-strategy median terminal pot</span>
+                </div>
+            </div>
+
             <div id="tab-model" class="view-section d-none dashboard-container">
                 <div class="input-ribbon mb-4">
                     <div class="row g-2 align-items-center">
@@ -343,7 +416,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=24.0"></script>    <!-- Asset Detail Panel -->
+<script type="module" src="js/app.js?v=25.0"></script>    <!-- Asset Detail Panel -->
     <div id="asset-detail-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:1040;opacity:0;transition:opacity 0.22s ease;" class="d-none"></div>
     <div id="asset-detail-panel" style="position:fixed;top:0;right:0;height:100%;width:min(480px,95vw);background:var(--bg-surface);z-index:1050;box-shadow:-8px 0 40px rgba(15,23,42,0.18);overflow-y:auto;padding:1.5rem;transform:translateX(24px);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease;" class="d-none"></div>
 
