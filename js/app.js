@@ -707,15 +707,6 @@ async function openAssetDetailPanel(asset) {
         `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;background:${i < (CONVICTION_MAP[convictionLevel]||2) ? asset.color : '#E2E8F0'};"></span>`
     ).join('');
 
-    // Tooltip text for risk level and conviction
-    const riskTooltip = {
-        low:      'Low risk: vol < 8%, kurtosis < 1.5. Near-Gaussian return distribution; tail events rare and modest (e.g. Money Markets).',
-        moderate: 'Moderate risk: vol 8–15%, kurtosis 1.5–2.5. Meaningful but manageable drawdowns; limited fat-tail exposure (e.g. IG Credit).',
-        elevated: 'Elevated risk: vol 15–25% or kurtosis 2.5–4.0. Significant drawdown potential; fat tails present (e.g. most Equities, REITs).',
-        high:     'High risk: vol ≥ 25% or kurtosis ≥ 4.0. Large and frequent extreme outcomes; crisis drawdowns can be severe (e.g. EM Equity, Digital Assets).'
-    }[riskLevel] || '';
-    const convTooltip = 'Conviction reflects the research team\'s confidence in the return assumption: 1 dot = low, 2 = medium, 3 = medium-high, 4 = high. Derived from the Positioning section of the CMA commentary.';
-
     // Risk level — derived from a composite of annualised volatility and kurtosis.
     // Both dimensions matter: vol measures the width of the distribution (how often
     // returns are far from the mean); kurtosis measures tail heaviness (how extreme
@@ -733,6 +724,15 @@ async function openAssetDetailPanel(asset) {
                     : (v >= 0.08 || k >= 1.5) ? 'moderate'
                     : 'low';
     const riskColor = RISK_COLOR_MAP[riskLevel];
+
+    // Tooltip definitions for the risk and conviction badges
+    const riskTooltip = {
+        low:      'Low risk: vol < 8%, kurtosis < 1.5. Near-Gaussian return distribution; tail events rare and modest (e.g. Money Markets).',
+        moderate: 'Moderate risk: vol 8–15%, kurtosis 1.5–2.5. Meaningful but manageable drawdowns; limited fat-tail exposure (e.g. IG Credit).',
+        elevated: 'Elevated risk: vol 15–25% or kurtosis 2.5–4.0. Significant drawdown potential; fat tails present (e.g. most Equities, REITs).',
+        high:     'High risk: vol ≥ 25% or kurtosis ≥ 4.0. Large and frequent extreme outcomes; crisis drawdowns can be severe (e.g. EM Equity, Digital Assets).'
+    }[riskLevel] || '';
+    const convTooltip = 'Conviction reflects the research team\'s confidence in the return assumption: 1 dot = low, 2 = medium, 3 = medium-high, 4 = high. Derived from the Positioning section of the CMA commentary.';
 
     panel.innerHTML = `
         <div class="d-flex align-items-start justify-content-between mb-3">
