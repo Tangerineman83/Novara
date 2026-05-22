@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=29.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=30.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -66,13 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuBtn) menuBtn.onclick = (e) => { e.preventDefault(); wrapper.classList.toggle("toggled"); };
     document.getElementById('asset-detail-overlay')?.addEventListener('click', closeAssetDetailPanelOnOverlay);
     document.getElementById('btn-add-persona')?.addEventListener('click', addNewPersona);
-    initVFMTab();
 
     state.portfolios = UserDataEngine.load().portfolios || [];
     
     state.personas = JSON.parse(JSON.stringify(PRESET_PERSONAS));
     UserDataEngine.load().personas.forEach(p => state.personas.push(p));
     if(state.personas.length > 0) state.activePersonaId = state.personas[0].id;
+
+    initVFMTab(); // must run after state.personas is populated
 
     buildSharedLegend();
     setupEventListeners();
@@ -158,8 +159,7 @@ function setupEventListeners() {
                 }, 50);
             }
             if (target === 'vfm') {
-                renderVFMPersonaDropdown();
-                // Auto-run on first visit if a persona is set
+                renderVFMPersonaDropdown(); // refresh in case personas changed
                 if (state.vfm.activePersonaId && !state.vfm.running) {
                     setTimeout(runVFM, 100);
                 }
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=29.0'); 
+    state.worker = new Worker('./js/worker.js?v=30.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1364,7 +1364,8 @@ function addNewPersona() {
 // ── VFM Time Machine ──────────────────────────────────────────────────────
 
 function initVFMTab() {
-    // Persona dropdown — independent from main projections
+    // Persona dropdown — independent from main projections.
+    // state.personas is guaranteed populated by the time this is called.
     renderVFMPersonaDropdown();
 
     // Horizon buttons
@@ -1376,6 +1377,8 @@ function initVFMTab() {
             if (state.vfm.activePersonaId) runVFM();
         });
     });
+    // Don't auto-run here — the tab isn't visible yet on first load.
+    // runVFM fires when the user navigates to the tab (see tab activation handler).
 }
 
 function renderVFMPersonaDropdown() {
