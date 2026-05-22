@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=27.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=28.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=27.0'); 
+    state.worker = new Worker('./js/worker.js?v=28.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1549,30 +1549,33 @@ function runVFM() {
 function renderVFMTable(results) {
     state.vfm.running = false;
     const horizonYears = state.vfm.horizonYears;
-    const tbody        = document.getElementById('vfm-tbody');
+    const tbody = document.getElementById('vfm-tbody');
     if (!tbody) return;
 
     const providers  = results.filter(r => r.isProvider);
     const benchmarks = results.filter(r => !r.isProvider);
     const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
 
-    // Merge benchmarks inline at correct position by annualised return — no rank, muted style
+    // Insert benchmarks inline at their correct position by annualised return
     const allRanked = rankedProviders.map((r, i) => ({ ...r, providerRank: i + 1 }));
     benchmarks.forEach(b => {
         const pos = allRanked.findIndex(r => r.isProvider && b.annualisedReturn > r.annualisedReturn);
-        const entry = { ...b, providerRank: null };
-        if (pos === -1) allRanked.push(entry);
-        else allRanked.splice(pos, 0, entry);
+        if (pos === -1) allRanked.push({ ...b, providerRank: null });
+        else allRanked.splice(pos, 0, { ...b, providerRank: null });
     });
 
     const providerMedians = rankedProviders.map(r => r.medianPot).sort((a, b) => a - b);
     const fieldMedianPot  = providerMedians[Math.floor(providerMedians.length / 2)];
     const MEDALS = ['\u{1F947}','\u{1F948}','\u{1F949}'];
 
-    function fmt(v) {
+    function fmtPot(v) {
         const abs = Math.abs(v);
         const step = abs < 100000 ? 1000 : abs < 1000000 ? 10000 : 50000;
         return '\u00a3' + (Math.round(v / step) * step).toLocaleString();
+    }
+    function fmtRet(r) {
+        // Round to nearest 0.1%
+        return (Math.round(r * 1000) / 10).toFixed(1) + '%';
     }
     function beatBar(p, muted) {
         const pct = Math.round(p * 100);
@@ -1580,7 +1583,7 @@ function renderVFMTable(results) {
         return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${pct}%</div><div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${pct}%;background:${col};"></div></div>`;
     }
     function vsCell(diff, muted) {
-        if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">~0</span>`;
+        if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">\u2248\u00a30</span>`;
         const sign = diff > 0 ? '+' : '';
         const col  = muted ? 'var(--text-muted)' : diff > 0 ? 'var(--accent-green)' : '#DC2626';
         const step = Math.abs(diff) < 100000 ? 1000 : 10000;
@@ -1592,13 +1595,15 @@ function renderVFMTable(results) {
     allRanked.forEach(r => {
         const isBmk = !r.isProvider;
         const vs    = r.medianPot - fieldMedianPot;
-        const ret   = (r.annualisedReturn * 100).toFixed(2) + '% p.a.';
+        const ret   = fmtRet(r.annualisedReturn);
         if (isBmk) {
             html += `<tr class="vfm-benchmark-row">
                 <td class="ps-3" style="width:36px;"></td>
-                <td style="font-size:0.85rem;font-style:italic;">${r.name} <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">benchmark</span></td>
-                <td class="text-end" style="font-size:0.85rem;">${ret}</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmt(r.medianPot)}</td>
+                <td style="font-size:0.85rem;font-style:italic;">${r.name}
+                    <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>
+                </td>
+                <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, true)}</td>
                 <td class="text-end pe-4">${beatBar(r.pBeatMedian, true)}</td>
             </tr>`;
@@ -1610,8 +1615,8 @@ function renderVFMTable(results) {
             html += `<tr class="vfm-provider-row">
                 <td class="text-center ps-3" style="width:36px;">${medal}</td>
                 <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
-                <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret}</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmt(r.medianPot)}</td>
+                <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret} p.a.</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, false)}</td>
                 <td class="text-end pe-4">${beatBar(r.pBeatMedian, false)}</td>
             </tr>`;

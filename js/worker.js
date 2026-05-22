@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=27.0');
+        const worker = new Worker('./sim-worker.js?v=28.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -269,13 +269,13 @@ function runVFMSimulation(data) {
             });
         }
         if (completedHalves === totalHalves) {
-            const result = buildVFMStats(realPots, normPots, strategies, simCount, months);
+            const result = buildVFMStats(realPots, normPots, strategies, simCount, months, settings.inflation);
             self.postMessage({ type: 'VFM_COMPLETE', payload: result });
         }
     }
 
     function makeWorker(persona_, pots, cs, cs2) {
-        const w = new Worker('./sim-worker.js?v=27.0');
+        const w = new Worker('./sim-worker.js?v=28.0');
         w.onmessage = function(e) {
             w.terminate();
             if (errorFired) return;
@@ -307,24 +307,32 @@ function runVFMSimulation(data) {
     }
 }
 
-function buildVFMStats(realPots, normPots, strategies, simCount, months) {
-    const nStrats = strategies.length;
-    const years   = months / 12;
+function buildVFMStats(realPots, normPots, strategies, simCount, months, inflation) {
+    const nStrats  = strategies.length;
+    const years    = months / 12;
+
+    // Cumulative inflation over the horizon — used to convert real pots back to nominal.
+    // The sim deflates all pots by inflation so projectedPot is in today's money.
+    // For the annualised return column we want NOMINAL return (comparable to the
+    // arithmetic returns shown in the Portfolio tab), so we reverse the deflation.
+    const inflationRate = (inflation || 2.5) / 100;
+    const cumInflation  = Math.pow(1 + inflationRate / 12, months);
+
+    const NORM_INIT = 10000; // normalised starting pot
+
+    // Median normalised terminal pot (real terms) — convert to nominal for return calc
+    const annualisedReturns = normPots.map(pots => {
+        const sorted      = Float64Array.from(pots).sort();
+        const medRealPot  = sorted[Math.round(0.5 * (simCount - 1))];
+        const medNomPot   = medRealPot * cumInflation; // reverse inflation deflation
+        return Math.pow(Math.max(medNomPot, 1) / NORM_INIT, 1 / years) - 1;
+    });
 
     // Median real terminal pot per strategy (persona-specific, with contributions)
+    // This IS correctly shown in today's money — label as such in the UI
     const medianRealPots = realPots.map(pots => {
         const sorted = Float64Array.from(pots).sort();
         return sorted[Math.round(0.5 * (simCount - 1))];
-    });
-
-    // Median normalised terminal pot per strategy (£10k, zero contributions)
-    // Used for annualised return: (medNormPot / 10000)^(1/years) - 1
-    // This correctly isolates investment quality from contribution effects.
-    const NORM_INIT = 10000;
-    const annualisedReturns = normPots.map(pots => {
-        const sorted = Float64Array.from(pots).sort();
-        const med    = sorted[Math.round(0.5 * (simCount - 1))];
-        return Math.pow(Math.max(med, 1) / NORM_INIT, 1 / years) - 1;
     });
 
     // Cross-strategy median: for each path, average all real terminal pots
