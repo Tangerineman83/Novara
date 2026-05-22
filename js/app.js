@@ -2,6 +2,7 @@
 import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=23.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
+import { COMMENTARY_FALLBACK } from './commentary-fallback.js';
 
 // --- LOCAL STORAGE ENGINE ---
 const UserDataEngine = {
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTooltips();
 
         try {
-            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_1');
+            if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_0');
             if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) loadStrategyPreset('preset_0_0');
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
@@ -427,7 +428,7 @@ function deleteCMA() {
     if(id.startsWith('custom_')) {
         UserDataEngine.deleteItem('cmas', id);
         refreshCMADropdowns();
-        loadCMAPreset('preset_1'); // Fall back to May 2026
+        loadCMAPreset('preset_0'); // Fall back to May 2026
     }
 }
 
@@ -597,22 +598,25 @@ async function loadCommentary() {
     try {
         const res = await fetch('./commentary/cma_commentary.md');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        _commentaryCache = await res.text();
+        const text = await res.text();
+        // Strip HTML comment header if present, keep only block body
+        const start = text.indexOf('-->\n\n');
+        _commentaryCache = start >= 0 ? text.slice(start + 5) : text;
     } catch(e) {
-        console.warn('Commentary file could not be loaded:', e.message);
-        _commentaryCache = '';
+        // Fetch unavailable (e.g. file:// protocol) — use inline fallback.
+        // COMMENTARY_FALLBACK is already the body content with no HTML header.
+        console.info('Commentary fetch unavailable, using inline fallback:', e.message);
+        _commentaryCache = COMMENTARY_FALLBACK;
     }
     return _commentaryCache;
 }
 
 function extractCommentaryBlock(markdown, cmaId, assetId) {
-    // Skip the HTML comment instructions block, then find matching --- delimiters
-    const bodyStart = markdown.indexOf('-->\n\n');
-    const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
-    // Split on block boundaries
+    // _commentaryCache is always clean body content (HTML header already stripped).
+    // Split on block boundaries and find the matching cma_id + asset_id pair.
     const blockPattern = /---\ncma_id:\s*(\S+)\nasset_id:\s*(\S+)\n---\n([\s\S]*?)(?=\n---\ncma_id:|\s*$)/g;
     let match;
-    while ((match = blockPattern.exec(body)) !== null) {
+    while ((match = blockPattern.exec(markdown)) !== null) {
         if (match[1] === cmaId && match[2] === assetId) {
             return match[3].trim();
         }
@@ -703,9 +707,32 @@ async function openAssetDetailPanel(asset) {
         `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;background:${i < (CONVICTION_MAP[convictionLevel]||2) ? asset.color : '#E2E8F0'};"></span>`
     ).join('');
 
-    // Risk rating — infer from kurtosis if not in commentary
-    const riskLevel = k >= 4 ? 'high' : k >= 2.5 ? 'elevated' : k >= 1.5 ? 'moderate' : 'low';
-    const riskColor = RISK_COLOR_MAP[riskLevel] || '#64748B';
+    // Tooltip text for risk level and conviction
+    const riskTooltip = {
+        low:      'Low risk: vol < 8%, kurtosis < 1.5. Near-Gaussian return distribution; tail events rare and modest (e.g. Money Markets).',
+        moderate: 'Moderate risk: vol 8–15%, kurtosis 1.5–2.5. Meaningful but manageable drawdowns; limited fat-tail exposure (e.g. IG Credit).',
+        elevated: 'Elevated risk: vol 15–25% or kurtosis 2.5–4.0. Significant drawdown potential; fat tails present (e.g. most Equities, REITs).',
+        high:     'High risk: vol ≥ 25% or kurtosis ≥ 4.0. Large and frequent extreme outcomes; crisis drawdowns can be severe (e.g. EM Equity, Digital Assets).'
+    }[riskLevel] || '';
+    const convTooltip = 'Conviction reflects the research team\'s confidence in the return assumption: 1 dot = low, 2 = medium, 3 = medium-high, 4 = high. Derived from the Positioning section of the CMA commentary.';
+
+    // Risk level — derived from a composite of annualised volatility and kurtosis.
+    // Both dimensions matter: vol measures the width of the distribution (how often
+    // returns are far from the mean); kurtosis measures tail heaviness (how extreme
+    // the worst outcomes can be). A low-vol asset with high kurtosis (e.g. Private
+    // Credit) can still be elevated risk; a high-vol asset with low kurtosis
+    // (e.g. Developed Equities) is a different kind of risk.
+    //
+    // Thresholds (vol p.a. / kurtosis):
+    //   low      — vol < 8%  AND k < 1.5   (Money Markets, Short Duration Credit)
+    //   moderate — vol < 15% AND k < 2.5   (IG Credit, Global Sovereign, Infla Linked)
+    //   elevated — vol < 25% OR  k < 4.0   (most equities, REITs, Private Credit)
+    //   high     — vol >= 25% OR k >= 4.0  (EM Equity, Digital Assets, Private Equity)
+    const riskLevel = (v >= 0.25 || k >= 4.0) ? 'high'
+                    : (v >= 0.15 || k >= 2.5) ? 'elevated'
+                    : (v >= 0.08 || k >= 1.5) ? 'moderate'
+                    : 'low';
+    const riskColor = RISK_COLOR_MAP[riskLevel];
 
     panel.innerHTML = `
         <div class="d-flex align-items-start justify-content-between mb-3">
@@ -717,7 +744,7 @@ async function openAssetDetailPanel(asset) {
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;background:${riskColor}20;color:${riskColor};text-transform:uppercase;letter-spacing:0.5px;">${riskLevel} risk</span>
+                <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;background:${riskColor}20;color:${riskColor};text-transform:uppercase;letter-spacing:0.5px;cursor:help;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="${riskTooltip}">${riskLevel} risk</span>
                 <button id="close-asset-panel" class="btn btn-sm btn-light border rounded-circle" style="width:28px;height:28px;padding:0;line-height:28px;text-align:center;">
                     <i class="fas fa-times" style="font-size:0.7rem;"></i>
                 </button>
@@ -738,7 +765,7 @@ async function openAssetDetailPanel(asset) {
                 <div class="fw-bold" style="font-size:1rem;color:var(--text-main);">${k.toFixed(2)}</div>
                 <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Kurtosis</div>
             </div>
-            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;">
+            <div class="flex-fill text-center py-2 px-1 rounded" style="background:var(--bg-main);min-width:70px;cursor:help;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="${convTooltip}">
                 <div class="fw-bold d-flex justify-content-center align-items-center" style="font-size:0.85rem;height:24px;">${convictionDots}</div>
                 <div class="text-muted" style="font-size:0.65rem;font-weight:600;">Conviction</div>
             </div>
@@ -769,6 +796,10 @@ async function openAssetDetailPanel(asset) {
     // Draw enlarged distribution chart with axis labels
     requestAnimationFrame(() => {
         drawPanelDistributionChart(asset.key, r, v, k, asset.color);
+        // Initialise Bootstrap tooltips on the newly rendered panel
+        panel.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
+            new bootstrap.Tooltip(el, { container: 'body', html: false })
+        );
     });
 
     document.getElementById('close-asset-panel')?.addEventListener('click', closeAssetDetailPanel);
