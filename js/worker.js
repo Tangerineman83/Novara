@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=32.0');
+        const worker = new Worker('./sim-worker.js?v=33.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -245,7 +245,7 @@ function runVFMSimulation(data) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
 
-        const worker = new Worker('./sim-worker.js?v=32.0');
+        const worker = new Worker('./sim-worker.js?v=33.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -305,20 +305,32 @@ function buildVFMStats(realPots, strategies, simCount) {
     crossPots.sort();
     const crossMedian = crossPots[Math.round(0.5 * (simCount - 1))];
 
-    // P(beat cross-median) — chance of top half
-    const pBeatMedian = realPots.map(pots => {
-        let count = 0;
-        for (let s = 0; s < simCount; s++) if (pots[s] > crossMedian) count++;
-        return count / simCount;
-    });
+    // P(top) and P(bottom): at each simulated path rank all strategies by terminal pot.
+    // P(top)    = fraction of paths where this strategy finishes 1st.
+    // P(bottom) = fraction of paths where this strategy finishes last.
+    // These discriminate clearly when strategies cluster — unlike P(beat median) ≈ 50%.
+    const pTop    = new Float64Array(nStrats);
+    const pBottom = new Float64Array(nStrats);
+
+    for (let s = 0; s < simCount; s++) {
+        let maxPot = -Infinity, minPot = Infinity;
+        let maxIdx = 0, minIdx = 0;
+        for (let si = 0; si < nStrats; si++) {
+            const p = realPots[si][s];
+            if (p > maxPot) { maxPot = p; maxIdx = si; }
+            if (p < minPot) { minPot = p; minIdx = si; }
+        }
+        pTop[maxIdx]++;
+        pBottom[minIdx]++;
+    }
 
     return strategies.map((strat, i) => ({
-        name:                strat.name,
-        isProvider:          strat.isProvider,
-        medianPot:           medianRealPots[i],
-        annualisedReturn:    strat.annualisedArithReturn, // deterministic, from app side
-        vsFieldMedian:       medianRealPots[i] - crossMedian,
-        pBeatMedian:         pBeatMedian[i]
+        name:             strat.name,
+        isProvider:       strat.isProvider,
+        medianPot:        medianRealPots[i],
+        annualisedReturn: strat.annualisedArithReturn,
+        vsFieldMedian:    medianRealPots[i] - crossMedian,
+        pTop:             pTop[i] / simCount,
+        pBottom:          pBottom[i] / simCount
     }));
 }
-

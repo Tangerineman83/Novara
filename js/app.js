@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=32.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=33.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=32.0'); 
+    state.worker = new Worker('./js/worker.js?v=33.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1466,6 +1466,16 @@ function buildVFMStrategies(horizonMonths, cma) {
     // Also computes the time-weighted arithmetic return across the horizon,
     // incorporating alpha adjustments — this is the factsheet-equivalent figure
     // and matches the arithmetic return shown in the Portfolio tab.
+    //
+    // IMPORTANT: the glidepath is positioned relative to the PERSONA's actual
+    // retirement distance (personaRetireMonths), not the horizon window length.
+    // This ensures Maya (43yr to retire) stays in the growth portfolio at all
+    // horizons, while Priya (12yr to retire) correctly transitions during a 10yr window.
+    const persona    = state.personas.find(p => p.id === state.vfm.activePersonaId);
+    const personaAge = persona?.data?.age || 25;
+    const retireAge  = persona?.data?.retirementAge || 68;
+    const personaRetireMonths = Math.max(1, (retireAge - personaAge) * 12);
+
     const resolved = [];
 
     STRATEGY_GROUPS.forEach((group, gIdx) => {
@@ -1493,14 +1503,15 @@ function buildVFMStrategies(horizonMonths, cma) {
                 return { years: pt.years, weights, alphas, tes };
             });
 
-            const monthlyData = interpolateWeights(resolvedPoints, horizonMonths);
+            // Generate monthlyData anchored to persona's actual retirement distance.
+            // interpolateWeights uses (totalMonths - m)/12 as yearsRemaining, so
+            // passing personaRetireMonths gives correct glidepath position at each month.
+            // We then slice to horizonMonths to limit the simulation window.
+            const monthlyData = interpolateWeights(resolvedPoints, personaRetireMonths)
+                                    .slice(0, horizonMonths);
 
             // Time-weighted arithmetic return across all months of the horizon.
-            // For each month, compute Σ_i w_i × (r_i + alpha_i), then average
-            // and annualise. This correctly handles glidepath transitions (e.g.
-            // Priya transitioning from growth to retire during a 10yr window)
-            // and includes any alpha assumptions on the underlying portfolios.
-            // Matches the Portfolio tab arithmetic return for static portfolios.
+            // cma.r values are annual decimals — no further scaling needed.
             let totalMonthlyRet = 0;
             monthlyData.forEach(md => {
                 let monthRet = 0;
@@ -1513,10 +1524,6 @@ function buildVFMStrategies(horizonMonths, cma) {
                 });
                 totalMonthlyRet += monthRet;
             });
-            // cma.r values are annual decimals (e.g. 0.065 = 6.5% p.a.).
-            // Accumulating w_i * r_i each month and dividing by horizonMonths
-            // gives the time-weighted annual arithmetic return directly.
-            // No further scaling needed — do NOT multiply by 12.
             const annualisedArithReturn = totalMonthlyRet / horizonMonths;
 
             resolved.push({
@@ -1595,13 +1602,22 @@ function renderVFMTable(results) {
         return '\u00a3' + (Math.round(v / step) * step).toLocaleString();
     }
     function fmtRet(r) {
-        // Round to nearest 0.1%
         return (Math.round(r * 1000) / 10).toFixed(1) + '%';
     }
-    function beatBar(p, muted) {
+    function fmtPct(p) {
+        return (Math.round(p * 1000) / 10).toFixed(1) + '%';
+    }
+    function pTopBar(p, muted) {
         const pct = Math.round(p * 100);
-        const col = muted ? '#94A3B8' : p >= 0.55 ? 'var(--accent-green)' : p >= 0.45 ? 'var(--accent-blue)' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${pct}%</div><div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${pct}%;background:${col};"></div></div>`;
+        const col = muted ? '#94A3B8' : p >= 0.12 ? 'var(--accent-green)' : p >= 0.06 ? 'var(--accent-blue)' : '#94A3B8';
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtPct(p)}</div>
+                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
+    }
+    function pBottomBar(p, muted) {
+        const pct = Math.round(p * 100);
+        const col = muted ? '#94A3B8' : p >= 0.12 ? '#DC2626' : p >= 0.06 ? '#F59E0B' : '#94A3B8';
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtPct(p)}</div>
+                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
     }
     function vsCell(diff, muted) {
         if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">\u2248\u00a30</span>`;
@@ -1626,7 +1642,8 @@ function renderVFMTable(results) {
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
                 <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, true)}</td>
-                <td class="text-end pe-4">${beatBar(r.pBeatMedian, true)}</td>
+                <td class="text-end">${pTopBar(r.pTop, true)}</td>
+                <td class="text-end pe-4">${pBottomBar(r.pBottom, true)}</td>
             </tr>`;
         } else {
             provRank++;
@@ -1639,7 +1656,8 @@ function renderVFMTable(results) {
                 <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret} p.a.</td>
                 <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, false)}</td>
-                <td class="text-end pe-4">${beatBar(r.pBeatMedian, false)}</td>
+                <td class="text-end">${pTopBar(r.pTop, false)}</td>
+                <td class="text-end pe-4">${pBottomBar(r.pBottom, false)}</td>
             </tr>`;
         }
     });
