@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=28.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=29.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1142,7 +1142,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=28.0'); 
+    state.worker = new Worker('./js/worker.js?v=29.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1458,9 +1458,11 @@ function vfmShowError(message) {
     document.getElementById('vfm-status-idle').textContent = message;
 }
 
-function buildVFMStrategies(horizonMonths) {
-    // Resolve all strategies from config — Provider (group 1) + Core (group 0)
-    // Each strategy is tagged with isProvider for table formatting.
+function buildVFMStrategies(horizonMonths, cma) {
+    // Resolve all strategies from config — Provider (group 1) + Core (group 0).
+    // Also computes the time-weighted arithmetic return across the horizon,
+    // incorporating alpha adjustments — this is the factsheet-equivalent figure
+    // and matches the arithmetic return shown in the Portfolio tab.
     const resolved = [];
 
     STRATEGY_GROUPS.forEach((group, gIdx) => {
@@ -1488,10 +1490,34 @@ function buildVFMStrategies(horizonMonths) {
                 return { years: pt.years, weights, alphas, tes };
             });
 
+            const monthlyData = interpolateWeights(resolvedPoints, horizonMonths);
+
+            // Time-weighted arithmetic return across all months of the horizon.
+            // For each month, compute Σ_i w_i × (r_i + alpha_i), then average
+            // and annualise. This correctly handles glidepath transitions (e.g.
+            // Priya transitioning from growth to retire during a 10yr window)
+            // and includes any alpha assumptions on the underlying portfolios.
+            // Matches the Portfolio tab arithmetic return for static portfolios.
+            let totalMonthlyRet = 0;
+            monthlyData.forEach(md => {
+                let monthRet = 0;
+                ASSET_CLASSES.forEach(ac => {
+                    const w = md.weights[ac.key] || 0;
+                    if (w === 0) return;
+                    const r     = cma.r[ac.key] || 0;
+                    const alpha = md.alphas?.[ac.key] || 0;
+                    monthRet += w * (r + alpha);
+                });
+                totalMonthlyRet += monthRet;
+            });
+            // Monthly return is already annual/12 from CMA; annualise the average
+            const annualisedArithReturn = (totalMonthlyRet / horizonMonths) * 12;
+
             resolved.push({
-                name:       strat.name,
+                name:                strat.name,
                 isProvider,
-                monthlyData: interpolateWeights(resolvedPoints, horizonMonths)
+                monthlyData,
+                annualisedArithReturn
             });
         });
     });
@@ -1505,23 +1531,13 @@ function runVFM() {
 
     const horizonYears  = state.vfm.horizonYears;
     const horizonMonths = horizonYears * 12;
-    const strategies    = buildVFMStrategies(horizonMonths);
+    const strategies    = buildVFMStrategies(horizonMonths, cma);
     const cma           = getActiveCMA();
 
     const simInput = document.getElementById('setting-sim-count');
     const infInput = document.getElementById('setting-inflation');
     const simCount = simInput ? parseInt(simInput.value) : 10000;
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
-
-    // Normalised persona: £10,000 initial pot, zero contributions.
-    // Used for the annualised return column only — isolates strategy investment
-    // quality from persona-specific contribution effects.
-    const normalisedPersona = {
-        ...persona.data,
-        savings:      10000,
-        salary:       0,
-        contribution: 0
-    };
 
     state.vfm.running = true;
     vfmShowProgress(`Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
@@ -1537,10 +1553,9 @@ function runVFM() {
         payload: {
             cma,
             strategies,
-            persona:           persona.data,
-            normalisedPersona,
-            settings:          { simCount, inflation },
-            assetKeys:         ASSET_CLASSES.map(a => a.key),
+            persona:       persona.data,
+            settings:      { simCount, inflation },
+            assetKeys:     ASSET_CLASSES.map(a => a.key),
             horizonMonths
         }
     });
