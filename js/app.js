@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=34.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=35.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -40,7 +40,8 @@ const state = {
     vfm: {
         activePersonaId: null,
         horizonYears: 5,
-        running: false
+        running: false,
+        slicerChart: null
     },
     portfolios: [], 
     workingPort_left: null, 
@@ -1142,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=34.0'); 
+    state.worker = new Worker('./js/worker.js?v=35.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1534,6 +1535,39 @@ function buildVFMStrategies(horizonMonths, cma) {
             });
         });
     });
+
+    // ── Provider Median synthetic strategy ──────────────────────────────────
+    // Average asset mix across all provider strategies at each month.
+    // Represents the typical glidepath across the provider universe.
+    const providerResolved = resolved.filter(s => s.isProvider);
+    if (providerResolved.length > 0) {
+        const nProv = providerResolved.length;
+        const medianMonthlyData = Array.from({ length: horizonMonths }, (_, m) => {
+            const weights = {};
+            const alphas  = {};
+            ASSET_CLASSES.forEach(ac => {
+                weights[ac.key] = providerResolved.reduce((sum, s) =>
+                    sum + (s.monthlyData[m]?.weights[ac.key] || 0), 0) / nProv;
+                alphas[ac.key]  = providerResolved.reduce((sum, s) =>
+                    sum + (s.monthlyData[m]?.alphas?.[ac.key] || 0), 0) / nProv;
+            });
+            return { weights, alphas };
+        });
+        let totalRet = 0;
+        medianMonthlyData.forEach(md => {
+            ASSET_CLASSES.forEach(ac => {
+                totalRet += (md.weights[ac.key] || 0) * ((cma.r[ac.key] || 0) + (md.alphas?.[ac.key] || 0));
+            });
+        });
+        resolved.push({
+            name: 'Provider Median',
+            isProvider: false,   // treated as a comparator — no rank, muted style
+            isProviderMedian: true,
+            monthlyData: medianMonthlyData,
+            annualisedArithReturn: totalRet / horizonMonths
+        });
+    }
+
     return resolved;
 }
 
@@ -1553,6 +1587,7 @@ function runVFM() {
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
 
     state.vfm.running = true;
+    state.vfm.strategies = strategies; // store for slicer chart
     vfmShowProgress(`Running ${simCount.toLocaleString()} simulations across ${strategies.length} strategies…`);
 
     // Clear table while running
@@ -1665,6 +1700,174 @@ function renderVFMTable(results) {
     tbody.innerHTML = html;
     const p = state.personas.find(x => x.id === state.vfm.activePersonaId);
     vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${horizonYears}-year horizon \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+
+    // Render asset mix slicer chart after table is built
+    // Pass the full resolved strategies (with monthlyData) stored on the results
+    requestAnimationFrame(() => renderVFMSlicer(results));
+}
+
+function renderVFMSlicer(results) {
+    const canvas = document.getElementById('vfm-slicer-chart');
+    if (!canvas) return;
+
+    // Destroy previous instance
+    if (state.vfm.slicerChart) {
+        state.vfm.slicerChart.destroy();
+        state.vfm.slicerChart = null;
+    }
+
+    const strategies = state.vfm.strategies;
+    if (!strategies?.length) return;
+
+    // Order by annualised return descending (matches table order, providers first then comparators)
+    // Match results order to strategies
+    const ordered = [...results].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
+
+    // Build labels: short names for x-axis
+    const labels = ordered.map(r => {
+        // Abbreviate long strategy names for the axis
+        const n = r.name;
+        if (n.length <= 28) return n;
+        // Common abbreviations
+        return n
+            .replace('Standard Life ', 'SL ')
+            .replace('Scottish Widows ', 'SW ')
+            .replace('Royal London ', 'RL ')
+            .replace('Hargreaves Lansdown ', 'HL ')
+            .replace('Sustainable ', 'Sust. ')
+            .replace(' Workplace Default', '')
+            .replace('Pension Sustainable Growth Default', 'Sustainable')
+            .replace(' (Drawdown Default)', '')
+            .replace(' (Universal/Drawdown)', '')
+            .replace('Lifetime Advantage Fund (LAF)', 'LAF')
+            .replace('Target Date Fund', 'TDF')
+            .replace('Universal Balanced Collection', 'UBC')
+            .replace("The People's Pension (B&CE) Balanced Default", "People's Pension")
+            .replace('NOW: Pensions Journey Path', 'NOW: Pensions')
+            .replace(' (Growth Path)', '')
+            .slice(0, 32);
+    });
+
+    // For each strategy, compute time-weighted average weights across horizonMonths
+    // using stored monthlyData from state.vfm.strategies
+    const stratMap = new Map(strategies.map(s => [s.name, s]));
+
+    const stratWeights = ordered.map(r => {
+        const strat = stratMap.get(r.name);
+        if (!strat?.monthlyData?.length) return {};
+        const n = strat.monthlyData.length;
+        const avg = {};
+        ASSET_CLASSES.forEach(ac => {
+            const total = strat.monthlyData.reduce((sum, md) =>
+                sum + (md.weights[ac.key] || 0), 0);
+            if (total > 0) avg[ac.key] = (total / n) * 100;
+        });
+        return avg;
+    });
+
+    // Build dataset per asset class — only include those with any weight
+    const datasets = [];
+    ASSET_CLASSES.forEach(ac => {
+        const data = stratWeights.map(w => w[ac.key] || 0);
+        if (data.some(v => v > 0.1)) {
+            datasets.push({
+                label: ac.name,
+                data,
+                backgroundColor: ac.color,
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderSkipped: false
+            });
+        }
+    });
+
+    // Mark comparator columns for visual distinction
+    // We'll use a plugin to draw a subtle border on comparator bars
+    const isComparatorCol = ordered.map(r => !r.isProvider);
+
+    const ctx = canvas.getContext('2d');
+    state.vfm.slicerChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'rect',
+                        boxWidth: 10,
+                        boxHeight: 10,
+                        font: { size: 10 },
+                        padding: 12,
+                        // Only show labels for asset classes that have data
+                        filter: item => datasets.some((ds, i) =>
+                            ds.label === item.text && ds.data.some(v => v > 0.1))
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: ctx => {
+                            const idx = ctx[0].dataIndex;
+                            return ordered[idx].name +
+                                (!ordered[idx].isProvider ? ' (comparator)' : '') +
+                                `\n${(ordered[idx].annualisedReturn * 100).toFixed(1)}% p.a.`;
+                        },
+                        label: ctx => {
+                            if (ctx.raw < 0.1) return null;
+                            return `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: { display: false },
+                    ticks: {
+                        font: { size: 9.5 },
+                        maxRotation: 45,
+                        minRotation: 30,
+                        color: ctx => isComparatorCol[ctx.index]
+                            ? 'var(--text-muted)' : 'var(--text-main)'
+                    },
+                    border: { display: false }
+                },
+                y: {
+                    stacked: true,
+                    min: 0,
+                    max: 100,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: {
+                        font: { size: 10 },
+                        callback: v => v + '%'
+                    },
+                    border: { display: false }
+                }
+            }
+        },
+        plugins: [{
+            // Draw a subtle dashed top border on comparator columns to distinguish them
+            id: 'comparatorMarker',
+            afterDraw(chart) {
+                const { ctx: c, chartArea: { top, bottom }, scales: { x } } = chart;
+                isComparatorCol.forEach((isComp, idx) => {
+                    if (!isComp) return;
+                    const xPx = x.getPixelForValue(idx);
+                    const bw   = x.width / x.ticks.length;
+                    c.save();
+                    c.strokeStyle = '#94A3B8';
+                    c.lineWidth   = 1.5;
+                    c.setLineDash([3, 3]);
+                    c.strokeRect(xPx - bw / 2 + 2, top, bw - 4, bottom - top);
+                    c.restore();
+                });
+            }
+        }]
+    });
 }
 
 function setupAutoRun() {

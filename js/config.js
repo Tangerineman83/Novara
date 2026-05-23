@@ -442,7 +442,7 @@ export const PRESET_PORTFOLIOS = [
 
 export const STRATEGY_GROUPS = [
         {
-        name: "Core Strategies",
+        name: "Comparators",
         strategies: [
             { name: "Standard Glidepath", points: [ { years: 50, weights: { "p_std_growth": 1.0 } }, { years: 15, weights: { "p_std_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
             { name: "Enhanced Glidepath", points: [ { years: 50, weights: { "p_enh_growth": 1.0 } }, { years: 15, weights: { "p_enh_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
