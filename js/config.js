@@ -204,7 +204,7 @@ export const PRESET_PERSONAS = [
 ];
 
 export const PRESET_PORTFOLIOS = [
-    {
+        {
         name: "Core Building Blocks",
         portfolios: [
             { id: "p_std_growth", name: "Standard Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alphas: {}, tes: {} },
@@ -214,38 +214,180 @@ export const PRESET_PORTFOLIOS = [
             { id: "p_retire", name: "Retirement", weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, alphas: {}, tes: {} }
         ]
     },
+
+    // ─── L&G ──────────────────────────────────────────────────────────────────
     {
-        name: "Legal & General (L&G)",
+        name: "Legal & General",
         portfolios: [
-            { id: "p_lg_tdf_growth", name: "L&G TDF Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alphas: {}, tes: {} },
-            { id: "p_lg_tdf_retire", name: "L&G TDF Retirement", weights: { sdCredit: 0.35, igCredit: 0.25, moneyMkt: 0.20, usEq: 0.12, devEq: 0.04, emEq: 0.02, globalSov: 0.02 }, alphas: {}, tes: {} },
-            { id: "p_lg_laf_growth", name: "L&G Lifetime Advantage Growth", weights: { usEq: 0.497, devEq: 0.119, emEq: 0.081, jpnEq: 0.047, ukEq: 0.030, apacEq: 0.017, globalReits: 0.043, realEstateDirect: 0.016, privEq: 0.05, infrastructure: 0.05, privCredit: 0.05 }, alphas: {}, tes: {} }
+            { id: "p_lg_tdf_growth", name: "L&G TDF Growth Phase (100% growth, 10+ yrs)",
+              weights: { usEq:0.560, devEq:0.122, emEq:0.092, jpnEq:0.051, apacEq:0.031, ukEq:0.031, listedAlts:0.051, globalReits:0.031, privEq:0.004, infrastructure:0.003, privCredit:0.003, moneyMkt:0.021 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_lg_tdf_retire", name: "L&G TDF At-Retirement (Cash/Drawdown Landing)",
+              weights: { sdCredit:0.350, igCredit:0.250, moneyMkt:0.200, usEq:0.120, devEq:0.040, emEq:0.020, globalSov:0.020 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075 } },
+            { id: "p_lg_laf_growth", name: "L&G Lifetime Advantage Fund Growth Phase",
+              weights: { usEq:0.511, devEq:0.102, emEq:0.076, jpnEq:0.043, apacEq:0.025, ukEq:0.025, listedAlts:0.068, realEstateDirect:0.060, infrastructure:0.045, privEq:0.030, privCredit:0.015 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } }
         ]
     },
+
+    // ─── AVIVA ─────────────────────────────────────────────────────────────────
     {
         name: "Aviva",
         portfolios: [
-            { id: "p_av_focus_growth", name: "Aviva My Future Focus Growth", weights: { usEq: 0.45, devEq: 0.15, emEq: 0.12, jpnEq: 0.05, ukEq: 0.08, apacEq: 0.05, infrastructure: 0.05, igCredit: 0.05 }, alphas: {}, tes: {} },
-            { id: "p_av_vision_growth", name: "Aviva My Future Vision Growth", weights: { usEq: 0.468, devEq: 0.112, emEq: 0.076, jpnEq: 0.044, ukEq: 0.028, apacEq: 0.016, globalReits: 0.04, realEstateDirect: 0.016, privEq: 0.07, infrastructure: 0.07, privCredit: 0.06 }, alphas: {}, tes: {} }
+            { id: "p_mff_ltg", name: "MFF Long Term Growth Fund",
+              weights: { usEq:0.410, devEq:0.200, emEq:0.130, ukEq:0.030, jpnEq:0.070, apacEq:0.050, realEstateDirect:0.100, moneyMkt:0.010 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_mff_growth", name: "MFF Growth Fund",
+              weights: { usEq:0.340, devEq:0.110, emEq:0.080, ukEq:0.060, jpnEq:0.040, apacEq:0.060, realEstateDirect:0.100, igCredit:0.080, emDebt:0.090, globalHighYield:0.020, moneyMkt:0.020 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_mff_consolidation", name: "MFF Consolidation Fund",
+              weights: { globalSov:0.533, usEq:0.161, igCredit:0.061, devEq:0.044, realEstateDirect:0.040, emEq:0.032, emDebt:0.060, apacEq:0.023, globalHighYield:0.022, moneyMkt:0.010, ukEq:0.009, jpnEq:0.005 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_vision_ltg", name: "My Future Vision Long Term Growth Fund",
+              weights: { usEq:0.345, devEq:0.169, emEq:0.110, ukEq:0.025, jpnEq:0.059, apacEq:0.042, privEq:0.088, infrastructure:0.062, realEstateDirect:0.038, privCredit:0.062 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_vision_growth", name: "My Future Vision Growth Fund",
+              weights: { usEq:0.305, devEq:0.148, emEq:0.096, ukEq:0.022, jpnEq:0.052, apacEq:0.037, privEq:0.075, infrastructure:0.055, realEstateDirect:0.035, privCredit:0.085, igCredit:0.040, globalSov:0.028, listedAlts:0.012, moneyMkt:0.010 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_vision_consolidation", name: "My Future Vision Consolidation Fund",
+              weights: { usEq:0.144, devEq:0.070, emEq:0.045, ukEq:0.010, jpnEq:0.024, apacEq:0.017, privEq:0.020, infrastructure:0.020, realEstateDirect:0.020, privCredit:0.140, igCredit:0.203, globalSov:0.244, listedAlts:0.033, moneyMkt:0.010 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } }
         ]
     },
+
+    // ─── STANDARD LIFE ────────────────────────────────────────────────────────
     {
         name: "Standard Life",
         portfolios: [
-            { id: "p_sl_sma_growth", name: "Standard Life SMA Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alphas: {}, tes: {} },
-            { id: "p_sl_future_growth", name: "SL Future Opportunities Growth", weights: { usEq: 0.439, devEq: 0.105, emEq: 0.071, jpnEq: 0.041, ukEq: 0.026, apacEq: 0.015, globalReits: 0.038, realEstateDirect: 0.015, privEq: 0.10, infrastructure: 0.10, privCredit: 0.05 }, alphas: {}, tes: {} }
+            { id: "p_sl_sma_growth", name: "SMA Growth Pension Fund (LPNL, Q1 2026)",
+              weights: { usEq:0.463, devEq:0.153, jpnEq:0.094, emEq:0.077, ukEq:0.075, apacEq:0.065, globalReits:0.050, realEstateDirect:0.023 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_sl_sma_preretire", name: "SMA Pre-Retirement Pension Fund (CEMH, Q1 2026)",
+              weights: { usEq:0.311, sdCredit:0.122, devEq:0.103, jpnEq:0.063, igCredit:0.075, emEq:0.053, ukEq:0.051, apacEq:0.045, globalReits:0.040, emDebt:0.038, globalSov:0.043, realEstateDirect:0.023, inflLinked:0.020, moneyMkt:0.013 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_sl_sma_retire", name: "SMA At-Retirement Universal Pension Fund (PLND, Q1 2026)",
+              weights: { sdCredit:0.238, usEq:0.168, igCredit:0.149, emDebt:0.075, globalSov:0.083, devEq:0.056, inflLinked:0.040, jpnEq:0.034, globalReits:0.030, emEq:0.028, ukEq:0.027, moneyMkt:0.025, apacEq:0.024, realEstateDirect:0.023 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_sl_future_growth", name: "SL Future Opportunities Growth (SMA equity 75% + 25% PM)",
+              weights: { usEq:0.301, devEq:0.124, jpnEq:0.076, emEq:0.062, ukEq:0.061, apacEq:0.053, globalReits:0.050, realEstateDirect:0.023, privEq:0.100, infrastructure:0.100, privCredit:0.050 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, ukEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, ukEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } }
         ]
     },
-    {
+
+    // ─── NPT (National Pension Trust) ─────────────────────────────────────────
+        {
         name: "NPT",
         portfolios: [
             { id: "p_npt_growth", name: "NPT Sustainable Growth", weights: { usEq: 0.556, devEq: 0.133, emEq: 0.090, jpnEq: 0.052, ukEq: 0.033, apacEq: 0.019, globalReits: 0.048, realEstateDirect: 0.019, infrastructure: 0.05 }, alphas: {}, tes: {} },
             { id: "p_npt_retire", name: "NPT Retirement (40% Equity)", weights: { usEq: 0.23, devEq: 0.08, emEq: 0.04, ukEq: 0.05, igCredit: 0.30, sdCredit: 0.20, moneyMkt: 0.10 }, alphas: {}, tes: {} }
         ]
     },
-    // ─── V3: DC Provider Default Portfolios (May 2026) ───────────────────
-    // Source: provider_strategies_v3.js — all portfolios verified at sum=1.000
-    // See source file for full methodology, confidence levels and changelog.
+
+    // ─── NEW PROVIDERS (from consolidated May 2026) ───────────────────────────
+    {
+        name: "NEST",
+        portfolios: [
+            { id: "p_nest_growth",  name: "NEST RDF Growth (30+ yrs)",
+              weights: { usEq:0.205, devEq:0.120, emEq:0.049, jpnEq:0.042, apacEq:0.056, globalReits:0.043, realEstateDirect:0.020, infrastructure:0.068, privEq:0.042, privCredit:0.038, globalHighYield:0.036, emDebt:0.036, igCredit:0.079, sdCredit:0.043, globalSov:0.003, moneyMkt:0.108, listedAlts:0.012 },
+              alphas: {}, tes: {} },
+            { id: "p_nest_retire",  name: "NEST RDF At-Retirement (2024/25 vintage)",
+              weights: { usEq:0.095, devEq:0.058, emEq:0.023, jpnEq:0.020, apacEq:0.022, globalReits:0.008, realEstateDirect:0.008, infrastructure:0.012, privEq:0.019, privCredit:0.012, globalHighYield:0.047, emDebt:0.046, igCredit:0.228, sdCredit:0.129, globalSov:0.047, moneyMkt:0.219, listedAlts:0.007 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Aegon",
+        portfolios: [
+            { id: "p_aegon_ubc_growth", name: "Aegon UBC Growth Phase",
+              weights: { usEq:0.415, devEq:0.155, emEq:0.080, jpnEq:0.040, ukEq:0.030, apacEq:0.020, privEq:0.030, infrastructure:0.020, realEstateDirect:0.010, privCredit:0.030, globalHighYield:0.040, emDebt:0.020, igCredit:0.060, sdCredit:0.040, moneyMkt:0.010 },
+              alphas: {}, tes: {} },
+            { id: "p_aegon_ubc_retire", name: "Aegon UBC Retirement Stage",
+              weights: { usEq:0.200, devEq:0.080, emEq:0.030, ukEq:0.020, privEq:0.010, infrastructure:0.010, privCredit:0.020, globalHighYield:0.050, emDebt:0.030, igCredit:0.190, sdCredit:0.150, globalSov:0.100, inflLinked:0.050, moneyMkt:0.060 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Fidelity",
+        portfolios: [
+            { id: "p_fidelity_fw_growth", name: "Fidelity FutureWise Growth TDF (30+ yrs)",
+              weights: { usEq:0.400, devEq:0.155, emEq:0.085, jpnEq:0.040, ukEq:0.030, apacEq:0.020, privEq:0.035, infrastructure:0.025, privCredit:0.020, realEstateDirect:0.010, listedAlts:0.010, igCredit:0.080, sdCredit:0.040, moneyMkt:0.010, globalSov:0.040 },
+              alphas: {}, tes: {} },
+            { id: "p_fidelity_fw_retire", name: "Fidelity FutureWise At-Retirement TDF",
+              weights: { usEq:0.150, devEq:0.060, emEq:0.025, ukEq:0.020, jpnEq:0.015, apacEq:0.010, privEq:0.015, infrastructure:0.010, privCredit:0.025, igCredit:0.200, sdCredit:0.150, globalHighYield:0.050, emDebt:0.040, globalSov:0.100, inflLinked:0.050, moneyMkt:0.080 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Scottish Widows",
+        portfolios: [
+            { id: "p_sw_lifetime_growth", name: "SW Lifetime Investment Growth Path (30+ yrs)",
+              weights: { usEq:0.480, devEq:0.155, emEq:0.100, jpnEq:0.055, ukEq:0.060, apacEq:0.050, globalReits:0.030, infrastructure:0.020, moneyMkt:0.050 },
+              alphas: {}, tes: {} },
+            { id: "p_sw_lifetime_retire", name: "SW Lifetime Investment At-Retirement (Drawdown)",
+              weights: { usEq:0.175, devEq:0.060, emEq:0.030, ukEq:0.025, jpnEq:0.020, apacEq:0.015, igCredit:0.200, sdCredit:0.150, globalHighYield:0.050, globalSov:0.120, inflLinked:0.060, moneyMkt:0.080, emDebt:0.015 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Royal London",
+        portfolios: [
+            { id: "p_rl_gpd", name: "Royal London Governed Portfolio Dynamic (15+ yrs)",
+              weights: { usEq:0.340, devEq:0.165, emEq:0.084, jpnEq:0.042, ukEq:0.189, apacEq:0.017, globalReits:0.044, realEstateDirect:0.040, globalHighYield:0.038, listedAlts:0.008, moneyMkt:0.033 },
+              alphas: {}, tes: {} },
+            { id: "p_rl_grip3", name: "Royal London GRIP 3 (At-Retirement Drawdown)",
+              weights: { usEq:0.160, devEq:0.060, emEq:0.025, jpnEq:0.015, ukEq:0.070, apacEq:0.010, globalReits:0.030, globalHighYield:0.040, igCredit:0.210, sdCredit:0.080, globalSov:0.130, inflLinked:0.060, moneyMkt:0.070, emDebt:0.020, listedAlts:0.020 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Hargreaves Lansdown",
+        portfolios: [
+            { id: "p_hl_growth", name: "HL Growth Fund (Default Growth Phase)",
+              weights: { usEq:0.375, devEq:0.122, emEq:0.076, jpnEq:0.030, ukEq:0.097, apacEq:0.030, listedAlts:0.110, igCredit:0.075, globalSov:0.020, inflLinked:0.020, globalHighYield:0.020, emDebt:0.020, moneyMkt:0.005 },
+              alphas: {}, tes: {} },
+            { id: "p_hl_mymap4", name: "HL BlackRock MyMap 4 (At-Retirement Default)",
+              weights: { usEq:0.145, devEq:0.055, emEq:0.025, jpnEq:0.015, ukEq:0.040, apacEq:0.015, listedAlts:0.030, igCredit:0.200, globalSov:0.180, inflLinked:0.080, globalHighYield:0.060, emDebt:0.040, sdCredit:0.060, moneyMkt:0.055 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "NOW Pensions",
+        portfolios: [
+            { id: "p_now_growth", name: "NOW: Pensions Growth Fund",
+              weights: { usEq:0.240, devEq:0.090, emEq:0.060, jpnEq:0.030, ukEq:0.040, apacEq:0.020, globalHighYield:0.060, igCredit:0.090, sdCredit:0.060, globalSov:0.120, inflLinked:0.060, emDebt:0.040, listedAlts:0.050, moneyMkt:0.040 },
+              alphas: {}, tes: {} },
+            { id: "p_now_rcf", name: "NOW: Pensions Retirement Countdown Fund",
+              weights: { usEq:0.050, devEq:0.020, ukEq:0.015, igCredit:0.200, sdCredit:0.200, globalSov:0.220, inflLinked:0.100, globalHighYield:0.040, moneyMkt:0.155 },
+              alphas: {}, tes: {} }
+        ]
+    },
+    {
+        name: "Mercer",
+        portfolios: [
+            { id: "p_mercer_growth", name: "Mercer Growth Fund",
+              weights: { usEq:0.310, devEq:0.120, emEq:0.080, jpnEq:0.040, ukEq:0.040, apacEq:0.025, globalReits:0.025, infrastructure:0.030, privEq:0.025, privCredit:0.020, listedAlts:0.020, globalHighYield:0.040, emDebt:0.035, igCredit:0.060, sdCredit:0.040, globalSov:0.050, inflLinked:0.020, moneyMkt:0.020 },
+              alphas: {}, tes: {} },
+            { id: "p_mercer_target_drawdown", name: "Mercer Target Drawdown Fund (At-Retirement)",
+              weights: { usEq:0.130, devEq:0.050, emEq:0.025, ukEq:0.030, jpnEq:0.015, apacEq:0.010, infrastructure:0.015, privCredit:0.020, globalHighYield:0.055, emDebt:0.050, igCredit:0.200, sdCredit:0.120, globalSov:0.130, inflLinked:0.060, moneyMkt:0.080, listedAlts:0.010 },
+              alphas: {}, tes: {} }
+        ]
+    },
+
+    // ─── V3 PROVIDERS ─────────────────────────────────────────────────────────
     {
         name: "AON",
         portfolios: [
@@ -294,12 +436,12 @@ export const PRESET_PORTFOLIOS = [
             { id: "p_tpp_growth",  name: "The People's Pension — Growth",         weights: { usEq:0.420, devEq:0.165, emEq:0.090, jpnEq:0.055, ukEq:0.055, apacEq:0.040, globalReits:0.030, igCredit:0.055, sdCredit:0.025, globalHighYield:0.015, globalSov:0.020, moneyMkt:0.025, listedAlts:0.005 }, alphas:{}, tes:{} },
             { id: "p_tpp_retire",  name: "The People's Pension — At-Retirement",  weights: { usEq:0.175, devEq:0.070, emEq:0.030, ukEq:0.030, jpnEq:0.020, apacEq:0.015, igCredit:0.169, sdCredit:0.141, globalHighYield:0.038, globalSov:0.122, inflLinked:0.056, moneyMkt:0.100, emDebt:0.024, globalReits:0.010 }, alphas:{}, tes:{} }
         ]
-    },
+    }
 
 ];
 
 export const STRATEGY_GROUPS = [
-    {
+        {
         name: "Core Strategies",
         strategies: [
             { name: "Standard Glidepath", points: [ { years: 50, weights: { "p_std_growth": 1.0 } }, { years: 15, weights: { "p_std_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
@@ -309,16 +451,39 @@ export const STRATEGY_GROUPS = [
     },
     {
         name: "Provider Strategies",
+        isProvider: true,
         strategies: [
-            { name: "L&G Target Date Fund (TDF)", points: [ { years: 50, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 15, weights: { "p_lg_tdf_growth": 1.0 } }, { years: 0,  weights: { "p_lg_tdf_retire": 1.0 } } ] },
-            { name: "L&G Lifetime Advantage (LAF)", points: [ { years: 50, weights: { "p_lg_laf_growth": 1.0 } }, { years: 15, weights: { "p_lg_laf_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "Aviva My Future Focus", points: [ { years: 50, weights: { "p_av_focus_growth": 1.0 } }, { years: 15, weights: { "p_av_focus_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "Aviva My Future Vision (LTAF)", points: [ { years: 50, weights: { "p_av_vision_growth": 1.0 } }, { years: 15, weights: { "p_av_vision_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "Standard Life SMA", points: [ { years: 50, weights: { "p_sl_sma_growth": 1.0 } }, { years: 15, weights: { "p_sl_sma_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "Standard Life Future Opps", points: [ { years: 50, weights: { "p_sl_future_growth": 1.0 } }, { years: 15, weights: { "p_sl_future_growth": 1.0 } }, { years: 0,  weights: { "p_retire": 1.0 } } ] },
-            { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] },
-            // ─── V3 PROVIDER STRATEGIES (DC Defaults, May 2026) ──────────────────
-            { name: "Aon Managed Retirement Pathway Fund",
+            // ─── CORE PROVIDER DEFAULTS (May 2026, 22 strategies) ──────────────
+            { name: "L&G Target Date Fund (Drawdown Default)",
+              points: [ { years:50, weights:{"p_lg_tdf_growth":1.0} }, { years:10, weights:{"p_lg_tdf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
+            { name: "L&G Lifetime Advantage Fund (LAF)",
+              points: [ { years:50, weights:{"p_lg_laf_growth":1.0} }, { years:10, weights:{"p_lg_laf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
+            { name: "Aviva My Future Focus",
+              points: [ { years:50, weights:{"p_mff_ltg":1.0} }, { years:15, weights:{"p_mff_ltg":1.0} }, { years:0, weights:{"p_mff_consolidation":1.0} } ] },
+            { name: "Aviva My Future Vision (LTAF)",
+              points: [ { years:50, weights:{"p_vision_ltg":1.0} }, { years:15, weights:{"p_vision_ltg":1.0} }, { years:0, weights:{"p_vision_consolidation":1.0} } ] },
+            { name: "Standard Life SMA",
+              points: [ { years:50, weights:{"p_sl_sma_growth":1.0} }, { years:15, weights:{"p_sl_sma_growth":1.0} }, { years:0, weights:{"p_sl_sma_retire":1.0} } ] },
+            { name: "Standard Life Future Opps",
+              points: [ { years:50, weights:{"p_sl_future_growth":1.0} }, { years:15, weights:{"p_sl_future_growth":1.0} }, { years:0, weights:{"p_sl_sma_retire":1.0} } ] },
+                        { name: "NPT Sustainable (19yr Glide)", points: [ { years: 50, weights: { "p_npt_growth": 1.0 } }, { years: 19, weights: { "p_npt_growth": 1.0 } }, { years: 0,  weights: { "p_npt_retire": 1.0 } } ] },
+            { name: "NEST Retirement Date Fund",
+              points: [ { years:50, weights:{"p_nest_growth":1.0} }, { years:10, weights:{"p_nest_growth":1.0} }, { years:0, weights:{"p_nest_retire":1.0} } ] },
+            { name: "Aegon Universal Balanced Collection",
+              points: [ { years:50, weights:{"p_aegon_ubc_growth":1.0} }, { years:6, weights:{"p_aegon_ubc_growth":1.0} }, { years:0, weights:{"p_aegon_ubc_retire":1.0} } ] },
+            { name: "Fidelity FutureWise TDF",
+              points: [ { years:50, weights:{"p_fidelity_fw_growth":1.0} }, { years:10, weights:{"p_fidelity_fw_growth":1.0} }, { years:0, weights:{"p_fidelity_fw_retire":1.0} } ] },
+            { name: "Scottish Widows Lifetime Investment",
+              points: [ { years:50, weights:{"p_sw_lifetime_growth":1.0} }, { years:12, weights:{"p_sw_lifetime_growth":1.0} }, { years:0, weights:{"p_sw_lifetime_retire":1.0} } ] },
+            { name: "Royal London Balanced Lifestyle (Drawdown)",
+              points: [ { years:50, weights:{"p_rl_gpd":1.0} }, { years:15, weights:{"p_rl_gpd":1.0} }, { years:0, weights:{"p_rl_grip3":1.0} } ] },
+            { name: "Hargreaves Lansdown Workplace Default",
+              points: [ { years:50, weights:{"p_hl_growth":1.0} }, { years:10, weights:{"p_hl_growth":1.0} }, { years:0, weights:{"p_hl_mymap4":1.0} } ] },
+            { name: "NOW: Pensions Journey Path",
+              points: [ { years:50, weights:{"p_now_growth":1.0} }, { years:10, weights:{"p_now_growth":1.0} }, { years:0, weights:{"p_now_rcf":1.0} } ] },
+            { name: "Mercer Master Trust Default",
+              points: [ { years:50, weights:{"p_mercer_growth":1.0} }, { years:8, weights:{"p_mercer_growth":1.0} }, { years:0, weights:{"p_mercer_target_drawdown":1.0} } ] },
+                        { name: "Aon Managed Retirement Pathway Fund",
               points: [ { years: 50, weights: { "p_aon_growth": 1.0 } }, { years: 15, weights: { "p_aon_growth": 1.0 } }, { years: 0, weights: { "p_aon_retire": 1.0 } } ] },
             { name: "LifeSight Drawdown Lifecycle (WTW)",
               points: [ { years: 50, weights: { "p_lifesight_equity": 1.0 } }, { years: 25, weights: { "p_lifesight_equity": 1.0 } }, { years: 0, weights: { "p_lifesight_dgf": 1.0 } } ] },
