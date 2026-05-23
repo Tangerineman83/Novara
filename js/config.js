@@ -200,6 +200,13 @@ export const PRESET_PERSONAS = [
         seed: "Priya_3",
         desc: "Pushing hard in the final stretch — higher contributions and a sharper focus on the finish line.", 
         data: { age: 55, retirementAge: 67, savings: 120000, salary: 80000, contribution: 20, realSalaryGrowth: 0.0 } 
+    },
+    {
+        id: "pers_4",
+        name: "David",
+        seed: "David_4",
+        desc: "At the threshold — retired or imminently retiring, focused on how a pension pot holds up across a long drawdown horizon.",
+        data: { age: 67, retirementAge: 67, savings: 280000, salary: 0, contribution: 0, realSalaryGrowth: 0.0 }
     }
 ];
 

@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=35.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=36.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1143,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=35.0'); 
+    state.worker = new Worker('./js/worker.js?v=36.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1240,6 +1240,12 @@ function renderPersonaCards() {
                 if (field === 'age') {
                     updatePersonaAvatar(p.id, p.data.age);
                     renderPersonaDropdown();
+                    renderVFMPersonaDropdown();
+                }
+                // Auto-save numeric changes for custom personas so they persist
+                // without requiring an explicit save button click.
+                if (p.id.startsWith('custom_')) {
+                    UserDataEngine.saveItem('personas', JSON.parse(JSON.stringify(p)));
                 }
                 if(state.autoRun && state.activePersonaId === p.id) runSimulation();
             });
@@ -1248,15 +1254,15 @@ function renderPersonaCards() {
         col.querySelector('.btn-save-persona').onclick = (e) => {
             e.stopPropagation();
             const newName = col.querySelector('.persona-name-input').value.trim() || 'Custom Persona';
-            let targetId = p.id;
-            if (!targetId.startsWith('custom_') || p.name !== newName) targetId = 'custom_pers_' + Date.now();
+            // Always use the persona's existing id — never regenerate on name change.
+            // Regenerating created duplicate entries in state and broke dropdown references.
             const newP = JSON.parse(JSON.stringify(p));
-            newP.id = targetId; newP.name = newName;
+            newP.name = newName;
             UserDataEngine.saveItem('personas', newP);
-            const idx = state.personas.findIndex(x => x.id === targetId);
+            const idx = state.personas.findIndex(x => x.id === newP.id);
             if(idx > -1) state.personas[idx] = newP; else state.personas.push(newP);
-            state.activePersonaId = targetId;
-            renderPersonaCards(); renderPersonaDropdown();
+            state.activePersonaId = newP.id;
+            renderPersonaCards(); renderPersonaDropdown(); renderVFMPersonaDropdown();
             const btn = e.currentTarget; const orig = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-check text-success"></i>';
             setTimeout(() => { if(document.body.contains(btn)) btn.innerHTML = orig; }, 1500);
@@ -1269,7 +1275,7 @@ function renderPersonaCards() {
                 UserDataEngine.deleteItem('personas', p.id);
                 state.personas = state.personas.filter(x => x.id !== p.id);
                 if(state.activePersonaId === p.id) state.activePersonaId = state.personas[0].id;
-                renderPersonaCards(); renderPersonaDropdown();
+                renderPersonaCards(); renderPersonaDropdown(); renderVFMPersonaDropdown();
             };
         }
     });
@@ -1340,8 +1346,6 @@ function updateActivePersonaDisplay() {
 
 
 function addNewPersona() {
-    // Create a new blank persona using the first preset as a structural template.
-    // Defaults to age 30 so the avatar starts in the "Full Throttle" band.
     const newId = 'custom_pers_' + Date.now();
     const newPersona = {
         id:   newId,
@@ -1350,11 +1354,14 @@ function addNewPersona() {
         desc: '',
         data: { age: 30, retirementAge: 68, savings: 0, salary: 0, contribution: 10, realSalaryGrowth: 0.5 }
     };
+    // Persist immediately so the persona survives a page reload even if the
+    // user never clicks the save button.
+    UserDataEngine.saveItem('personas', newPersona);
     state.personas.push(newPersona);
     state.activePersonaId = newId;
     renderPersonaCards();
     renderPersonaDropdown();
-    // Focus the name input on the new card so the user can type immediately
+    renderVFMPersonaDropdown(); // keep VFM in sync
     const newCard = document.querySelector(`.persona-card[data-id="${newId}"]`);
     if (newCard) {
         newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
