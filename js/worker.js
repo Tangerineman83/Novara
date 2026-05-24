@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=43.0');
+        const worker = new Worker('./sim-worker.js?v=44.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -119,7 +119,7 @@ function runSimulation(data) {
             }
 
             chunksReceived++;
-
+            self.postMessage({ type: 'SIMULATION_PROGRESS', payload: { done: chunksReceived, total: actualWorkers } });
             if (chunksReceived === actualWorkers) {
                 // All chunks received — sort every column once and cache.
                 sortedCache = assemblyBufs.map(stratBufs =>
@@ -247,7 +247,7 @@ function runVFMSimulation(data) {
     for (let w = 0; w < actualWorkers; w++) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
-        const worker = new Worker('./sim-worker.js?v=43.0');
+        const worker = new Worker('./sim-worker.js?v=44.0');
 
         worker.onmessage = function(e) {
             worker.terminate();

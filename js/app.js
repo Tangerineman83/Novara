@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=43.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=44.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -39,7 +39,6 @@ const state = {
     pie_right: null,
     vfm: {
         activePersonaId: null,
-        horizonYears: 5,
         running: false,
         slicerChart: null,
         strategies: null,
@@ -170,6 +169,9 @@ function setupEventListeners() {
                 if (state.vfm.activePersonaId && !state.vfm.running) {
                     setTimeout(runVFM, 100);
                 }
+            }
+            if (target === 'settings') {
+                // Settings tab — nothing to init, just reveal
             }
             
             document.getElementById(`tab-${target}`).classList.remove('d-none');
@@ -336,8 +338,6 @@ function initPresets() {
     refreshCMADropdowns();
     refreshStrategyDropdowns();
     
-    document.getElementById('btn-save-cma')?.addEventListener('click', saveCMA);
-    document.getElementById('btn-delete-cma')?.addEventListener('click', deleteCMA);
     
     document.getElementById('btn-save-strat')?.addEventListener('click', saveStrategy);
     document.getElementById('btn-delete-strat')?.addEventListener('click', deleteStrategy);
@@ -359,11 +359,6 @@ function refreshCMADropdowns() {
     presetHtml += '</optgroup>';
     
     let customHtml = '';
-    if(customCMAs.length > 0) {
-        customHtml = '<optgroup label="My Markets">';
-        customCMAs.forEach(c => customHtml += `<option value="${c.id}">${c.name}</option>`);
-        customHtml += '</optgroup>';
-    }
 
     const editorSel = document.getElementById('cma-preset-select');
     if(editorSel) {
@@ -392,18 +387,6 @@ function loadCMAPreset(id) {
 
     const sel = document.getElementById('cma-preset-select');
     if(sel) sel.value = id;
-    
-    const nameInput = document.getElementById('cma-custom-name');
-    if(nameInput) {
-        nameInput.value = cmaObj.name;
-        nameInput.dataset.originalName = cmaObj.name;
-    }
-    
-    const delBtn = document.getElementById('btn-delete-cma');
-    if(delBtn) {
-        if(id.startsWith('custom_')) delBtn.classList.remove('d-none');
-        else delBtn.classList.add('d-none');
-    }
 
     const data = cmaObj.data;
     document.querySelectorAll('#cma-table tbody tr').forEach(tr => {
@@ -424,32 +407,6 @@ function loadCMAPreset(id) {
             }
         });
     });
-}
-
-function saveCMA() {
-    const nameInput = document.getElementById('cma-custom-name');
-    let newName = nameInput.value.trim() || 'Custom Market';
-    const oldName = nameInput.dataset.originalName;
-    let id = document.getElementById('cma-preset-select').value;
-    
-    if (!id.startsWith('custom_') || newName !== oldName) {
-        id = 'custom_cma_' + Date.now();
-    }
-    
-    UserDataEngine.saveItem('cmas', { id, name: newName, data: scrapeCMATable() });
-    refreshCMADropdowns();
-    loadCMAPreset(id);
-    setDirty('cma-dirty-indicator', false);
-    showSavedFeedback('btn-save-cma');
-}
-
-function deleteCMA() {
-    const id = document.getElementById('cma-preset-select').value;
-    if(id.startsWith('custom_')) {
-        UserDataEngine.deleteItem('cmas', id);
-        refreshCMADropdowns();
-        loadCMAPreset('preset_0'); // Fall back to May 2026
-    }
 }
 
 function scrapeCMATable() {
@@ -1049,7 +1006,6 @@ function renderAssetRows() {
                 const v = parseFloat(tr.querySelector('input[data-field="v"]').value)/100 || 0;
                 const k = parseFloat(tr.querySelector('input[data-field="k"]').value) || 0;
                 drawDistributionChart(asset.key, r, v, k, asset.color);
-                setDirty('cma-dirty-indicator', true);
             });
         });
         
@@ -1069,7 +1025,6 @@ function renderAssetRows() {
                         symmetricCell.parentElement.style = getCorrHeatmapBg(val);
                     }
                 }
-                setDirty('cma-dirty-indicator', true);
             });
         });
         
@@ -1155,13 +1110,15 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=43.0'); 
+    state.worker = new Worker('./js/worker.js?v=44.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
-            updateUIState('Ready');
+            projShowDone();
             renderChart(payload);
             renderResultsTable(payload);
+        } else if (type === 'SIMULATION_PROGRESS') {
+            projUpdateProgress(payload.done, payload.total);
         } else if (type === 'VFM_COMPLETE') {
             renderVFMTable(payload);
         } else if (type === 'VFM_PROGRESS') {
@@ -1170,7 +1127,7 @@ function initWorker() {
             vfmShowError('Simulation error — check inputs and retry.');
             state.vfm.running = false;
         } else if (type === 'ERROR') {
-            updateUIState('Error');
+            projShowError();
             if (payload === 'CORRELATION_NOT_PSD') {
                 showToast(
                     'Mathematical error: the correlation values provided are contradictory and cannot be simulated. Please review the correlation matrix and correct any inconsistencies before re-running.',
@@ -1242,7 +1199,7 @@ function renderPersonaCards() {
             document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
             cardEl.classList.add('active-persona');
             updateActivePersonaDisplay();
-            if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
+            if(state.autoRun) {  clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
         });
 
         col.querySelectorAll('.persona-data-input').forEach(inp => {
@@ -1340,7 +1297,7 @@ function renderPersonaDropdown() {
             const activeCard = document.querySelector(`.persona-card[data-id="${p.id}"]`);
             if (activeCard) activeCard.classList.add('active-persona');
             updateActivePersonaDisplay();
-            if(state.autoRun) { updateUIState('Updating...'); clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
+            if(state.autoRun) {  clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); }
         });
         menu.appendChild(li);
     });
@@ -1364,7 +1321,14 @@ function addNewPersona() {
         name: 'New Persona',
         seed: newId,
         desc: '',
-        data: { age: 30, retirementAge: 68, savings: 0, salary: 0, contribution: 10, realSalaryGrowth: 0.5 }
+        data: {
+            age: 30,
+            retirementAge: parseInt(document.getElementById('setting-retire-age')?.value) || 68,
+            savings: 0,
+            salary: 0,
+            contribution: parseInt(document.getElementById('setting-default-contribution')?.value) || 10,
+            realSalaryGrowth: parseFloat(document.getElementById('setting-real-salary-growth')?.value) || 1.5
+        }
     };
     // Persist immediately so the persona survives a page reload even if the
     // user never clicks the save button.
@@ -1389,14 +1353,6 @@ function initVFMTab() {
     renderVFMPersonaDropdown();
 
     // Horizon buttons
-    document.querySelectorAll('.vfm-horizon-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.vfm-horizon-btn').forEach(b => b.classList.remove('active-horizon'));
-            btn.classList.add('active-horizon');
-            state.vfm.horizonYears = parseInt(btn.dataset.years);
-            if (state.vfm.activePersonaId) runVFM();
-        });
-    });
     // Don't auto-run here — the tab isn't visible yet on first load.
     // runVFM fires when the user navigates to the tab (see tab activation handler).
 }
@@ -1452,37 +1408,9 @@ function vfmShowIdle(message) {
     document.getElementById('vfm-done-wrap').classList.add('d-none');
 }
 
-function vfmShowProgress(message) {
-    document.getElementById('vfm-status-idle').classList.add('d-none');
-    document.getElementById('vfm-done-wrap').classList.add('d-none');
-    document.getElementById('vfm-progress-wrap').classList.remove('d-none');
-    document.getElementById('vfm-progress-label').textContent = message;
-    document.getElementById('vfm-progress-bar').style.width = '0%';
-    document.getElementById('vfm-progress-pct').textContent = '0%';
-}
 
-function updateVFMProgress(done, total) {
-    const pct = Math.round((done / total) * 100);
-    const bar = document.getElementById('vfm-progress-bar');
-    const lbl = document.getElementById('vfm-progress-pct');
-    if (bar) bar.style.width = pct + '%';
-    if (lbl) lbl.textContent = pct + '%';
-}
 
-function vfmShowDone(message) {
-    document.getElementById('vfm-progress-wrap').classList.add('d-none');
-    document.getElementById('vfm-status-idle').classList.add('d-none');
-    document.getElementById('vfm-done-wrap').classList.remove('d-none');
-    document.getElementById('vfm-done-text').textContent = message;
-}
 
-function vfmShowError(message) {
-    document.getElementById('vfm-progress-wrap').classList.add('d-none');
-    document.getElementById('vfm-done-wrap').classList.add('d-none');
-    document.getElementById('vfm-status-idle').classList.remove('d-none');
-    document.getElementById('vfm-status-idle').style.color = '#DC2626';
-    document.getElementById('vfm-status-idle').textContent = message;
-}
 
 function buildVFMStrategies(horizonMonths, cma) {
     // Resolve all strategies from config — Provider (group 1) + Core (group 0).
@@ -1614,19 +1542,106 @@ function buildVFMStrategies(horizonMonths, cma) {
     return { strategies: resolved, personaRetireMonths };
 }
 
+// ── Progress Wheel System ──────────────────────────────────────────────────
+function drawProgressWheel(svgEl, pct, complete) {
+    if (!svgEl) return;
+    const N = 10, R = 14, cx = 18, cy = 18, gap = 4;
+    const arcAngle = (360 - N * gap) / N;
+    const toRad = d => d * Math.PI / 180;
+    function arcPath(startDeg, sweepDeg, r) {
+        const s = toRad(startDeg - 90), e = toRad(startDeg + sweepDeg - 90);
+        const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+        const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+        return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 0,1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
+    }
+    if (complete) {
+        svgEl.innerHTML = `<circle cx="${cx}" cy="${cy}" r="16" fill="#22C55E"/><polyline points="11,18 16,23 25,13" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    } else {
+        const filled = Math.round(pct / 10);
+        let m = '';
+        for (let i = 0; i < N; i++) {
+            const d = arcPath(i * (arcAngle + gap), arcAngle, R);
+            m += `<path d="${d}" fill="none" stroke="${i < filled ? 'var(--accent-blue,#3B82F6)' : '#E2E8F0'}" stroke-width="3.5" stroke-linecap="round"/>`;
+        }
+        svgEl.innerHTML = m;
+    }
+}
+function showProgressWheel(svgId, lblId, msg) {
+    const svg = document.getElementById(svgId);
+    const lbl = document.getElementById(lblId);
+    if (svg) { svg.style.display = 'inline-block'; drawProgressWheel(svg, 0, false); }
+    if (lbl) { lbl.textContent = msg || ''; lbl.style.display = msg ? 'inline' : 'none'; }
+}
+function updateProgressWheel(svgId, lblId, done, total) {
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    const svg = document.getElementById(svgId);
+    if (svg) drawProgressWheel(svg, pct, false);
+    const lbl = document.getElementById(lblId);
+    if (lbl) lbl.textContent = (lbl.dataset.base || '') + ' ' + pct + '%';
+}
+function completeProgressWheel(svgId, lblId, doneMsg) {
+    const svg = document.getElementById(svgId);
+    if (svg) drawProgressWheel(svg, 100, true);
+    const lbl = document.getElementById(lblId);
+    if (lbl) { lbl.textContent = doneMsg || ''; lbl.style.display = doneMsg ? 'inline' : 'none'; }
+}
+function hideProgressWheel(svgId, lblId) {
+    const svg = document.getElementById(svgId); if (svg) svg.style.display = 'none';
+    const lbl = document.getElementById(lblId); if (lbl) { lbl.textContent = ''; lbl.style.display = 'none'; }
+}
+// Projections progress
+function projShowRunning(simCount) {
+    const msg = `Running ${simCount.toLocaleString()} sims…`;
+    const lbl = document.getElementById('proj-progress-label');
+    if (lbl) lbl.dataset.base = `Running ${simCount.toLocaleString()} sims`;
+    showProgressWheel('proj-progress-svg', 'proj-progress-label', msg);
+}
+function projUpdateProgress(done, total) {
+    updateProgressWheel('proj-progress-svg', 'proj-progress-label', done, total);
+}
+function projShowDone() {
+    completeProgressWheel('proj-progress-svg', 'proj-progress-label', '');
+    setTimeout(() => hideProgressWheel('proj-progress-svg', 'proj-progress-label'), 1800);
+}
+function projShowError() { hideProgressWheel('proj-progress-svg', 'proj-progress-label'); }
+// VFM progress
+function vfmShowProgress(message) {
+    const wrap = document.getElementById('vfm-progress-wrap');
+    if (wrap) wrap.classList.remove('d-none');
+    const lbl = document.getElementById('vfm-progress-label');
+    if (lbl) lbl.dataset.base = message;
+    showProgressWheel('vfm-progress-svg', 'vfm-progress-label', message);
+}
+function updateVFMProgress(done, total) {
+    updateProgressWheel('vfm-progress-svg', 'vfm-progress-label', done, total);
+}
+function vfmShowDone(message) {
+    completeProgressWheel('vfm-progress-svg', 'vfm-progress-label', message);
+    setTimeout(() => {
+        const wrap = document.getElementById('vfm-progress-wrap');
+        if (wrap) wrap.classList.add('d-none');
+        hideProgressWheel('vfm-progress-svg', 'vfm-progress-label');
+    }, 2500);
+}
+function vfmShowError(message) {
+    const wrap = document.getElementById('vfm-progress-wrap');
+    if (wrap) wrap.classList.add('d-none');
+    hideProgressWheel('vfm-progress-svg', 'vfm-progress-label');
+    showToast(message, 'error');
+}
+
 function runVFM() {
     if (state.vfm.running) return;
     const persona = state.personas.find(p => p.id === state.vfm.activePersonaId);
     if (!persona) return;
 
-    const horizonYears  = state.vfm.horizonYears;
-    const horizonMonths = horizonYears * 12;
+    const horizonMonths = 10 * 12; // fixed 10yr window for return column
     const cma           = getActiveCMA();
     const { strategies, personaRetireMonths } = buildVFMStrategies(horizonMonths, cma);
 
-    const simInput = document.getElementById('setting-sim-count');
+    const simInput = document.getElementById('setting-sim-count-vfm') || document.getElementById('setting-sim-count');
     const infInput = document.getElementById('setting-inflation');
-    const simCount = Math.min(simInput ? parseInt(simInput.value) : 5000, 5000); // capped at 5k for VFM
+    const simCount = Math.min(simInput ? parseInt(simInput.value) : 2000, 5000); // capped at 5k for VFM
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
 
     state.vfm.running = true;
@@ -1965,7 +1980,7 @@ function setupAutoRun() {
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if(!state.autoRun) return;
-            updateUIState('Updating...');
+            
             clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); 
         });
     });
@@ -2385,7 +2400,7 @@ function bindStrategyTableEvents() {
             setDirty('strat-dirty-indicator', true);
             renderStrategyChart(); 
             if(!state.autoRun) return;
-            updateUIState('Updating...');
+            
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runSimulation, 600);
         });
@@ -2751,7 +2766,6 @@ function interpolateWeights(points, totalMonths) {
 }
 
 function runSimulation() {
-    updateUIState('Running...');
     try {
         const simInput = document.getElementById('setting-sim-count');
         const infInput = document.getElementById('setting-inflation');
@@ -2765,7 +2779,9 @@ function runSimulation() {
         const months = Math.max(1, (persona.retirementAge - persona.age) * 12);
         const strategies = getActiveStrategies(months);
 
-        if (strategies.length === 0) { updateUIState('Ready'); return; }
+        if (strategies.length === 0) { return; }
+
+        projShowRunning(simCount);
 
         const payload = { 
             cma, 
@@ -2778,7 +2794,7 @@ function runSimulation() {
         state.worker.postMessage({ type: 'RUN_SIMULATION', payload });
     } catch(e) {
         console.error("Run Error", e);
-        updateUIState('Error');
+        projShowError();
     }
 }
 
@@ -2902,9 +2918,3 @@ function renderResultsTable(results) {
     });
 }
 
-function updateUIState(status) {
-    const text = document.getElementById('status-text');
-    const spinner = document.getElementById('loading-spinner');
-    if(text) text.innerText = status;
-    if(spinner) status === 'Running...' ? spinner.classList.remove('d-none') : spinner.classList.add('d-none');
-}
