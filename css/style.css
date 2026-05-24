@@ -362,3 +362,6 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
     animation: vfmSpin 0.7s linear infinite;
     flex-shrink: 0;
 }
+
+/* --- Progress circle arcs --- */
+.prog-arc { transition: opacity 0.2s ease; }
