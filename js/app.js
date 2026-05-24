@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=36.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=38.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1143,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=36.0'); 
+    state.worker = new Worker('./js/worker.js?v=38.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1395,6 +1395,13 @@ function renderVFMPersonaDropdown() {
     if (!menu) return;
     menu.innerHTML = '';
 
+    // Validate stored activePersonaId — if it no longer exists in state.personas
+    // (e.g. after reload with a new build), reset to the first persona.
+    const validIds = new Set(state.personas.map(p => p.id));
+    if (!state.vfm.activePersonaId || !validIds.has(state.vfm.activePersonaId)) {
+        state.vfm.activePersonaId = state.personas[0]?.id || null;
+    }
+
     state.personas.forEach(p => {
         const li = document.createElement('li');
         li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
@@ -1413,10 +1420,6 @@ function renderVFMPersonaDropdown() {
         menu.appendChild(li);
     });
 
-    // Set initial persona if not already set
-    if (!state.vfm.activePersonaId && state.personas.length > 0) {
-        state.vfm.activePersonaId = state.personas[0].id;
-    }
     updateVFMPersonaDisplay();
 }
 
@@ -1482,7 +1485,11 @@ function buildVFMStrategies(horizonMonths, cma) {
     const persona    = state.personas.find(p => p.id === state.vfm.activePersonaId);
     const personaAge = persona?.data?.age || 25;
     const retireAge  = persona?.data?.retirementAge || 68;
-    const personaRetireMonths = Math.max(1, (retireAge - personaAge) * 12);
+    // Use the larger of actual retirement distance and the horizon — this ensures
+    // personas already at or past retirement (e.g. David) get a full horizonMonths
+    // of glidepath data rather than a 1-month slice repeated across all months.
+    // For such personas, all months will use the at-retirement (years:0) portfolio.
+    const personaRetireMonths = Math.max(horizonMonths, (retireAge - personaAge) * 12);
 
     const resolved = [];
 
