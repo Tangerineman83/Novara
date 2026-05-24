@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=41.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=42.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -41,7 +41,11 @@ const state = {
         activePersonaId: null,
         horizonYears: 5,
         running: false,
-        slicerChart: null
+        slicerChart: null,
+        strategies: null,
+        lastResults: null,
+        sortField: 'pot',
+        sortDir: 'desc'
     },
     portfolios: [], 
     workingPort_left: null, 
@@ -472,10 +476,15 @@ function refreshStrategyDropdowns() {
     let presetHtml = '';
     STRATEGY_GROUPS.forEach((group, gIdx) => {
         presetHtml += `<optgroup label="${group.name}">`;
-        group.strategies.forEach((strat, sIdx) => {
-            presetHtml += `<option value="preset_${gIdx}_${sIdx}">${strat.name}</option>`;
+        // Sort provider strategies alphabetically; leave Comparators in original order
+        const stratList = group.isProvider
+            ? [...group.strategies.map((s, i) => ({...s, idx: i}))].sort((a, b) => a.name.localeCompare(b.name))
+            : group.strategies.map((s, i) => ({...s, idx: i}));
+        stratList.forEach(strat => {
+            presetHtml += `<option value="preset_${gIdx}_${strat.idx}">${strat.name}</option>`;
         });
         presetHtml += `</optgroup>`;
+    });
     });
 
     let customHtml = '';
@@ -1143,7 +1152,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=41.0'); 
+    state.worker = new Worker('./js/worker.js?v=42.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1614,7 +1623,7 @@ function runVFM() {
 
     const simInput = document.getElementById('setting-sim-count');
     const infInput = document.getElementById('setting-inflation');
-    const simCount = simInput ? parseInt(simInput.value) : 10000;
+    const simCount = Math.min(simInput ? parseInt(simInput.value) : 5000, 5000); // capped at 5k for VFM
     const inflation = infInput ? parseFloat(infInput.value) : 2.5;
 
     state.vfm.running = true;
@@ -1657,26 +1666,71 @@ function runVFM() {
 
 function renderVFMTable(results) {
     state.vfm.running = false;
-    const horizonYears = state.vfm.horizonYears;
+    state.vfm.lastResults = results; // cache for re-sort
+    renderVFMRows(results, state.vfm.sortField || 'pot', state.vfm.sortDir || 'desc');
+    const p = state.personas.find(x => x.id === state.vfm.activePersonaId);
+    vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
+
+    // Wire sort header clicks (once per render)
+    ['vfm-sort-pot','vfm-sort-ret'].forEach(id => {
+        const th = document.getElementById(id);
+        if (!th) return;
+        th.onclick = () => {
+            const field = th.dataset.sort;
+            const cur   = state.vfm.sortField === field ? state.vfm.sortDir : 'desc';
+            const next  = cur === 'desc' ? 'asc' : 'desc';
+            state.vfm.sortField = field;
+            state.vfm.sortDir   = next;
+            // Update icons
+            ['pot','ret'].forEach(f => {
+                const icon = document.getElementById(`vfm-sort-${f}-icon`);
+                if (!icon) return;
+                if (f === field) {
+                    icon.innerHTML = next === 'desc' ? '&#9660;' : '&#9650;';
+                    icon.style.opacity = '1';
+                } else {
+                    icon.innerHTML = '&#9660;';
+                    icon.style.opacity = '0.3';
+                }
+            });
+            renderVFMRows(state.vfm.lastResults, field, next);
+        };
+    });
+    // Init tooltips on headers
+    document.querySelectorAll('#vfm-table th[data-bs-toggle="tooltip"]').forEach(el =>
+        new bootstrap.Tooltip(el, { container:'body', html:false }));
+}
+
+function renderVFMRows(results, sortField, sortDir) {
     const tbody = document.getElementById('vfm-tbody');
     if (!tbody) return;
 
-    const providers  = results.filter(r => r.isProvider);
+    const providers   = results.filter(r => r.isProvider);
     const comparators = results.filter(r => !r.isProvider);
-    const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
 
-    // Field median for vsField column — median of provider deterministicPots
-    const sortedProvPots = rankedProviders.map(r => r.medianPot).sort((a,b) => a-b);
-    const fieldMedianPot = sortedProvPots[Math.floor(sortedProvPots.length / 2)];
+    // Sort provider rows by selected field and direction
+    const sortKey = sortField === 'pot' ? 'medianPot' : 'annualisedReturn';
+    const ranked  = [...providers].sort((a, b) =>
+        sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]);
 
-    // Insert comparators inline at correct return position
-    const allRanked = rankedProviders.map((r, i) => ({ ...r, providerRank: i + 1 }));
+    // Merge comparators at correct position
+    const allRanked = ranked.map((r, i) => ({ ...r, providerRank: i + 1 }));
     comparators.forEach(b => {
-        const pos = allRanked.findIndex(r => r.isProvider && b.annualisedReturn > r.annualisedReturn);
-        if (pos === -1) allRanked.push({ ...b, providerRank: null });
-        else allRanked.splice(pos, 0, { ...b, providerRank: null });
+        const pos = allRanked.findIndex(r => r.isProvider && b[sortKey] > r[sortKey]);
+        if (sortDir === 'asc') {
+            // For ascending: insert before first provider that is LARGER
+            const posAsc = allRanked.findIndex(r => r.isProvider && b[sortKey] < r[sortKey]);
+            if (posAsc === -1) allRanked.push({ ...b, providerRank: null });
+            else allRanked.splice(posAsc, 0, { ...b, providerRank: null });
+        } else {
+            if (pos === -1) allRanked.push({ ...b, providerRank: null });
+            else allRanked.splice(pos, 0, { ...b, providerRank: null });
+        }
     });
 
+    // Field median from provider pots (always descending-ranked for medals)
+    const rankedByPot = [...providers].sort((a,b) => b.medianPot - a.medianPot);
+    const fieldMedianPot = rankedByPot[Math.floor(rankedByPot.length / 2)]?.medianPot || 0;
     const MEDALS = ['\u{1F947}','\u{1F948}','\u{1F949}'];
 
     function fmtPot(v) {
@@ -1684,27 +1738,21 @@ function renderVFMTable(results) {
         const step = abs < 100000 ? 1000 : abs < 1000000 ? 10000 : 50000;
         return '\u00a3' + (Math.round(v / step) * step).toLocaleString();
     }
-    function fmtRet(r) {
-        return (Math.round(r * 1000) / 10).toFixed(1) + '%';
-    }
-    function pTopBar(p, muted) {
-        const pct = Math.round(p * 100);
-        const col = muted ? '#94A3B8' : p >= 0.12 ? 'var(--accent-green)' : p >= 0.06 ? 'var(--accent-blue)' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtRet(p)}</div>
-                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
-    }
-    function pBottomBar(p, muted) {
-        const pct = Math.round(p * 100);
-        const col = muted ? '#94A3B8' : p >= 0.12 ? '#DC2626' : p >= 0.06 ? '#F59E0B' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtRet(p)}</div>
-                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
-    }
-    function vsCell(diff, muted) {
-        if (Math.abs(diff) < 1000) return `<span style="color:var(--text-muted);font-size:0.82rem;">\u2248\u00a30</span>`;
+    function fmtRet(r) { return (Math.round(r * 1000) / 10).toFixed(1) + '%'; }
+    function vsBadge(diff) {
+        if (Math.abs(diff) < 1000) return `<span style="font-size:0.72rem;color:var(--text-muted);margin-left:4px;">(\u2248\u00a30)</span>`;
         const sign = diff > 0 ? '+' : '';
-        const col  = muted ? 'var(--text-muted)' : diff > 0 ? 'var(--accent-green)' : '#DC2626';
+        const col  = diff > 0 ? 'var(--accent-green)' : '#DC2626';
         const step = Math.abs(diff) < 100000 ? 1000 : 10000;
-        return `<span style="color:${col};font-weight:700;font-size:0.82rem;">${sign}\u00a3${(Math.round(diff/step)*step).toLocaleString()}</span>`;
+        return `<span style="font-size:0.72rem;font-weight:700;color:${col};margin-left:4px;">(${sign}\u00a3${(Math.round(diff/step)*step).toLocaleString()})</span>`;
+    }
+    function chancBar(p, muted, good) {
+        const pct = Math.round(p * 100);
+        const col = muted ? '#94A3B8' : good
+            ? (p >= 0.12 ? 'var(--accent-green)' : p >= 0.06 ? 'var(--accent-blue)' : '#94A3B8')
+            : (p >= 0.12 ? '#DC2626' : p >= 0.06 ? '#F59E0B' : '#94A3B8');
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtRet(p)}</div>
+                <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
     }
 
     let html = '';
@@ -1713,38 +1761,36 @@ function renderVFMTable(results) {
         const isBmk = !r.isProvider;
         const vs    = r.medianPot - fieldMedianPot;
         const ret   = fmtRet(r.annualisedReturn);
+        const pot   = fmtPot(r.medianPot);
         if (isBmk) {
             html += `<tr class="vfm-benchmark-row">
                 <td class="ps-3" style="width:36px;"></td>
                 <td style="font-size:0.85rem;font-style:italic;">${r.name}
                     <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>
                 </td>
+                <td class="text-end" style="font-size:0.85rem;">${pot}${vsBadge(vs)}</td>
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
-                <td class="text-end">${vsCell(vs, true)}</td>
-                <td class="text-end">${pTopBar(r.pTop, true)}</td>
-                <td class="text-end pe-4">${pBottomBar(r.pBottom, true)}</td>
+                <td class="text-end">${chancBar(r.pTop, true, true)}</td>
+                <td class="text-end pe-4">${chancBar(r.pBottom, true, false)}</td>
             </tr>`;
         } else {
             provRank++;
-            const medal = provRank <= 3
-                ? `<span class="vfm-medal">${MEDALS[provRank-1]}</span>`
-                : `<span class="vfm-rank-num">${provRank}</span>`;
+            // Medal based on pot rank (always), regardless of current sort
+            const potRank = rankedByPot.findIndex(x => x.name === r.name) + 1;
+            const medal = potRank <= 3
+                ? `<span class="vfm-medal">${MEDALS[potRank-1]}</span>`
+                : `<span class="vfm-rank-num">${potRank}</span>`;
             html += `<tr class="vfm-provider-row">
                 <td class="text-center ps-3" style="width:36px;">${medal}</td>
                 <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
-                <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
-                <td class="text-end">${vsCell(vs, false)}</td>
-                <td class="text-end">${pTopBar(r.pTop, false)}</td>
-                <td class="text-end pe-4">${pBottomBar(r.pBottom, false)}</td>
+                <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${pot}${vsBadge(vs)}</td>
+                <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
+                <td class="text-end">${chancBar(r.pTop, false, true)}</td>
+                <td class="text-end pe-4">${chancBar(r.pBottom, false, false)}</td>
             </tr>`;
         }
     });
-
     tbody.innerHTML = html;
-    const p = state.personas.find(x => x.id === state.vfm.activePersonaId);
-    vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
 }
 
 function renderVFMSlicer(results) {
@@ -1927,7 +1973,13 @@ function refreshPortfolioDropdowns() {
     const rightSel = document.getElementById('port-select-right');
     
     let presetHtml = '';
-    PRESET_PORTFOLIOS.forEach(group => {
+    // Sort provider groups alphabetically; keep Core Building Blocks first
+    const coreGroup = PRESET_PORTFOLIOS.find(g => g.name === 'Core Building Blocks');
+    const providerGroups = PRESET_PORTFOLIOS
+        .filter(g => g.name !== 'Core Building Blocks')
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const sortedPortfolioGroups = coreGroup ? [coreGroup, ...providerGroups] : providerGroups;
+    sortedPortfolioGroups.forEach(group => {
         presetHtml += `<optgroup label="${group.name}">`;
         group.portfolios.forEach(p => {
             presetHtml += `<option value="${p.id}">${p.name}</option>`;
@@ -2578,6 +2630,40 @@ function getActiveStrategies(months) {
         if(sel.value === 'custom') {
             name = "Active Builder Strategy";
             resolvedPoints = scrapeAndResolveStrategy();
+            // If the builder has no weights set, fall back to Provider Median
+            const hasWeights = resolvedPoints.some(pt =>
+                Object.values(pt.weights).some(w => w > 0));
+            if (!hasWeights) {
+                // Build Provider Median: average all provider strategy growth points
+                const providerStrategies = STRATEGY_GROUPS
+                    .filter(g => g.isProvider)
+                    .flatMap(g => g.strategies);
+                if (providerStrategies.length > 0) {
+                    const nProv = providerStrategies.length;
+                    // Use each strategy's first (growth) point
+                    resolvedPoints = [{ years: 50, weights: {}, alphas: {}, tes: {} },
+                                      { years: 0,  weights: {}, alphas: {}, tes: {} }];
+                    [0, 2].forEach((ptIdx, outIdx) => {
+                        ASSET_CLASSES.forEach(ac => {
+                            resolvedPoints[outIdx].weights[ac.key] = 0;
+                        });
+                        providerStrategies.forEach(strat => {
+                            const pt = strat.points[ptIdx === 0 ? 0 : strat.points.length - 1];
+                            Object.entries(pt.weights).forEach(([portId, blend]) => {
+                                const port = getGlobalPortfolio(portId);
+                                if (port) {
+                                    ASSET_CLASSES.forEach(ac => {
+                                        resolvedPoints[outIdx].weights[ac.key] =
+                                            (resolvedPoints[outIdx].weights[ac.key] || 0) +
+                                            (port.weights[ac.key] || 0) * blend / nProv;
+                                    });
+                                }
+                            });
+                        });
+                    });
+                    name = "Provider Median (default)";
+                }
+            }
         } else {
             let preset;
             if(sel.value.startsWith('preset_')) {
