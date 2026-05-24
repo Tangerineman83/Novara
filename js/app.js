@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=38.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=39.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1143,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=38.0'); 
+    state.worker = new Worker('./js/worker.js?v=39.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1525,8 +1525,7 @@ function buildVFMStrategies(horizonMonths, cma) {
             const monthlyData = interpolateWeights(resolvedPoints, personaRetireMonths)
                                     .slice(0, horizonMonths);
 
-            // Time-weighted arithmetic return across all months of the horizon.
-            // cma.r values are annual decimals — no further scaling needed.
+            // Time-weighted arithmetic return across all months of the VFM horizon.
             let totalMonthlyRet = 0;
             monthlyData.forEach(md => {
                 let monthRet = 0;
@@ -1541,11 +1540,47 @@ function buildVFMStrategies(horizonMonths, cma) {
             });
             const annualisedArithReturn = totalMonthlyRet / horizonMonths;
 
+            // ── Deterministic projected pot to full retirement ────────────────
+            // Iterates month-by-month through the full glidepath using the
+            // strategy's time-weighted arithmetic return at each step, compounding
+            // contributions with salary growth and deflating by inflation.
+            // This matches the Projections tab order of magnitude without
+            // requiring a separate simulation pass. Labelled "deterministic".
+            const inflation    = parseFloat(document.getElementById('setting-inflation')?.value) || 2.5;
+            const inflRate     = inflation / 100;
+            const monthlyInfl  = Math.pow(1 + inflRate, 1/12) - 1;
+            const realSalGrowth = persona?.data?.realSalaryGrowth ?? 0;
+            const monthlySalGrowth = Math.pow(1 + inflRate + realSalGrowth / 100, 1/12) - 1;
+            const contribution = (persona?.data?.contribution ?? 0) / 100;
+
+            // Full glidepath monthly data (personaRetireMonths long)
+            const fullMonthlyData = interpolateWeights(resolvedPoints, personaRetireMonths);
+
+            let detPot    = persona?.data?.savings ?? 0;
+            let detSalary = persona?.data?.salary  ?? 0;
+
+            fullMonthlyData.forEach(md => {
+                // Arithmetic return for this month's portfolio
+                let monthArith = 0;
+                ASSET_CLASSES.forEach(ac => {
+                    const w = md.weights[ac.key] || 0;
+                    if (w === 0) return;
+                    monthArith += w * ((cma.r[ac.key] || 0) + (md.alphas?.[ac.key] || 0));
+                });
+                const nomMonthlyReturn  = monthArith / 12;
+                const realMonthlyReturn = (1 + nomMonthlyReturn) / (1 + monthlyInfl) - 1;
+
+                detPot = (detPot + detSalary * contribution / 12) * (1 + realMonthlyReturn);
+                detSalary *= (1 + monthlySalGrowth);
+            });
+            const deterministicPot = Math.max(0, detPot);
+
             resolved.push({
                 name:                strat.name,
                 isProvider,
                 monthlyData,
-                annualisedArithReturn
+                annualisedArithReturn,
+                deterministicPot
             });
         });
     });
@@ -1575,10 +1610,11 @@ function buildVFMStrategies(horizonMonths, cma) {
         });
         resolved.push({
             name: 'Provider Median',
-            isProvider: false,   // treated as a comparator — no rank, muted style
+            isProvider: false,
             isProviderMedian: true,
             monthlyData: medianMonthlyData,
-            annualisedArithReturn: totalRet / horizonMonths
+            annualisedArithReturn: totalRet / horizonMonths,
+            deterministicPot: providerResolved.reduce((s, st) => s + (st.deterministicPot || 0), 0) / nProv
         });
     }
 
@@ -1630,19 +1666,21 @@ function renderVFMTable(results) {
     if (!tbody) return;
 
     const providers  = results.filter(r => r.isProvider);
-    const benchmarks = results.filter(r => !r.isProvider);
+    const comparators = results.filter(r => !r.isProvider);
     const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
 
-    // Insert benchmarks inline at their correct position by annualised return
+    // Field median for vsField column — median of provider deterministicPots
+    const sortedProvPots = rankedProviders.map(r => r.deterministicPot).sort((a,b) => a-b);
+    const fieldMedianPot = sortedProvPots[Math.floor(sortedProvPots.length / 2)];
+
+    // Insert comparators inline at correct return position
     const allRanked = rankedProviders.map((r, i) => ({ ...r, providerRank: i + 1 }));
-    benchmarks.forEach(b => {
+    comparators.forEach(b => {
         const pos = allRanked.findIndex(r => r.isProvider && b.annualisedReturn > r.annualisedReturn);
         if (pos === -1) allRanked.push({ ...b, providerRank: null });
         else allRanked.splice(pos, 0, { ...b, providerRank: null });
     });
 
-    const providerMedians = rankedProviders.map(r => r.medianPot).sort((a, b) => a - b);
-    const fieldMedianPot  = providerMedians[Math.floor(providerMedians.length / 2)];
     const MEDALS = ['\u{1F947}','\u{1F948}','\u{1F949}'];
 
     function fmtPot(v) {
@@ -1653,23 +1691,20 @@ function renderVFMTable(results) {
     function fmtRet(r) {
         return (Math.round(r * 1000) / 10).toFixed(1) + '%';
     }
-    function fmtPct(p) {
-        return (Math.round(p * 1000) / 10).toFixed(1) + '%';
-    }
     function pTopBar(p, muted) {
         const pct = Math.round(p * 100);
         const col = muted ? '#94A3B8' : p >= 0.12 ? 'var(--accent-green)' : p >= 0.06 ? 'var(--accent-blue)' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtPct(p)}</div>
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtRet(p)}</div>
                 <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
     }
     function pBottomBar(p, muted) {
         const pct = Math.round(p * 100);
         const col = muted ? '#94A3B8' : p >= 0.12 ? '#DC2626' : p >= 0.06 ? '#F59E0B' : '#94A3B8';
-        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtPct(p)}</div>
+        return `<div style="font-size:0.82rem;font-weight:700;color:${col};">${fmtRet(p)}</div>
                 <div class="vfm-beat-bar"><div class="vfm-beat-bar-fill" style="width:${Math.min(pct*4,100)}%;background:${col};"></div></div>`;
     }
     function vsCell(diff, muted) {
-        if (Math.abs(diff) < 500) return `<span style="color:var(--text-muted);font-size:0.82rem;">\u2248\u00a30</span>`;
+        if (Math.abs(diff) < 1000) return `<span style="color:var(--text-muted);font-size:0.82rem;">\u2248\u00a30</span>`;
         const sign = diff > 0 ? '+' : '';
         const col  = muted ? 'var(--text-muted)' : diff > 0 ? 'var(--accent-green)' : '#DC2626';
         const step = Math.abs(diff) < 100000 ? 1000 : 10000;
@@ -1680,7 +1715,7 @@ function renderVFMTable(results) {
     let provRank = 0;
     allRanked.forEach(r => {
         const isBmk = !r.isProvider;
-        const vs    = r.medianPot - fieldMedianPot;
+        const vs    = r.deterministicPot - fieldMedianPot;
         const ret   = fmtRet(r.annualisedReturn);
         if (isBmk) {
             html += `<tr class="vfm-benchmark-row">
@@ -1689,7 +1724,7 @@ function renderVFMTable(results) {
                     <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>
                 </td>
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.deterministicPot)}</td>
                 <td class="text-end">${vsCell(vs, true)}</td>
                 <td class="text-end">${pTopBar(r.pTop, true)}</td>
                 <td class="text-end pe-4">${pBottomBar(r.pBottom, true)}</td>
@@ -1703,7 +1738,7 @@ function renderVFMTable(results) {
                 <td class="text-center ps-3" style="width:36px;">${medal}</td>
                 <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
                 <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.deterministicPot)}</td>
                 <td class="text-end">${vsCell(vs, false)}</td>
                 <td class="text-end">${pTopBar(r.pTop, false)}</td>
                 <td class="text-end pe-4">${pBottomBar(r.pBottom, false)}</td>
@@ -1713,11 +1748,7 @@ function renderVFMTable(results) {
 
     tbody.innerHTML = html;
     const p = state.personas.find(x => x.id === state.vfm.activePersonaId);
-    vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${horizonYears}-year horizon \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
-
-    // Render asset mix slicer chart after table is built
-    // Pass the full resolved strategies (with monthlyData) stored on the results
-    requestAnimationFrame(() => renderVFMSlicer(results));
+    vfmShowDone(`${p ? personaDisplayName(p) : ''} \u00b7 ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`);
 }
 
 function renderVFMSlicer(results) {

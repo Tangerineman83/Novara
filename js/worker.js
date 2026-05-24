@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=38.0');
+        const worker = new Worker('./sim-worker.js?v=39.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -245,7 +245,7 @@ function runVFMSimulation(data) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
 
-        const worker = new Worker('./sim-worker.js?v=38.0');
+        const worker = new Worker('./sim-worker.js?v=39.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -327,10 +327,11 @@ function buildVFMStats(realPots, strategies, simCount) {
     return strategies.map((strat, i) => ({
         name:             strat.name,
         isProvider:       strat.isProvider,
-        medianPot:        medianRealPots[i],
-        annualisedReturn: strat.annualisedArithReturn,
-        vsFieldMedian:    medianRealPots[i] - crossMedian,
+        isProviderMedian: strat.isProviderMedian || false,
+        deterministicPot: strat.deterministicPot || 0,
+        // vsFieldMedian computed in renderVFMTable using deterministicPots
         pTop:             pTop[i] / simCount,
-        pBottom:          pBottom[i] / simCount
+        pBottom:          pBottom[i] / simCount,
+        annualisedReturn: strat.annualisedArithReturn
     }));
 }
