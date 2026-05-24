@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=42.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=43.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -102,7 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if(PRESET_CMAS && PRESET_CMAS.length > 0) loadCMAPreset('preset_0');
-            if(STRATEGY_GROUPS && STRATEGY_GROUPS.length > 0 && STRATEGY_GROUPS[0].strategies.length > 0) loadStrategyPreset('preset_0_0');
+            // Load first non-empty strategy group's first strategy as default
+            const firstProviderGroupIdx = STRATEGY_GROUPS.findIndex(g => g.strategies.length > 0);
+            if(firstProviderGroupIdx >= 0) loadStrategyPreset(`preset_${firstProviderGroupIdx}_0`);
         } catch (dataErr) {
             console.warn("Default Data Load Warning:", dataErr);
         }
@@ -475,8 +477,9 @@ function refreshStrategyDropdowns() {
     
     let presetHtml = '';
     STRATEGY_GROUPS.forEach((group, gIdx) => {
+        if (group.strategies.length === 0) return; // skip empty groups (e.g. Comparators)
         presetHtml += `<optgroup label="${group.name}">`;
-        // Sort provider strategies alphabetically; leave Comparators in original order
+        // Sort provider strategies alphabetically; leave non-provider in original order
         const stratList = group.isProvider
             ? [...group.strategies.map((s, i) => ({...s, idx: i}))].sort((a, b) => a.name.localeCompare(b.name))
             : group.strategies.map((s, i) => ({...s, idx: i}));
@@ -484,7 +487,6 @@ function refreshStrategyDropdowns() {
             presetHtml += `<option value="preset_${gIdx}_${strat.idx}">${strat.name}</option>`;
         });
         presetHtml += `</optgroup>`;
-    });
     });
 
     let customHtml = '';
@@ -587,7 +589,8 @@ function deleteStrategy() {
     if(id.startsWith('custom_')) {
         UserDataEngine.deleteItem('strategies', id);
         refreshStrategyDropdowns();
-        loadStrategyPreset('preset_0_0'); 
+        const firstIdx = STRATEGY_GROUPS.findIndex(g => g.strategies.length > 0);
+        if (firstIdx >= 0) loadStrategyPreset(`preset_${firstIdx}_0`);
     }
 }
 
@@ -1152,7 +1155,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=42.0'); 
+    state.worker = new Worker('./js/worker.js?v=43.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
