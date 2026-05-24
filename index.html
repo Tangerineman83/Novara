@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=43.0">
+    <link rel="stylesheet" href="css/style.css?v=44.0">
 </head>
 <body>
 
@@ -20,6 +20,7 @@
             <a href="#" class="list-group-item" data-tab="persona"><i class="fas fa-user me-3"></i>Personas</a>
             <a href="#" class="list-group-item" data-tab="vfm"><i class="fas fa-trophy me-3"></i>League Table</a>
             <a href="#" class="list-group-item" data-tab="model"><i class="fas fa-play-circle me-3"></i>Projections</a>
+            <a href="#" class="list-group-item" data-tab="settings"><i class="fas fa-sliders-h me-3"></i>Settings</a>
         </div>
         <div class="p-3 mt-auto border-top border-light">
             <div class="small fw-bold text-muted mb-2 text-uppercase" style="font-size:0.65rem;">File Manager</div>
@@ -35,9 +36,8 @@
         <nav class="navbar navbar-expand-lg pb-0">
             <div class="container-fluid px-4">
                 <button class="btn btn-light d-md-none" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <div id="status-indicator" class="ms-auto text-success fw-bold small bg-white px-3 py-1 rounded-pill shadow-sm border">
-                    <span id="status-text">Ready</span> 
-                    <div class="spinner-border spinner-border-sm text-primary d-none ms-2" id="loading-spinner" role="status"></div>
+                <div id="proj-progress-area" class="ms-auto d-flex align-items-center gap-2">
+                    <!-- Progress circle injected by JS when sims run -->
                 </div>
             </div>
         </nav>
@@ -58,10 +58,7 @@
                             <option value="">Load Preset...</option>
                         </select>
                         <div class="d-flex gap-2 w-100 w-md-auto align-items-center">
-                            <input type="text" id="cma-custom-name" class="form-control form-control-sm rounded-pill border-0 shadow-sm w-100" placeholder="Custom Market Name...">
-                            <span id="cma-dirty-indicator" class="dirty-indicator"><i class="fas fa-circle" style="font-size:0.5rem;"></i> unsaved</span>
-                            <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3 flex-shrink-0" id="btn-save-cma" title="Save Custom Market"><i class="fas fa-save"></i></button>
-                            <button class="btn btn-sm btn-danger rounded-pill shadow-sm d-none px-3 flex-shrink-0" id="btn-delete-cma" title="Delete Custom Market"><i class="fas fa-trash"></i></button>
+
                         </div>
                     </div>
                 </div>
@@ -279,24 +276,17 @@
                                     <ul class="dropdown-menu shadow-sm border-0 rounded-3 w-100" id="vfm-persona-dropdown-menu" style="max-height:60vh;overflow-y:auto;"></ul>
                                 </div>
                             </div>
-                            <div class="col-md-5 col-sm-6">
-                                <label class="form-label mb-1" style="font-size:0.75rem;font-weight:700;">Time Horizon</label>
-                                <div class="d-flex gap-2 flex-wrap" id="vfm-horizon-btns">
-                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="1">1 yr</button>
-                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="3">3 yrs</button>
-                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn active-horizon" data-years="5">5 yrs</button>
-                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="7">7 yrs</button>
-                                    <button class="btn btn-sm rounded-pill vfm-horizon-btn" data-years="10">10 yrs</button>
-                                </div>
-                            </div>
+
                             <div class="col-md-3 col-sm-12">
                                 <div id="vfm-status-wrap" style="min-height:40px;">
                                     <div id="vfm-status-idle" style="font-size:0.78rem;font-weight:600;color:var(--text-muted);padding-top:6px;">Select a persona to begin</div>
-                                    <div id="vfm-progress-wrap" class="d-none">
-                                        <div style="font-size:0.72rem;font-weight:700;color:var(--accent-blue);margin-bottom:5px;" id="vfm-progress-label">Running simulations…</div>
-                                        <div style="height:6px;border-radius:3px;background:var(--border-light);overflow:hidden;">
-                                            <div id="vfm-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-blue),var(--accent-purple));border-radius:3px;transition:width 0.3s ease;"></div>
-                                        </div>
+                                    <svg id="vfm-progress-svg" width="32" height="32" viewBox="0 0 32 32" class="d-none" style="flex-shrink:0;">
+                                        <circle cx="16" cy="16" r="13" fill="none" stroke="#E2E8F0" stroke-width="3"/>
+                                        <g id="vfm-arc-group"></g>
+                                        <circle id="vfm-done-circle" cx="16" cy="16" r="11" fill="#22C55E" style="display:none;"/>
+                                        <text id="vfm-done-tick" x="16" y="20" text-anchor="middle" font-size="12" fill="white" font-weight="bold" style="display:none;">✓</text>
+                                    </svg>
+                                    <div id="vfm-progress-wrap" class="d-none d-flex align-items-center gap-2"><span id="vfm-progress-label" style="font-size:0.72rem;font-weight:700;color:var(--accent-blue);"></span><svg id="vfm-progress-svg" width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"></svg></div>
                                         <div id="vfm-progress-pct" style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;text-align:right;">0%</div>
                                     </div>
                                     <div id="vfm-done-wrap" class="d-none" style="font-size:0.72rem;font-weight:600;color:var(--text-muted);padding-top:4px;">
@@ -377,10 +367,15 @@
                         <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s2"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 2</label><select id="run-strat-2" class="form-select form-select-sm border-0 bg-light"></select></div>
                         <div class="col-md-2 col-sm-4 ribbon-col strat-ribbon s3"><label class="form-label mb-1" style="font-size:0.75rem">Strategy 3</label><select id="run-strat-3" class="form-select form-select-sm border-0 bg-light"></select></div>
                         <div class="col-md-2 d-flex flex-column gap-2 justify-content-end align-items-end ps-md-3 border-start">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="small fw-bold text-muted" style="font-size:0.7rem">LIVE</span>
-                                <div class="form-check form-switch m-0"><input class="form-check-input mt-0" type="checkbox" id="auto-update-toggle" checked></div>
-                                <button class="btn btn-sm btn-link p-0 text-muted" data-bs-toggle="modal" data-bs-target="#settingsModal"><i class="fas fa-cog"></i></button>
+                            <div class="d-flex align-items-center gap-2 w-100">
+                                <span class="small fw-bold text-muted" style="font-size:0.7rem;flex-shrink:0;">LIVE</span>
+                                <div class="form-check form-switch m-0 flex-grow-1"><input class="form-check-input mt-0" type="checkbox" id="auto-update-toggle" checked></div>
+                                <svg id="proj-progress-svg" width="28" height="28" viewBox="0 0 28 28" style="flex-shrink:0;display:none;">
+                                    <circle cx="14" cy="14" r="11" fill="none" stroke="#E2E8F0" stroke-width="3"/>
+                                    <g id="proj-arc-group"></g>
+                                    <circle id="proj-done-circle" cx="14" cy="14" r="9" fill="#22C55E" style="display:none;"/>
+                                    <text id="proj-done-tick" x="14" y="18" text-anchor="middle" font-size="10" fill="white" font-weight="bold" style="display:none;">✓</text>
+                                </svg>
                             </div>
                             <button class="btn btn-primary btn-sm w-100" id="run-simulation-btn">Run</button>
                         </div>
@@ -390,6 +385,11 @@
                 <div class="card chart-card-wrapper mb-4">
                     <div class="card-header border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
                         <span class="fw-bold text-dark m-0" style="font-size: 1.15rem;">Accumulation (Real Terms)</span>
+                        <div class="d-flex align-items-center gap-3" style="min-width:200px;">
+                            <label class="text-muted fw-bold text-nowrap" style="font-size:0.72rem;">Confidence</label>
+                            <input type="range" class="form-range" id="confidence-slider" min="50" max="100" step="5" value="90" style="flex:1;">
+                            <span id="confidence-label" class="text-primary fw-bold" style="font-size:0.8rem;min-width:32px;">90%</span>
+                        </div>
                     </div>
                     <div class="card-body px-4 pb-4 d-flex flex-column">
                         <div class="chart-canvas-wrapper"><canvas id="mainChart"></canvas></div>
@@ -415,39 +415,77 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-        <div class="modal-content border-0 shadow" style="border-radius: 20px;">
-            <div class="modal-header border-0 pb-0">
-                <h6 class="modal-title fw-bold">Advanced Tuning</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label d-flex justify-content-between">
-                        <span>Confidence Bounds</span>
-                        <span id="confidence-label" class="text-primary">90%</span>
-                    </label>
-                    <input type="range" class="form-range" id="confidence-slider" min="50" max="100" step="5" value="90">
+            <!-- Settings Tab -->
+            <div id="tab-settings" class="view-section d-none">
+                <h4 class="fw-bold mb-4 text-dark">Settings</h4>
+                <div class="row g-4" style="max-width:640px;">
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Simulations</h6>
+                                <div class="row g-3">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Projections</label>
+                                        <input type="number" id="setting-sim-count" class="form-control bg-light border-0" value="10000" step="1000" min="1000" max="50000">
+                                        <div class="form-text" style="font-size:0.7rem;">Monte Carlo paths for Projections tab. Higher = more accurate, slower.</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">League Table</label>
+                                        <input type="number" id="setting-sim-count-vfm" class="form-control bg-light border-0" value="2000" step="500" min="500" max="10000">
+                                        <div class="form-text" style="font-size:0.7rem;">Monte Carlo paths for League Table. Capped at 5,000.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Economic Assumptions</h6>
+                                <div class="row g-3">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Core Inflation (%)</label>
+                                        <input type="number" id="setting-inflation" class="form-control bg-light border-0" value="2.5" step="0.1" min="0" max="20">
+                                        <div class="form-text" style="font-size:0.7rem;">Applies to all simulations. Per-asset kurtosis is set in Markets.</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Default Real Salary Growth (%)</label>
+                                        <input type="number" id="setting-real-salary-growth" class="form-control bg-light border-0" value="1.5" step="0.1" min="0" max="10">
+                                        <div class="form-text" style="font-size:0.7rem;">Used when creating new personas. Existing personas unaffected.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Retirement Defaults</h6>
+                                <div class="row g-3">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Default Retirement Age</label>
+                                        <input type="number" id="setting-retire-age" class="form-control bg-light border-0" value="68" step="1" min="55" max="80">
+                                        <div class="form-text" style="font-size:0.7rem;">Used when creating new personas. Existing personas unaffected.</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Default Contribution Rate (%)</label>
+                                        <input type="number" id="setting-default-contribution" class="form-control bg-light border-0" value="10" step="1" min="0" max="100">
+                                        <div class="form-text" style="font-size:0.7rem;">Used when creating new personas.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <hr class="text-muted opacity-25">
-                <div class="mb-3"><label class="form-label small fw-bold">Simulations</label><input type="number" id="setting-sim-count" class="form-control bg-light border-0" value="10000" step="1000"></div>
-                <div class="mb-3"><label class="form-label small fw-bold">Core Inflation (%)</label><input type="number" id="setting-inflation" class="form-control bg-light border-0" value="2.5" step="0.1"><div class="form-text" style="font-size: 0.7rem;">Per-asset tail risk (kurtosis) is set in the Markets tab.</div></div>
             </div>
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-primary w-100 rounded-pill" data-bs-dismiss="modal">Apply Settings</button>
-            </div>
+
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=43.0"></script>    <!-- Asset Detail Panel -->
+<script type="module" src="js/app.js?v=44.0"></script>    <!-- Asset Detail Panel -->
     <div id="asset-detail-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:1040;opacity:0;transition:opacity 0.22s ease;" class="d-none"></div>
     <div id="asset-detail-panel" style="position:fixed;top:0;right:0;height:100%;width:min(480px,95vw);background:var(--bg-surface);z-index:1050;box-shadow:-8px 0 40px rgba(15,23,42,0.18);overflow-y:auto;padding:1.5rem;transform:translateX(24px);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease;" class="d-none"></div>
 
