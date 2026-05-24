@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=44.1';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=45.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -52,7 +52,6 @@ const state = {
     personas: [],
     activePersonaId: null,
     strategyYears: [50, 15, 0],
-    autoRun: true,
     portInputsCollapsed_left: true,  // Default collapsed
     portInputsCollapsed_right: true, // Default collapsed
     advLeft: false,
@@ -522,7 +521,7 @@ function loadStrategyPreset(id) {
     });
     
     renderStrategyChart();
-    if(state.autoRun) runSimulation();
+    runSimulation();
 }
 
 function saveStrategy() {
@@ -1111,12 +1110,17 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=44.1'); 
+    state.worker = new Worker('./js/worker.js?v=45.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
             projShowDone();
+            // On a full sim run always rebuild chart fully
             renderChart(payload);
+            renderResultsTable(payload);
+        } else if (type === 'RECALCULATE_STATS') {
+            // Confidence change only — update chart data in-place for smooth transition
+            updateChartConfidence(payload);
             renderResultsTable(payload);
         } else if (type === 'SIMULATION_PROGRESS') {
             projUpdateProgress(payload.done, payload.total);
@@ -1217,7 +1221,7 @@ function renderPersonaCards() {
                 if (p.id.startsWith('custom_')) {
                     UserDataEngine.saveItem('personas', JSON.parse(JSON.stringify(p)));
                 }
-                if(state.autoRun && state.activePersonaId === p.id) runSimulation();
+            if(state.activePersonaId === p.id) runSimulation();
             });
         });
 
@@ -1574,11 +1578,12 @@ function showProgressWheel(svgId, lblId, msg) {
     if (lbl) { lbl.textContent = msg || ''; lbl.style.display = msg ? 'inline' : 'none'; }
 }
 function updateProgressWheel(svgId, lblId, done, total) {
+    if (done === 0) return; // suppress spurious 0% at start
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
     const svg = document.getElementById(svgId);
     if (svg) drawProgressWheel(svg, pct, false);
     const lbl = document.getElementById(lblId);
-    if (lbl) lbl.textContent = (lbl.dataset.base || '') + ' ' + pct + '%';
+    if (lbl && lbl.dataset.base) lbl.textContent = lbl.dataset.base + ' · ' + pct + '%';
 }
 function completeProgressWheel(svgId, lblId, doneMsg) {
     const svg = document.getElementById(svgId);
@@ -1592,17 +1597,20 @@ function hideProgressWheel(svgId, lblId) {
 }
 // Projections progress
 function projShowRunning(simCount) {
-    const msg = `Running ${simCount.toLocaleString()} sims…`;
+    // Show wheel only in navbar — label is tooltip to avoid overflow
     const lbl = document.getElementById('proj-progress-label');
-    if (lbl) lbl.dataset.base = `Running ${simCount.toLocaleString()} sims`;
-    showProgressWheel('proj-progress-svg', 'proj-progress-label', msg);
+    if (lbl) {
+        lbl.dataset.base = `${simCount.toLocaleString()} sims`;
+        lbl.title = `Running ${simCount.toLocaleString()} simulations…`;
+    }
+    showProgressWheel('proj-progress-svg', 'proj-progress-label', '');
 }
 function projUpdateProgress(done, total) {
     updateProgressWheel('proj-progress-svg', 'proj-progress-label', done, total);
 }
 function projShowDone() {
+    // Tick persists until next run, just like VFM
     completeProgressWheel('proj-progress-svg', 'proj-progress-label', '');
-    setTimeout(() => hideProgressWheel('proj-progress-svg', 'proj-progress-label'), 1800);
 }
 function projShowError() { hideProgressWheel('proj-progress-svg', 'proj-progress-label'); }
 // VFM progress
@@ -1617,12 +1625,10 @@ function updateVFMProgress(done, total) {
     updateProgressWheel('vfm-progress-svg', 'vfm-progress-label', done, total);
 }
 function vfmShowDone(message) {
+    // Tick persists — only hidden when a new run starts (vfmShowProgress resets it)
+    const wrap = document.getElementById('vfm-progress-wrap');
+    if (wrap) wrap.classList.remove('d-none');
     completeProgressWheel('vfm-progress-svg', 'vfm-progress-label', message);
-    setTimeout(() => {
-        const wrap = document.getElementById('vfm-progress-wrap');
-        if (wrap) wrap.classList.add('d-none');
-        hideProgressWheel('vfm-progress-svg', 'vfm-progress-label');
-    }, 2500);
 }
 function vfmShowError(message) {
     const wrap = document.getElementById('vfm-progress-wrap');
@@ -1718,6 +1724,9 @@ function renderVFMTable(results) {
     // Init tooltips on headers
     document.querySelectorAll('#vfm-table th[data-bs-toggle="tooltip"]').forEach(el =>
         new bootstrap.Tooltip(el, { container:'body', html:false }));
+
+    // Render slicer chart after table is built
+    requestAnimationFrame(() => renderVFMSlicer(results));
 }
 
 function renderVFMRows(results, sortField, sortDir) {
@@ -1980,7 +1989,6 @@ function setupAutoRun() {
     const inputs = ['run-cma-select', 'run-strat-1', 'run-strat-2', 'run-strat-3', 'setting-sim-count', 'setting-inflation'];
     inputs.forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
-            if(!state.autoRun) return;
             
             clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600); 
         });
@@ -2399,8 +2407,7 @@ function bindStrategyTableEvents() {
                state.strategyYears[colIdx] = parseFloat(newEl.value) || 0;
             }
             setDirty('strat-dirty-indicator', true);
-            renderStrategyChart(); 
-            if(!state.autoRun) return;
+            renderStrategyChart();
             
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runSimulation, 600);
@@ -2516,7 +2523,7 @@ function removeStrategyRow(rowIdx) {
         });
     }
     renderStrategyChart();
-    if(state.autoRun) runSimulation();
+    runSimulation();
 }
 
 function addStrategyYearColumn() {
@@ -2808,6 +2815,21 @@ function updateConfidence() {
     if (state.worker) {
         state.worker.postMessage({ type: 'RECALCULATE_STATS', payload: { confidence: val / 100 } });
     }
+}
+
+function updateChartConfidence(results) {
+    // Update only the confidence band datasets in-place — no destroy/recreate.
+    // Chart.js animates the transition smoothly.
+    if (!state.chartInstance || !results?.length) { renderChart(results); return; }
+    results.forEach((strat, si) => {
+        const baseIdx = si * 3; // lower, median, upper per strategy
+        const ds = state.chartInstance.data.datasets;
+        if (!ds[baseIdx]) return;
+        ds[baseIdx].data     = strat.percentiles.pLower.map((v, i) => ({ x: i, y: Math.round(v / 1000) * 1000 }));
+        ds[baseIdx+1].data   = strat.percentiles.pMedian.map((v, i) => ({ x: i, y: Math.round(v / 1000) * 1000 }));
+        ds[baseIdx+2].data   = strat.percentiles.pUpper.map((v, i) => ({ x: i, y: Math.round(v / 1000) * 1000 }));
+    });
+    state.chartInstance.update('active'); // smooth Chart.js animation
 }
 
 function renderChart(results) {
