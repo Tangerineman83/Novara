@@ -90,8 +90,13 @@ self.onmessage = function(e) {
 
     const n       = assetKeys.length;
     const retirementMonths = Math.max(1, (persona.retirementAge - persona.age) * 12);
+    // Use horizonMonths from payload when provided — this is authoritative for VFM runs
+    // where the coordinator has already computed the correct simulation length.
+    // For normal projection runs, horizonMonths is not set so we fall back to retirementMonths.
+    // IMPORTANT: never exceed the actual monthlyData length to avoid out-of-bounds access.
+    const maxDataMonths = strategies[0]?.monthlyData?.length || retirementMonths;
     const months = data.horizonMonths
-        ? Math.min(data.horizonMonths, retirementMonths)
+        ? Math.min(data.horizonMonths, maxDataMonths)
         : retirementMonths;
     const inflation = settings.inflation;
 

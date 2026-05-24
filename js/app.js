@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=40.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=41.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1143,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=40.0'); 
+    state.worker = new Worker('./js/worker.js?v=41.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1582,7 +1582,24 @@ function buildVFMStrategies(horizonMonths, cma) {
         });
     }
 
-    return resolved;
+    // Provider Median fullRetireMonthlyData — average across all provider retire paths
+    if (providerResolved.length > 0) {
+        const nProv = providerResolved.length;
+        resolved[resolved.length-1].fullRetireMonthlyData =
+            Array.from({ length: personaRetireMonths }, (_, m) => {
+                const weights = {};
+                const alphas  = {};
+                ASSET_CLASSES.forEach(ac => {
+                    weights[ac.key] = providerResolved.reduce((s, st) =>
+                        s + (st.fullRetireMonthlyData[m]?.weights[ac.key] || 0), 0) / nProv;
+                    alphas[ac.key]  = providerResolved.reduce((s, st) =>
+                        s + (st.fullRetireMonthlyData[m]?.alphas?.[ac.key] || 0), 0) / nProv;
+                });
+                return { weights, alphas };
+            });
+    }
+
+    return { strategies: resolved, personaRetireMonths };
 }
 
 function runVFM() {
@@ -1593,7 +1610,7 @@ function runVFM() {
     const horizonYears  = state.vfm.horizonYears;
     const horizonMonths = horizonYears * 12;
     const cma           = getActiveCMA();
-    const strategies    = buildVFMStrategies(horizonMonths, cma);
+    const { strategies, personaRetireMonths } = buildVFMStrategies(horizonMonths, cma);
 
     const simInput = document.getElementById('setting-sim-count');
     const infInput = document.getElementById('setting-inflation');
