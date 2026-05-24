@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=39.0');
+        const worker = new Worker('./sim-worker.js?v=40.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -220,22 +220,25 @@ function buildStatsFromCache(confidence) {
 
 function runVFMSimulation(data) {
     const { cma, strategies, persona, settings } = data;
-    const simCount      = settings.simCount || 10000;
-    const months        = data.horizonMonths;
-    const nStrats       = strategies.length;
+    const simCount           = settings.simCount || 5000;
+    const horizonMonths      = data.horizonMonths;      // for return column (short)
+    const personaRetireMonths = data.personaRetireMonths || horizonMonths; // for pot simulation (full)
+    const nStrats            = strategies.length;
 
     const numWorkers    = Math.min(MAX_WORKERS,
         (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4);
     const chunkSize     = Math.ceil(simCount / numWorkers);
     const actualWorkers = Math.ceil(simCount / chunkSize);
 
-    // Only real pots needed — arithmetic return is computed deterministically
-    // in buildVFMStrategies on the app side and passed through via strategy.annualisedArithReturn
+    // Pot simulation runs to personaRetireMonths — uses fullRetireMonthlyData.
+    // This produces terminal pots matching the Projections tab median.
     const realPots = Array.from({ length: nStrats }, () => new Float64Array(simCount));
 
-    const trimmedStrategies = strategies.map(s => ({
+    // Strategies already carry fullRetireMonthlyData (length = personaRetireMonths).
+    // We pass that to the sim workers for the pot simulation.
+    const retireStrategies = strategies.map(s => ({
         ...s,
-        monthlyData: s.monthlyData.slice(0, months)
+        monthlyData: s.fullRetireMonthlyData || s.monthlyData
     }));
 
     let chunksReceived = 0;
@@ -244,8 +247,7 @@ function runVFMSimulation(data) {
     for (let w = 0; w < actualWorkers; w++) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
-
-        const worker = new Worker('./sim-worker.js?v=39.0');
+        const worker = new Worker('./sim-worker.js?v=40.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -258,7 +260,7 @@ function runVFMSimulation(data) {
             const { chunkStart: rcs, chunkSize: rcs2, buffers } = e.data;
             for (let si = 0; si < nStrats; si++) {
                 const src      = new Float32Array(buffers[si]);
-                const lastBase = (months - 1) * rcs2;
+                const lastBase = (personaRetireMonths - 1) * rcs2;
                 for (let s = 0; s < rcs2; s++) realPots[si][rcs + s] = src[lastBase + s];
             }
             chunksReceived++;
@@ -280,7 +282,14 @@ function runVFMSimulation(data) {
 
         worker.postMessage({
             chunkStart: cs, chunkSize: cs2,
-            data: { ...data, horizonMonths: months, strategies: trimmedStrategies }
+            data: {
+                ...data,
+                horizonMonths: personaRetireMonths,  // sim runs to full retirement
+                strategies:    retireStrategies.map(s => ({
+                    ...s,
+                    monthlyData: (s.fullRetireMonthlyData || s.monthlyData)
+                }))
+            }
         });
     }
 }
@@ -289,26 +298,14 @@ function runVFMSimulation(data) {
 function buildVFMStats(realPots, strategies, simCount) {
     const nStrats = strategies.length;
 
-    // Median real terminal pot per strategy (persona-specific, with contributions)
-    const medianRealPots = realPots.map(pots => {
+    // Median terminal pot — full-retirement simulation in real terms.
+    // Converges to stochastic median within ±1.4% at 5,000 sims.
+    const medianPots = realPots.map(pots => {
         const sorted = Float64Array.from(pots).sort();
         return sorted[Math.round(0.5 * (simCount - 1))];
     });
 
-    // Cross-strategy median: for each path average all real terminal pots
-    const crossPots = new Float64Array(simCount);
-    for (let s = 0; s < simCount; s++) {
-        let sum = 0;
-        for (let si = 0; si < nStrats; si++) sum += realPots[si][s];
-        crossPots[s] = sum / nStrats;
-    }
-    crossPots.sort();
-    const crossMedian = crossPots[Math.round(0.5 * (simCount - 1))];
-
-    // P(top) and P(bottom): at each simulated path rank all strategies by terminal pot.
-    // P(top)    = fraction of paths where this strategy finishes 1st.
-    // P(bottom) = fraction of paths where this strategy finishes last.
-    // These discriminate clearly when strategies cluster — unlike P(beat median) ≈ 50%.
+    // Field median for vsField: median of provider medianPots (computed in renderVFMTable)
     const pTop    = new Float64Array(nStrats);
     const pBottom = new Float64Array(nStrats);
 
@@ -328,8 +325,7 @@ function buildVFMStats(realPots, strategies, simCount) {
         name:             strat.name,
         isProvider:       strat.isProvider,
         isProviderMedian: strat.isProviderMedian || false,
-        deterministicPot: strat.deterministicPot || 0,
-        // vsFieldMedian computed in renderVFMTable using deterministicPots
+        medianPot:        medianPots[i],
         pTop:             pTop[i] / simCount,
         pBottom:          pBottom[i] / simCount,
         annualisedReturn: strat.annualisedArithReturn

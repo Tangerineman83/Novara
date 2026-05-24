@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=39.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=40.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1143,7 +1143,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=39.0'); 
+    state.worker = new Worker('./js/worker.js?v=40.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1522,8 +1522,8 @@ function buildVFMStrategies(horizonMonths, cma) {
             // interpolateWeights uses (totalMonths - m)/12 as yearsRemaining, so
             // passing personaRetireMonths gives correct glidepath position at each month.
             // We then slice to horizonMonths to limit the simulation window.
-            const monthlyData = interpolateWeights(resolvedPoints, personaRetireMonths)
-                                    .slice(0, horizonMonths);
+            const monthlyData           = interpolateWeights(resolvedPoints, personaRetireMonths).slice(0, horizonMonths);
+            const fullRetireMonthlyData = interpolateWeights(resolvedPoints, personaRetireMonths);
 
             // Time-weighted arithmetic return across all months of the VFM horizon.
             let totalMonthlyRet = 0;
@@ -1540,47 +1540,12 @@ function buildVFMStrategies(horizonMonths, cma) {
             });
             const annualisedArithReturn = totalMonthlyRet / horizonMonths;
 
-            // ── Deterministic projected pot to full retirement ────────────────
-            // Iterates month-by-month through the full glidepath using the
-            // strategy's time-weighted arithmetic return at each step, compounding
-            // contributions with salary growth and deflating by inflation.
-            // This matches the Projections tab order of magnitude without
-            // requiring a separate simulation pass. Labelled "deterministic".
-            const inflation    = parseFloat(document.getElementById('setting-inflation')?.value) || 2.5;
-            const inflRate     = inflation / 100;
-            const monthlyInfl  = Math.pow(1 + inflRate, 1/12) - 1;
-            const realSalGrowth = persona?.data?.realSalaryGrowth ?? 0;
-            const monthlySalGrowth = Math.pow(1 + inflRate + realSalGrowth / 100, 1/12) - 1;
-            const contribution = (persona?.data?.contribution ?? 0) / 100;
-
-            // Full glidepath monthly data (personaRetireMonths long)
-            const fullMonthlyData = interpolateWeights(resolvedPoints, personaRetireMonths);
-
-            let detPot    = persona?.data?.savings ?? 0;
-            let detSalary = persona?.data?.salary  ?? 0;
-
-            fullMonthlyData.forEach(md => {
-                // Arithmetic return for this month's portfolio
-                let monthArith = 0;
-                ASSET_CLASSES.forEach(ac => {
-                    const w = md.weights[ac.key] || 0;
-                    if (w === 0) return;
-                    monthArith += w * ((cma.r[ac.key] || 0) + (md.alphas?.[ac.key] || 0));
-                });
-                const nomMonthlyReturn  = monthArith / 12;
-                const realMonthlyReturn = (1 + nomMonthlyReturn) / (1 + monthlyInfl) - 1;
-
-                detPot = (detPot + detSalary * contribution / 12) * (1 + realMonthlyReturn);
-                detSalary *= (1 + monthlySalGrowth);
-            });
-            const deterministicPot = Math.max(0, detPot);
-
             resolved.push({
-                name:                strat.name,
+                name:                 strat.name,
                 isProvider,
-                monthlyData,
-                annualisedArithReturn,
-                deterministicPot
+                monthlyData,          // horizonMonths length — for return column
+                fullRetireMonthlyData, // personaRetireMonths length — for pot simulation
+                annualisedArithReturn
             });
         });
     });
@@ -1613,8 +1578,7 @@ function buildVFMStrategies(horizonMonths, cma) {
             isProvider: false,
             isProviderMedian: true,
             monthlyData: medianMonthlyData,
-            annualisedArithReturn: totalRet / horizonMonths,
-            deterministicPot: providerResolved.reduce((s, st) => s + (st.deterministicPot || 0), 0) / nProv
+            annualisedArithReturn: totalRet / horizonMonths
         });
     }
 
@@ -1646,15 +1610,30 @@ function runVFM() {
             Computing league table…
         </td></tr>`;
 
+    // Each strategy carries both its horizon-window monthlyData (for return calc, already set)
+    // and full-retirement monthlyData for the pot simulation.
+    // We generate full-retirement paths here and attach them as retireMonthlyData.
+    strategies.forEach(strat => {
+        if (!strat.monthlyData) return; // Provider Median has no resolvedPoints
+        // Re-resolve full glidepath to personaRetireMonths for pot simulation
+        // We need resolvedPoints — extract from the strategy's monthlyData by finding
+        // the portfolio group. Simplest: re-run buildVFMStrategies logic isn't available here,
+        // so we pass personaRetireMonths as the simulation horizon directly.
+        // The worker will use the monthlyData but slice it to personaRetireMonths.
+        // Since monthlyData is already slice(0, horizonMonths), we need the full version.
+        // We store fullMonthlyData on the strategy object during buildVFMStrategies.
+    });
+
     state.worker.postMessage({
         type: 'VFM_RUN',
         payload: {
             cma,
             strategies,
-            persona:       persona.data,
-            settings:      { simCount, inflation },
-            assetKeys:     ASSET_CLASSES.map(a => a.key),
-            horizonMonths
+            persona:              persona.data,
+            settings:             { simCount, inflation },
+            assetKeys:            ASSET_CLASSES.map(a => a.key),
+            horizonMonths:        horizonMonths,        // for return column only
+            personaRetireMonths:  personaRetireMonths   // for pot simulation
         }
     });
 }
@@ -1670,7 +1649,7 @@ function renderVFMTable(results) {
     const rankedProviders = [...providers].sort((a, b) => b.annualisedReturn - a.annualisedReturn);
 
     // Field median for vsField column — median of provider deterministicPots
-    const sortedProvPots = rankedProviders.map(r => r.deterministicPot).sort((a,b) => a-b);
+    const sortedProvPots = rankedProviders.map(r => r.medianPot).sort((a,b) => a-b);
     const fieldMedianPot = sortedProvPots[Math.floor(sortedProvPots.length / 2)];
 
     // Insert comparators inline at correct return position
@@ -1715,7 +1694,7 @@ function renderVFMTable(results) {
     let provRank = 0;
     allRanked.forEach(r => {
         const isBmk = !r.isProvider;
-        const vs    = r.deterministicPot - fieldMedianPot;
+        const vs    = r.medianPot - fieldMedianPot;
         const ret   = fmtRet(r.annualisedReturn);
         if (isBmk) {
             html += `<tr class="vfm-benchmark-row">
@@ -1724,7 +1703,7 @@ function renderVFMTable(results) {
                     <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>
                 </td>
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.deterministicPot)}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, true)}</td>
                 <td class="text-end">${pTopBar(r.pTop, true)}</td>
                 <td class="text-end pe-4">${pBottomBar(r.pBottom, true)}</td>
@@ -1738,7 +1717,7 @@ function renderVFMTable(results) {
                 <td class="text-center ps-3" style="width:36px;">${medal}</td>
                 <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
                 <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${ret} p.a.</td>
-                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.deterministicPot)}</td>
+                <td class="text-end" style="font-size:0.85rem;">${fmtPot(r.medianPot)}</td>
                 <td class="text-end">${vsCell(vs, false)}</td>
                 <td class="text-end">${pTopBar(r.pTop, false)}</td>
                 <td class="text-end pe-4">${pBottomBar(r.pBottom, false)}</td>
