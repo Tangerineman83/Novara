@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=46.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=47.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -63,6 +63,32 @@ let debounceTimer;
 window.onerror = function(message, source, lineno, colno, error) { console.error("Sys Err:", error); };
 window.addEventListener('beforeunload', () => { if (state.worker) state.worker.terminate(); });
 
+// Custom persona panel — bypasses Bootstrap Popper which clips overflow on mobile
+function togglePersonaPanel(which) {
+    const menuId = which === 'vfm' ? 'vfm-persona-dropdown-menu' : 'run-persona-dropdown-menu';
+    const menu = document.getElementById(menuId);
+    if (!menu) return;
+    const isOpen = !menu.classList.contains('d-none');
+    // Close all persona panels first
+    ['vfm-persona-dropdown-menu','run-persona-dropdown-menu'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('d-none');
+    });
+    if (!isOpen) {
+        menu.classList.remove('d-none');
+        // Close on outside click
+        setTimeout(() => {
+            const close = (ev) => {
+                if (!menu.contains(ev.target)) {
+                    menu.classList.add('d-none');
+                    document.removeEventListener('click', close, true);
+                }
+            };
+            document.addEventListener('click', close, true);
+        }, 10);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.getElementById("wrapper");
     const menuBtn = document.getElementById("menu-toggle");
@@ -107,7 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn("Default Data Load Warning:", dataErr);
         }
         
-        setTimeout(runSimulation, 500);
+        // Simulation runs lazily when Projections tab is first opened
+        // (avoids rendering chart into zero-size hidden canvas)
     } catch (err) {
         console.error("Critical Init Error:", err);
     }
@@ -169,8 +196,15 @@ function setupEventListeners() {
                     setTimeout(runVFM, 100);
                 }
             }
-            if (target === 'settings') {
-                // Settings tab — nothing to init, just reveal
+            if (target === 'model') {
+                // Reveal the panel first, then resize the chart and re-run if no data yet
+                requestAnimationFrame(() => {
+                    if (state.chartInstance) {
+                        state.chartInstance.resize();
+                    } else {
+                        runSimulation();
+                    }
+                });
             }
             
             const panel = document.getElementById(`tab-${target}`);
@@ -1110,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=46.0'); 
+    state.worker = new Worker('./js/worker.js?v=47.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1286,22 +1320,21 @@ function renderPersonaDropdown() {
     if(!menu) return;
     menu.innerHTML = '';
     state.personas.forEach(p => {
-        const li = document.createElement('li');
-        const avatarHtml = `<div style="width:24px;height:24px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>`;
-        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
-            ${avatarHtml}
+        const li = document.createElement('div');
+        li.innerHTML = `<div class="d-flex align-items-center gap-2 py-2 px-3" style="cursor:pointer;border-bottom:1px solid #F1F5F9;">
+            <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
             <div class="d-flex flex-column">
                 <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
             </div>
-        </a>`;
-        li.querySelector('a').addEventListener('click', (e) => {
-            e.preventDefault();
+        </div>`;
+        li.addEventListener('click', () => {
             state.activePersonaId = p.id;
             document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
             const activeCard = document.querySelector(`.persona-card[data-id="${p.id}"]`);
             if (activeCard) activeCard.classList.add('active-persona');
             updateActivePersonaDisplay();
+            document.getElementById('run-persona-dropdown-menu')?.classList.add('d-none');
             clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600);
         });
         menu.appendChild(li);
@@ -1376,18 +1409,18 @@ function renderVFMPersonaDropdown() {
     }
 
     state.personas.forEach(p => {
-        const li = document.createElement('li');
-        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
-            <div style="width:24px;height:24px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
+        const li = document.createElement('div');
+        li.innerHTML = `<div class="d-flex align-items-center gap-2 py-2 px-3" style="cursor:pointer;border-bottom:1px solid #F1F5F9;">
+            <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
             <div class="d-flex flex-column">
                 <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
             </div>
-        </a>`;
-        li.querySelector('a').addEventListener('click', e => {
-            e.preventDefault();
+        </div>`;
+        li.addEventListener('click', () => {
             state.vfm.activePersonaId = p.id;
             updateVFMPersonaDisplay();
+            document.getElementById('vfm-persona-dropdown-menu')?.classList.add('d-none');
             runVFM();
         });
         menu.appendChild(li);
@@ -1550,31 +1583,65 @@ function buildVFMStrategies(horizonMonths, cma) {
 // ── Progress Wheel System ──────────────────────────────────────────────────
 function drawProgressWheel(svgEl, pct, complete) {
     if (!svgEl) return;
-    const N = 10, R = 14, cx = 18, cy = 18, gap = 4;
-    const arcAngle = (360 - N * gap) / N;
-    const toRad = d => d * Math.PI / 180;
-    function arcPath(startDeg, sweepDeg, r) {
-        const s = toRad(startDeg - 90), e = toRad(startDeg + sweepDeg - 90);
-        const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
-        const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
-        return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 0,1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
-    }
+    const S = 36, cx = 18, cy = 18, r = 13, stroke = 3.5;
+    const circ = 2 * Math.PI * r;
+
     if (complete) {
-        // Green circle with white tick — persists until next run
-        svgEl.innerHTML = `<circle cx="${cx}" cy="${cy}" r="16" fill="#22C55E"/>`
-            + `<polyline points="11,18 16,23 25,13" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        // Neumorphic complete — raised green disc with inset shadow ring and white tick
+        svgEl.innerHTML = `
+          <defs>
+            <filter id="neu-shadow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="1.5" dy="1.5" stdDeviation="1.5" flood-color="#a8d5a2" flood-opacity="0.7"/>
+              <feDropShadow dx="-1" dy="-1" stdDeviation="1" flood-color="#ffffff" flood-opacity="0.9"/>
+            </filter>
+            <filter id="neu-inset" x="-20%" y="-20%" width="140%" height="140%">
+              <feComposite in="SourceGraphic" in2="SourceGraphic" operator="in"/>
+            </filter>
+          </defs>
+          <circle cx="${cx}" cy="${cy}" r="16" fill="#e8f5e9" filter="url(#neu-shadow)"/>
+          <circle cx="${cx}" cy="${cy}" r="12" fill="none" stroke="#4ade80" stroke-width="2" opacity="0.4"/>
+          <circle cx="${cx}" cy="${cy}" r="16" fill="#22c55e" opacity="0.92"/>
+          <polyline points="11,18 16,23 25,13" fill="none" stroke="white"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
     } else {
-        const filled = Math.round(pct / 10);
-        let m = '';
-        for (let i = 0; i < N; i++) {
-            const d = arcPath(i * (arcAngle + gap), arcAngle, R);
-            m += `<path d="${d}" fill="none" stroke="${i < filled ? 'var(--accent-blue,#3B82F6)' : '#E2E8F0'}" stroke-width="3.5" stroke-linecap="round"/>`;
-        }
-        // % text in centre (only show if >0 to avoid spurious 0%)
-        if (pct > 0) {
-            m += `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="8" font-weight="700" fill="var(--accent-blue,#3B82F6)">${pct}%</text>`;
-        }
-        svgEl.innerHTML = m;
+        // Neumorphic progress ring — soft raised background disc, arc overlay, % text
+        const dashArr = circ;
+        const dashOff = circ * (1 - pct / 100);
+        const rotate  = -90; // start at top
+        svgEl.innerHTML = `
+          <defs>
+            <filter id="neu-outer" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="2"  dy="2"  stdDeviation="2" flood-color="#c8cfd8" flood-opacity="0.6"/>
+              <feDropShadow dx="-2" dy="-2" stdDeviation="2" flood-color="#ffffff" flood-opacity="0.9"/>
+            </filter>
+            <filter id="neu-inset-track" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="1"  dy="1"  stdDeviation="1.5" flood-color="#c8cfd8" flood-opacity="0.5" result="dark"/>
+              <feDropShadow dx="-1" dy="-1" stdDeviation="1.5" flood-color="#ffffff" flood-opacity="0.8" result="light"/>
+              <feBlend in="dark" in2="light" mode="normal"/>
+            </filter>
+            <linearGradient id="arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#3b82f6"/>
+            </linearGradient>
+          </defs>
+          <!-- Outer raised disc (neumorphic) -->
+          <circle cx="${cx}" cy="${cy}" r="16" fill="#eef1f5" filter="url(#neu-outer)"/>
+          <!-- Inset track ring -->
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+            stroke="#d4d9e1" stroke-width="${stroke + 1}" filter="url(#neu-inset-track)"/>
+          <!-- Progress arc -->
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+            stroke="url(#arc-grad)" stroke-width="${stroke}"
+            stroke-dasharray="${dashArr.toFixed(2)}"
+            stroke-dashoffset="${pct > 0 ? dashOff.toFixed(2) : dashArr.toFixed(2)}"
+            stroke-linecap="round"
+            transform="rotate(${rotate} ${cx} ${cy})"
+            style="transition:stroke-dashoffset 0.35s ease;"/>
+          ${pct > 0
+            ? `<text x="${cx}" y="${cy + 4}" text-anchor="middle"
+                font-size="7.5" font-weight="700"
+                fill="#3b82f6" font-family="system-ui,sans-serif">${pct}%</text>`
+            : ''}`;
     }
 }
 function showProgressWheel(svgId, lblId, msg) {
