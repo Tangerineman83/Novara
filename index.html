@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=44.0">
+    <link rel="stylesheet" href="css/style.css?v=44.1">
 </head>
 <body>
 
@@ -280,12 +280,7 @@
                             <div class="col-md-3 col-sm-12">
                                 <div id="vfm-status-wrap" style="min-height:40px;">
                                     <div id="vfm-status-idle" style="font-size:0.78rem;font-weight:600;color:var(--text-muted);padding-top:6px;">Select a persona to begin</div>
-                                    <svg id="vfm-progress-svg" width="32" height="32" viewBox="0 0 32 32" class="d-none" style="flex-shrink:0;">
-                                        <circle cx="16" cy="16" r="13" fill="none" stroke="#E2E8F0" stroke-width="3"/>
-                                        <g id="vfm-arc-group"></g>
-                                        <circle id="vfm-done-circle" cx="16" cy="16" r="11" fill="#22C55E" style="display:none;"/>
-                                        <text id="vfm-done-tick" x="16" y="20" text-anchor="middle" font-size="12" fill="white" font-weight="bold" style="display:none;">✓</text>
-                                    </svg>
+                                    
                                     <div id="vfm-progress-wrap" class="d-none d-flex align-items-center gap-2"><span id="vfm-progress-label" style="font-size:0.72rem;font-weight:700;color:var(--accent-blue);"></span><svg id="vfm-progress-svg" width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"></svg></div>
                                         <div id="vfm-progress-pct" style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;text-align:right;">0%</div>
                                     </div>
@@ -485,7 +480,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module" src="js/app.js?v=44.0"></script>    <!-- Asset Detail Panel -->
+<script type="module" src="js/app.js?v=44.1"></script>    <!-- Asset Detail Panel -->
     <div id="asset-detail-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:1040;opacity:0;transition:opacity 0.22s ease;" class="d-none"></div>
     <div id="asset-detail-panel" style="position:fixed;top:0;right:0;height:100%;width:min(480px,95vw);background:var(--bg-surface);z-index:1050;box-shadow:-8px 0 40px rgba(15,23,42,0.18);overflow-y:auto;padding:1.5rem;transform:translateX(24px);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease;" class="d-none"></div>
 
