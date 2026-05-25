@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=48.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=49.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -64,7 +64,7 @@ window.onerror = function(message, source, lineno, colno, error) { console.error
 window.addEventListener('beforeunload', () => { if (state.worker) state.worker.terminate(); });
 
 // Custom persona panel — bypasses Bootstrap Popper which clips overflow on mobile
-window.togglePersonaPanel = function togglePersonaPanel(which) {
+function togglePersonaPanel(which) {
     const menuId = which === 'vfm' ? 'vfm-persona-dropdown-menu' : 'run-persona-dropdown-menu';
     const menu = document.getElementById(menuId);
     if (!menu) return;
@@ -179,7 +179,9 @@ function setupEventListeners() {
             document.querySelectorAll('.view-section').forEach(i => i.classList.add('d-none'));
             e.currentTarget.classList.add('active');
             
-            const target = e.currentTarget.dataset.tab;
+            const panel = document.getElementById(`tab-${target}`);
+            if (panel) panel.classList.remove('d-none');
+
             if (target === 'strategy') {
                 refreshPortfolioDropdowns();
                 setTimeout(renderStrategyChart, 50); 
@@ -191,24 +193,21 @@ function setupEventListeners() {
                 }, 50);
             }
             if (target === 'vfm') {
-                renderVFMPersonaDropdown(); // refresh in case personas changed
+                renderVFMPersonaDropdown();
                 if (state.vfm.activePersonaId && !state.vfm.running) {
                     setTimeout(runVFM, 100);
                 }
             }
             if (target === 'model') {
-                // Reveal the panel first, then resize the chart and re-run if no data yet
-                requestAnimationFrame(() => {
+                // Panel is already visible above — now resize or run
+                setTimeout(() => {
                     if (state.chartInstance) {
                         state.chartInstance.resize();
                     } else {
                         runSimulation();
                     }
-                });
+                }, 50);
             }
-            
-            const panel = document.getElementById(`tab-${target}`);
-            if (panel) panel.classList.remove('d-none');
         });
     });
 
@@ -257,6 +256,8 @@ function setupEventListeners() {
     document.getElementById('run-simulation-btn')?.addEventListener('click', runSimulation);
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
     // auto-update-toggle removed — projections always auto-run
+    document.getElementById('vfm-persona-btn')?.addEventListener('click', () => togglePersonaPanel('vfm'));
+    document.getElementById('active-persona-btn')?.addEventListener('click', () => togglePersonaPanel('run'));
     
     document.getElementById('cma-preset-select')?.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
     document.getElementById('strategy-preset-select')?.addEventListener('change', (e) => { if(e.target.value !== "") loadStrategyPreset(e.target.value); });
@@ -1144,7 +1145,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=48.0'); 
+    state.worker = new Worker('./js/worker.js?v=49.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
