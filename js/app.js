@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=56.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=56.1';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=56.0'); 
+    state.worker = new Worker('./js/worker.js?v=56.1'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3021,701 +3021,581 @@ function renderResultsTable(results) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   OPTIMISER MODULE — Murmuration / Monte Carlo Scatter
-   
-   Architecture: generate N random feasible portfolios, plot as scatter cloud.
-   The efficient frontier emerges from the upper-left envelope of the cloud.
-   Special points: Max μ_g (highest geometric return) and Max g/σ_down
-   (highest Geometric Sortino). Provider and comparator strategies overlaid
-   in distinct colours so users can see where they sit in the universe.
+   OPTIMISER MODULE — Murmuration / Monte Carlo Scatter  v56
    ═══════════════════════════════════════════════════════════════════════════ */
-(function() {
+(function () {
 'use strict';
 
-/* ── 1. ASSET UNIVERSE (synced to CMA 2026-05) ─────────────────────────── */
-const OPT_ASSETS = [
-  { key:'usEq',             name:'US Equity',              cat:'Equities',     r:0.065, v:0.155, liq:true,  priv:false, subig:false, eqIdx:0 },
-  { key:'devEq',            name:'Dev Europe Equity',      cat:'Equities',     r:0.072, v:0.150, liq:true,  priv:false, subig:false, eqIdx:1 },
-  { key:'emEq',             name:'EM Equity',              cat:'Equities',     r:0.088, v:0.230, liq:true,  priv:false, subig:false, eqIdx:2 },
-  { key:'jpnEq',            name:'Japan Equity',           cat:'Equities',     r:0.070, v:0.170, liq:true,  priv:false, subig:false, eqIdx:3 },
-  { key:'ukEq',             name:'UK Equity',              cat:'Equities',     r:0.065, v:0.140, liq:true,  priv:false, subig:false, eqIdx:4 },
-  { key:'apacEq',           name:'Dev APAC ex-Japan',      cat:'Equities',     r:0.072, v:0.185, liq:true,  priv:false, subig:false, eqIdx:5 },
-  { key:'globalReits',      name:'Global REITs',           cat:'Real Assets',  r:0.068, v:0.190, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'realEstateDirect', name:'Real Estate (Direct)',   cat:'Real Assets',  r:0.067, v:0.140, liq:false, priv:true,  subig:false, eqIdx:-1 },
-  { key:'infrastructure',   name:'Infrastructure',         cat:'Real Assets',  r:0.075, v:0.120, liq:false, priv:true,  subig:false, eqIdx:-1 },
-  { key:'privEq',           name:'Private Equity',         cat:'Alternatives', r:0.105, v:0.240, liq:false, priv:true,  subig:false, eqIdx:-1 },
-  { key:'listedAlts',       name:'Listed Alts',            cat:'Alternatives', r:0.064, v:0.145, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'digitalAssets',    name:'Digital Assets',         cat:'Alternatives', r:0.125, v:0.480, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'privCredit',       name:'Private Credit',         cat:'Credit',       r:0.082, v:0.100, liq:false, priv:true,  subig:true,  eqIdx:-1 },
-  { key:'globalHighYield',  name:'Global High Yield',      cat:'Credit',       r:0.078, v:0.110, liq:true,  priv:false, subig:true,  eqIdx:-1 },
-  { key:'emDebt',           name:'EM Debt',                cat:'Credit',       r:0.075, v:0.140, liq:true,  priv:false, subig:true,  eqIdx:-1 },
-  { key:'igCredit',         name:'IG Credit',              cat:'Credit',       r:0.054, v:0.060, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'sdCredit',         name:'Short Duration Credit',  cat:'Credit',       r:0.043, v:0.040, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'globalSov',        name:'Global Sovereign',       cat:'Sov & Cash',   r:0.045, v:0.075, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'inflLinked',       name:'Inflation Linked',       cat:'Sov & Cash',   r:0.045, v:0.065, liq:true,  priv:false, subig:false, eqIdx:-1 },
-  { key:'moneyMkt',         name:'Money Markets',          cat:'Sov & Cash',   r:0.035, v:0.010, liq:true,  priv:false, subig:false, eqIdx:-1 },
+/* ── 1. ASSET UNIVERSE ─────────────────────────────────────────────────── */
+const OA = [
+  { key:'usEq',             name:'US Equity',             r:0.065,v:0.155,liq:true, priv:false,subig:false,eqIdx:0  },
+  { key:'devEq',            name:'Dev Europe Equity',     r:0.072,v:0.150,liq:true, priv:false,subig:false,eqIdx:1  },
+  { key:'emEq',             name:'EM Equity',             r:0.088,v:0.230,liq:true, priv:false,subig:false,eqIdx:2  },
+  { key:'jpnEq',            name:'Japan Equity',          r:0.070,v:0.170,liq:true, priv:false,subig:false,eqIdx:3  },
+  { key:'ukEq',             name:'UK Equity',             r:0.065,v:0.140,liq:true, priv:false,subig:false,eqIdx:4  },
+  { key:'apacEq',           name:'Dev APAC ex-Japan',     r:0.072,v:0.185,liq:true, priv:false,subig:false,eqIdx:5  },
+  { key:'globalReits',      name:'Global REITs',          r:0.068,v:0.190,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'realEstateDirect', name:'Real Estate (Direct)',  r:0.067,v:0.140,liq:false,priv:true, subig:false,eqIdx:-1 },
+  { key:'infrastructure',   name:'Infrastructure',        r:0.075,v:0.120,liq:false,priv:true, subig:false,eqIdx:-1 },
+  { key:'privEq',           name:'Private Equity',        r:0.105,v:0.240,liq:false,priv:true, subig:false,eqIdx:-1 },
+  { key:'listedAlts',       name:'Listed Alts',           r:0.064,v:0.145,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'digitalAssets',    name:'Digital Assets',        r:0.125,v:0.480,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'privCredit',       name:'Private Credit',        r:0.082,v:0.100,liq:false,priv:true, subig:true, eqIdx:-1 },
+  { key:'globalHighYield',  name:'Global High Yield',     r:0.078,v:0.110,liq:true, priv:false,subig:true, eqIdx:-1 },
+  { key:'emDebt',           name:'EM Debt',               r:0.075,v:0.140,liq:true, priv:false,subig:true, eqIdx:-1 },
+  { key:'igCredit',         name:'IG Credit',             r:0.054,v:0.060,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'sdCredit',         name:'Short Duration Credit', r:0.043,v:0.040,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'globalSov',        name:'Global Sovereign',      r:0.045,v:0.075,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'inflLinked',       name:'Inflation Linked',      r:0.045,v:0.065,liq:true, priv:false,subig:false,eqIdx:-1 },
+  { key:'moneyMkt',         name:'Money Markets',         r:0.035,v:0.010,liq:true, priv:false,subig:false,eqIdx:-1 },
 ];
-const N = OPT_ASSETS.length;
-const EQ_MKTCAP = [0.64, 0.15, 0.11, 0.06, 0.02, 0.02];
+const N = OA.length;
+const EQ_CAP = [0.64, 0.15, 0.11, 0.06, 0.02, 0.02];
 
-/* Full 20×20 correlation matrix */
-const RHO = [
-  [ 1.00, 0.75, 0.68, 0.45, 0.65, 0.55, 0.75, 0.40, 0.45, 0.88, 0.65, 0.62, 0.42, 0.62, 0.50, 0.35, 0.25,-0.05, 0.12, 0.00],
-  [ 0.75, 1.00, 0.75, 0.60, 0.85, 0.70, 0.55, 0.40, 0.45, 0.80, 0.60, 0.30, 0.40, 0.60, 0.50, 0.20, 0.10,-0.10,-0.05, 0.00],
-  [ 0.68, 0.75, 1.00, 0.55, 0.65, 0.80, 0.50, 0.35, 0.40, 0.70, 0.55, 0.40, 0.45, 0.65, 0.70, 0.25, 0.15,-0.05, 0.00, 0.00],
-  [ 0.45, 0.60, 0.55, 1.00, 0.55, 0.60, 0.45, 0.30, 0.35, 0.60, 0.50, 0.25, 0.30, 0.50, 0.45, 0.15, 0.10,-0.05, 0.00, 0.00],
-  [ 0.65, 0.85, 0.65, 0.55, 1.00, 0.60, 0.50, 0.45, 0.40, 0.70, 0.55, 0.25, 0.40, 0.55, 0.45, 0.20, 0.10,-0.05, 0.05, 0.00],
-  [ 0.55, 0.70, 0.80, 0.60, 0.60, 1.00, 0.50, 0.35, 0.40, 0.70, 0.55, 0.35, 0.45, 0.60, 0.65, 0.20, 0.10,-0.05, 0.00, 0.00],
-  [ 0.75, 0.55, 0.50, 0.45, 0.50, 0.50, 1.00, 0.65, 0.55, 0.55, 0.60, 0.25, 0.45, 0.55, 0.45, 0.35, 0.20, 0.10, 0.15, 0.00],
-  [ 0.40, 0.40, 0.35, 0.30, 0.45, 0.35, 0.65, 1.00, 0.50, 0.45, 0.45, 0.15, 0.35, 0.40, 0.35, 0.25, 0.15, 0.05, 0.20, 0.00],
-  [ 0.45, 0.45, 0.40, 0.35, 0.40, 0.40, 0.55, 0.50, 1.00, 0.50, 0.55, 0.20, 0.40, 0.50, 0.45, 0.40, 0.25, 0.15, 0.30, 0.00],
-  [ 0.88, 0.80, 0.70, 0.60, 0.70, 0.70, 0.55, 0.45, 0.50, 1.00, 0.65, 0.35, 0.45, 0.65, 0.55, 0.20, 0.10,-0.15,-0.05, 0.00],
-  [ 0.65, 0.60, 0.55, 0.50, 0.55, 0.55, 0.60, 0.45, 0.55, 0.65, 1.00, 0.30, 0.45, 0.55, 0.50, 0.35, 0.20, 0.05, 0.15, 0.00],
-  [ 0.62, 0.30, 0.40, 0.25, 0.25, 0.35, 0.25, 0.15, 0.20, 0.35, 0.30, 1.00, 0.25, 0.35, 0.30, 0.15, 0.10, 0.05, 0.05, 0.00],
-  [ 0.42, 0.40, 0.45, 0.30, 0.40, 0.45, 0.45, 0.35, 0.40, 0.45, 0.45, 0.25, 1.00, 0.88, 0.65, 0.55, 0.40, 0.15, 0.25, 0.00],
-  [ 0.62, 0.60, 0.65, 0.50, 0.55, 0.60, 0.55, 0.40, 0.50, 0.65, 0.55, 0.35, 0.88, 1.00, 0.75, 0.55, 0.35, 0.10, 0.20, 0.00],
-  [ 0.50, 0.50, 0.70, 0.45, 0.45, 0.65, 0.45, 0.35, 0.45, 0.55, 0.50, 0.30, 0.65, 0.75, 1.00, 0.45, 0.30, 0.10, 0.20, 0.00],
-  [ 0.35, 0.20, 0.25, 0.15, 0.20, 0.20, 0.35, 0.25, 0.40, 0.20, 0.35, 0.15, 0.55, 0.55, 0.45, 1.00, 0.65, 0.40, 0.40, 0.00],
-  [ 0.25, 0.10, 0.15, 0.10, 0.10, 0.10, 0.20, 0.15, 0.25, 0.10, 0.20, 0.10, 0.40, 0.35, 0.30, 0.65, 1.00, 0.30, 0.30, 0.00],
-  [-0.05,-0.10,-0.05,-0.05,-0.05,-0.05, 0.10, 0.05, 0.15,-0.15, 0.05, 0.05, 0.15, 0.10, 0.10, 0.40, 0.30, 1.00, 0.85, 0.00],
-  [ 0.12,-0.05, 0.00, 0.00, 0.05, 0.00, 0.15, 0.20, 0.30,-0.05, 0.15, 0.05, 0.25, 0.20, 0.20, 0.40, 0.30, 0.85, 1.00, 0.00],
-  [ 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 1.00],
+// Asset colors matching config.js ASSET_CLASSES
+const OA_COLORS = {
+  usEq:'#1D4ED8', devEq:'#3B82F6', emEq:'#60A5FA', jpnEq:'#93C5FD',
+  ukEq:'#BFDBFE', apacEq:'#DBEAFE',
+  globalReits:'#6D28D9', realEstateDirect:'#7E22CE', infrastructure:'#A855F7',
+  privEq:'#B45309', listedAlts:'#F59E0B', digitalAssets:'#0F172A',
+  privCredit:'#D97706', globalHighYield:'#047857', emDebt:'#059669',
+  igCredit:'#10B981', sdCredit:'#34D399',
+  globalSov:'#0F766E', inflLinked:'#0E7490', moneyMkt:'#64748B',
+};
+
+const RHO=[
+  [1.00,0.75,0.68,0.45,0.65,0.55,0.75,0.40,0.45,0.88,0.65,0.62,0.42,0.62,0.50,0.35,0.25,-0.05,0.12,0.00],
+  [0.75,1.00,0.75,0.60,0.85,0.70,0.55,0.40,0.45,0.80,0.60,0.30,0.40,0.60,0.50,0.20,0.10,-0.10,-0.05,0.00],
+  [0.68,0.75,1.00,0.55,0.65,0.80,0.50,0.35,0.40,0.70,0.55,0.40,0.45,0.65,0.70,0.25,0.15,-0.05,0.00,0.00],
+  [0.45,0.60,0.55,1.00,0.55,0.60,0.45,0.30,0.35,0.60,0.50,0.25,0.30,0.50,0.45,0.15,0.10,-0.05,0.00,0.00],
+  [0.65,0.85,0.65,0.55,1.00,0.60,0.50,0.45,0.40,0.70,0.55,0.25,0.40,0.55,0.45,0.20,0.10,-0.05,0.05,0.00],
+  [0.55,0.70,0.80,0.60,0.60,1.00,0.50,0.35,0.40,0.70,0.55,0.35,0.45,0.60,0.65,0.20,0.10,-0.05,0.00,0.00],
+  [0.75,0.55,0.50,0.45,0.50,0.50,1.00,0.65,0.55,0.55,0.60,0.25,0.45,0.55,0.45,0.35,0.20,0.10,0.15,0.00],
+  [0.40,0.40,0.35,0.30,0.45,0.35,0.65,1.00,0.50,0.45,0.45,0.15,0.35,0.40,0.35,0.25,0.15,0.05,0.20,0.00],
+  [0.45,0.45,0.40,0.35,0.40,0.40,0.55,0.50,1.00,0.50,0.55,0.20,0.40,0.50,0.45,0.40,0.25,0.15,0.30,0.00],
+  [0.88,0.80,0.70,0.60,0.70,0.70,0.55,0.45,0.50,1.00,0.65,0.35,0.45,0.65,0.55,0.20,0.10,-0.15,-0.05,0.00],
+  [0.65,0.60,0.55,0.50,0.55,0.55,0.60,0.45,0.55,0.65,1.00,0.30,0.45,0.55,0.50,0.35,0.20,0.05,0.15,0.00],
+  [0.62,0.30,0.40,0.25,0.25,0.35,0.25,0.15,0.20,0.35,0.30,1.00,0.25,0.35,0.30,0.15,0.10,0.05,0.05,0.00],
+  [0.42,0.40,0.45,0.30,0.40,0.45,0.45,0.35,0.40,0.45,0.45,0.25,1.00,0.88,0.65,0.55,0.40,0.15,0.25,0.00],
+  [0.62,0.60,0.65,0.50,0.55,0.60,0.55,0.40,0.50,0.65,0.55,0.35,0.88,1.00,0.75,0.55,0.35,0.10,0.20,0.00],
+  [0.50,0.50,0.70,0.45,0.45,0.65,0.45,0.35,0.45,0.55,0.50,0.30,0.65,0.75,1.00,0.45,0.30,0.10,0.20,0.00],
+  [0.35,0.20,0.25,0.15,0.20,0.20,0.35,0.25,0.40,0.20,0.35,0.15,0.55,0.55,0.45,1.00,0.65,0.40,0.40,0.00],
+  [0.25,0.10,0.15,0.10,0.10,0.10,0.20,0.15,0.25,0.10,0.20,0.10,0.40,0.35,0.30,0.65,1.00,0.30,0.30,0.00],
+  [-0.05,-0.10,-0.05,-0.05,-0.05,-0.05,0.10,0.05,0.15,-0.15,0.05,0.05,0.15,0.10,0.10,0.40,0.30,1.00,0.85,0.00],
+  [0.12,-0.05,0.00,0.00,0.05,0.00,0.15,0.20,0.30,-0.05,0.15,0.05,0.25,0.20,0.20,0.40,0.30,0.85,1.00,0.00],
+  [0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,1.00],
 ];
-const COV = Array.from({length:N}, (_,i) => Array.from({length:N}, (_,j) => RHO[i][j]*OPT_ASSETS[i].v*OPT_ASSETS[j].v));
+const COV=Array.from({length:N},(_,i)=>Array.from({length:N},(_,j)=>RHO[i][j]*OA[i].v*OA[j].v));
 
 /* ── 2. PORTFOLIO MATH ─────────────────────────────────────────────────── */
-function optVar(w) {
-    let s=0; for(let i=0;i<N;i++) for(let j=0;j<N;j++) s+=w[i]*w[j]*COV[i][j]; return s;
-}
-function optVol(w) { return Math.sqrt(optVar(w)); }
-function optArith(w) { return w.reduce((s,wi,i)=>s+wi*OPT_ASSETS[i].r,0); }
-function optGeom(w) { return optArith(w) - 0.5*optVar(w); } // always geometric
-function optEqTotal(w) { return OPT_ASSETS.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0),0); }
-
-// Compute stats for any weight vector (keyed by OPT_ASSETS key)
-function computeStats(weights) {
-    const w = OPT_ASSETS.map(a => weights[a.key] || 0);
-    const vol  = optVol(w);
-    const muG  = optGeom(w);
-    const muA  = optArith(w);
-    const gSort= muG / (0.707 * vol + 1e-10);
-    return { w, vol, muG, muA, gSort };
+function pVar(w){let s=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++)s+=w[i]*w[j]*COV[i][j];return s;}
+function pVol(w){return Math.sqrt(pVar(w));}
+function pArith(w){return w.reduce((s,wi,i)=>s+wi*OA[i].r,0);}
+function pGeom(w){return pArith(w)-0.5*pVar(w);}
+function pEqTot(w){return OA.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0),0);}
+function pStats(wObj){
+  const w=OA.map(a=>wObj[a.key]||0);
+  const vol=pVol(w),muG=pGeom(w),muA=pArith(w);
+  return {w,vol,muG,muA,gSort:muG/(0.707*vol+1e-10)};
 }
 
 /* ── 3. CONSTRAINTS ────────────────────────────────────────────────────── */
-function getOptC() {
-    return {
-        maxPrivate: parseFloat(document.getElementById('opt-maxPriv').value)/100,
-        maxEqDev:   parseFloat(document.getElementById('opt-maxEqDev').value)/100,
-        maxSingle:  parseFloat(document.getElementById('opt-maxSingle').value)/100,
-        minPos:     parseFloat(document.getElementById('opt-minPos').value)/100,
-        minLiquid:  parseFloat(document.getElementById('opt-minLiq').value)/100,
-        maxSubIG:   parseFloat(document.getElementById('opt-maxSubIG').value)/100,
-        maxDigital: parseFloat(document.getElementById('opt-maxDig').value)/100,
-    };
+function getC(){
+  return {
+    maxPrivate:+document.getElementById('opt-maxPriv').value/100,
+    maxEqDev:  +document.getElementById('opt-maxEqDev').value/100,
+    maxSingle: +document.getElementById('opt-maxSingle').value/100,
+    minPos:    +document.getElementById('opt-minPos').value/100,
+    minLiquid: +document.getElementById('opt-minLiq').value/100,
+    maxSubIG:  +document.getElementById('opt-maxSubIG').value/100,
+    maxDigital:+document.getElementById('opt-maxDig').value/100,
+  };
 }
-function checkOptC(w, C) {
-    const violations = [];
-    const sum = w.reduce((a,b)=>a+b,0);
-    if (Math.abs(sum-1)>0.015) violations.push('Weights ≠ 100%');
-    if (w.some(wi=>wi<-1e-4)) violations.push('Short position');
-    const priv = OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-    if (priv>C.maxPrivate+1e-4) violations.push(`Private ${(priv*100).toFixed(1)}%`);
-    const eqT = optEqTotal(w);
-    if (eqT>1e-6) {
-        for(let e=0;e<6;e++){
-            const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-            const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
-            if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>absAllowed+1e-4)
-                violations.push(`Eq region ${e} drift`);
-        }
+function chkC(w,C){
+  const v=[];
+  if(Math.abs(w.reduce((a,b)=>a+b,0)-1)>0.015)v.push('sum≠1');
+  if(w.some(wi=>wi<-1e-4))v.push('short');
+  const priv=OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
+  if(priv>C.maxPrivate+1e-4)v.push('private');
+  const eqT=pEqTot(w);
+  if(eqT>1e-6){
+    for(let e=0;e<6;e++){
+      const idx=OA.findIndex(a=>a.eqIdx===e);
+      if(Math.abs(w[idx]/eqT-EQ_CAP[e])>EQ_CAP[e]*C.maxEqDev+2e-4)v.push('eqDev'+e);
     }
-    w.forEach((wi,i)=>{ if(wi>C.maxSingle+1e-4) violations.push(`${OPT_ASSETS[i].key} > max`); });
-    const liq = OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-    if (liq<C.minLiquid-1e-4) violations.push(`Liquid ${(liq*100).toFixed(0)}%`);
-    const subig = OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-    if (subig>C.maxSubIG+1e-4) violations.push(`SubIG ${(subig*100).toFixed(0)}%`);
-    const dIdx = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-    if (w[dIdx]>C.maxDigital+1e-4) violations.push(`Digital ${(w[dIdx]*100).toFixed(1)}%`);
-    return { pass: violations.length===0, violations };
+  }
+  w.forEach((wi,i)=>{if(wi>C.maxSingle+1e-4)v.push('single'+i);});
+  const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
+  if(liq<C.minLiquid-1e-4)v.push('liquid');
+  const subig=OA.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
+  if(subig>C.maxSubIG+1e-4)v.push('subIG');
+  const dIdx=OA.findIndex(a=>a.key==='digitalAssets');
+  if(w[dIdx]>C.maxDigital+1e-4)v.push('digital');
+  return {pass:v.length===0,violations:v};
 }
 
-/* ── 4. CONSTRAINED RANDOM PORTFOLIO GENERATION ────────────────────────── */
-// Approach: build constraints into the generation process rather than
-// sampling randomly and rejecting violations.
-// Architecture:
-//   1. Sample equity regional shares within proportional deviation bands
-//   2. Set total equity weight such that no single equity asset exceeds maxSingle
-//   3. Sample private asset block within maxPrivate cap
-//   4. Sample digital assets within hard cap
-//   5. Sample sub-IG public credit within (maxSubIG - privCredit)
-//   6. Fill remainder with liquid diversifiers (REITs, listed alts, IG, govts, cash)
-//   7. Apply minPos only to non-equity assets; re-normalise equity sleeve
-//
-// This gives ~85% acceptance rate vs ~0.2% for pure rejection sampling.
+/* ── 4. CONSTRAINED GENERATION ─────────────────────────────────────────── */
+function rExp(){return -Math.log(Math.random()+1e-12);}
 
-function randExp() { return -Math.log(Math.random() + 1e-12); }
-
-function sampleEquityShares(maxEqDev) {
-    // Sample regional equity shares within ±70% of the band (inner buffer)
-    // to survive subsequent normalisation without violating the constraint.
-    for(let attempt=0; attempt<40; attempt++) {
-        const shares = EQ_MKTCAP.map(cap => Math.max(0, cap + (Math.random()*2-1)*cap*maxEqDev*0.7));
-        const tot = shares.reduce((a,b)=>a+b,0);
-        if(tot < 1e-10) continue;
-        const normed = shares.map(s=>s/tot);
-        // Verify within 80% of band (leave headroom for floating point)
-        if(EQ_MKTCAP.every((cap,e) => Math.abs(normed[e]-cap) <= cap*maxEqDev*0.85))
-            return normed;
-    }
-    return null;
+function sampleEqShares(dev){
+  for(let t=0;t<40;t++){
+    const s=EQ_CAP.map(c=>Math.max(0,c+(Math.random()*2-1)*c*dev*0.7));
+    const tot=s.reduce((a,b)=>a+b,0);
+    if(tot<1e-10)continue;
+    const n=s.map(x=>x/tot);
+    if(EQ_CAP.every((c,e)=>Math.abs(n[e]-c)<=c*dev*0.85))return n;
+  }
+  return null;
 }
 
-function generateRandomPortfolio(C) {
-    const eqShares = sampleEquityShares(C.maxEqDev);
-    if(!eqShares) return null;
+function genPortfolio(C){
+  const eqS=sampleEqShares(C.maxEqDev);
+  if(!eqS)return null;
+  const EQ_I=OA.map((a,i)=>a.eqIdx>=0?i:-1).filter(i=>i>=0);
+  const PR_I=OA.map((a,i)=>a.priv?i:-1).filter(i=>i>=0);
+  const DIG =OA.findIndex(a=>a.key==='digitalAssets');
+  const PCR =OA.findIndex(a=>a.key==='privCredit');
+  const SIG_P=OA.map((a,i)=>a.subig&&!a.priv?i:-1).filter(i=>i>=0);
+  const FILL=OA.map((a,i)=>a.eqIdx<0&&!a.priv&&!a.subig&&a.key!=='digitalAssets'?i:-1).filter(i=>i>=0);
 
-    const w = new Array(N).fill(0);
-    const EQ_INDICES  = OPT_ASSETS.map((a,i)=>a.eqIdx>=0?i:-1).filter(i=>i>=0);
-    const PRIV_INDICES= OPT_ASSETS.map((a,i)=>a.priv?i:-1).filter(i=>i>=0);
-    const DIGITAL_IDX = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-    const PRIV_CR_IDX = OPT_ASSETS.findIndex(a=>a.key==='privCredit');
-    const SUBIG_PUB   = OPT_ASSETS.map((a,i)=>a.subig&&!a.priv?i:-1).filter(i=>i>=0);
-    const FILL_IDX    = OPT_ASSETS.map((a,i)=>
-        a.eqIdx<0&&!a.priv&&!a.subig&&a.key!=='digitalAssets'?i:-1).filter(i=>i>=0);
+  const maxEqSh=Math.max(...eqS);
+  const maxEqTot=Math.min(0.95,C.maxSingle/maxEqSh);
+  const totalEq=0.05+Math.random()*(maxEqTot-0.05);
 
-    // 1. Equity block: cap totalEq so no single asset exceeds maxSingle
-    const maxEqShare  = Math.max(...eqShares);
-    const maxTotalEq  = Math.min(0.95, C.maxSingle / maxEqShare);
-    const totalEq     = 0.05 + Math.random() * (maxTotalEq - 0.05);
-    EQ_INDICES.forEach((idx,e) => { w[idx] = totalEq * eqShares[e]; });
-    let rem = 1.0 - totalEq;
+  const w=new Array(N).fill(0);
+  EQ_I.forEach((idx,e)=>{w[idx]=totalEq*eqS[e];});
+  let rem=1-totalEq;
 
-    // 2. Private block (infra, RE, PE, privCredit)
-    const totPriv = Math.random() * Math.min(C.maxPrivate, rem * 0.9);
-    const privRaw = PRIV_INDICES.map(()=>randExp());
-    const privSum = privRaw.reduce((a,b)=>a+b,0);
-    PRIV_INDICES.forEach((idx,k) => { w[idx] = totPriv * privRaw[k] / privSum; });
-    rem -= totPriv;
+  const totP=Math.random()*Math.min(C.maxPrivate,rem*0.9);
+  const rP=PR_I.map(()=>rExp());const sP=rP.reduce((a,b)=>a+b,0);
+  PR_I.forEach((idx,k)=>{w[idx]=totP*rP[k]/sP;});
+  rem-=totP;
 
-    // 3. Digital (hard cap)
-    w[DIGITAL_IDX] = Math.random() * Math.min(C.maxDigital, rem * 0.25);
-    rem -= w[DIGITAL_IDX];
+  w[DIG]=Math.random()*Math.min(C.maxDigital,rem*0.25);
+  rem-=w[DIG];
 
-    // 4. Sub-IG public (globalHighYield, emDebt) — within maxSubIG budget minus privCredit
-    const maxSubPub = Math.max(0, C.maxSubIG - w[PRIV_CR_IDX]);
-    const totSP = Math.random() * Math.min(maxSubPub, rem * 0.45);
-    if(SUBIG_PUB.length > 0 && totSP > 0) {
-        const r = SUBIG_PUB.map(()=>randExp());
-        const rs = r.reduce((a,b)=>a+b,0);
-        SUBIG_PUB.forEach((idx,k) => { w[idx] = totSP * r[k] / rs; });
-    }
-    rem -= totSP;
+  const mSP=Math.max(0,C.maxSubIG-w[PCR]);
+  const totSP=Math.random()*Math.min(mSP,rem*0.45);
+  if(SIG_P.length&&totSP>0){
+    const r=SIG_P.map(()=>rExp());const s=r.reduce((a,b)=>a+b,0);
+    SIG_P.forEach((idx,k)=>{w[idx]=totSP*r[k]/s;});
+  }
+  rem-=totSP;
 
-    // 5. Fill with liquid diversifiers (REITs, listed alts, IG, SD, gov bonds, IL, cash)
-    const fillRaw = FILL_IDX.map(()=>randExp());
-    const fillSum = fillRaw.reduce((a,b)=>a+b,0);
-    FILL_IDX.forEach((idx,k) => { w[idx] = rem * fillRaw[k] / fillSum; });
+  const rF=FILL.map(()=>rExp());const sF=rF.reduce((a,b)=>a+b,0);
+  FILL.forEach((idx,k)=>{w[idx]=rem*rF[k]/sF;});
 
-    // 6. Apply minPos to non-equity assets only
-    // Equity assets are always kept to preserve regional shares
-    if(C.minPos > 0) {
-        for(let i=0; i<N; i++) {
-            if(OPT_ASSETS[i].eqIdx < 0 && w[i] > 0 && w[i] < C.minPos) w[i] = 0;
-        }
-        // Restore equity sleeve sum to totalEq (re-scale to preserve shares)
-        const eqTot = EQ_INDICES.reduce((s,idx)=>s+w[idx],0);
-        if(eqTot > 1e-10) EQ_INDICES.forEach(idx => { w[idx] = w[idx]/eqTot*totalEq; });
-    }
+  // minPos: non-equity only; then restore equity total
+  if(C.minPos>0){
+    for(let i=0;i<N;i++){if(OA[i].eqIdx<0&&w[i]>0&&w[i]<C.minPos)w[i]=0;}
+    const eqTot=EQ_I.reduce((s,idx)=>s+w[idx],0);
+    if(eqTot>1e-10)EQ_I.forEach(idx=>{w[idx]=w[idx]/eqTot*totalEq;});
+  }
 
-    // 7. Normalise to sum = 1
-    const tot = w.reduce((a,b)=>a+b,0);
-    if(tot < 1e-10) return null;
-    for(let i=0;i<N;i++) w[i] /= tot;
-
-    // Quick validation — reject the small fraction that slips through
-    const chk = checkOptC(w, C);
-    return chk.pass ? w : null;
+  const tot=w.reduce((a,b)=>a+b,0);
+  if(tot<1e-10)return null;
+  for(let i=0;i<N;i++)w[i]/=tot;
+  return chkC(w,C).pass?w:null;
 }
 
-/* ── 5. PROVIDER PORTFOLIOS (loaded from config) ───────────────────────── */
-// Build provider and comparator overlay points by resolving strategy glidepath
-// growth-phase portfolios to asset class weights.
-function buildOverlayPortfolios() {
-    const providers   = [];
-    const comparators = [];
-
-    if(typeof STRATEGY_GROUPS === 'undefined' || typeof PRESET_PORTFOLIOS === 'undefined') {
-        return { providers, comparators };
+/* ── 5. OVERLAY PORTFOLIOS ─────────────────────────────────────────────── */
+function buildOverlay(){
+  const providers=[],comparators=[];
+  if(typeof STRATEGY_GROUPS==='undefined'||typeof PRESET_PORTFOLIOS==='undefined')
+    return {providers,comparators};
+  const pm={};
+  PRESET_PORTFOLIOS.forEach(g=>g.portfolios.forEach(p=>{pm[p.id]=p.weights;}));
+  function resolve(points){
+    const maxY=Math.max(...points.map(p=>p.years));
+    const pt=points.find(p=>p.years===maxY);
+    if(!pt)return null;
+    const r={};
+    for(const[pid,f]of Object.entries(pt.weights)){
+      const pw=pm[pid];if(!pw)continue;
+      for(const[k,v]of Object.entries(pw))r[k]=(r[k]||0)+v*f;
     }
-
-    // Build portfolio weight lookup
-    const portMap = {};
-    PRESET_PORTFOLIOS.forEach(group => {
-        group.portfolios.forEach(p => { portMap[p.id] = p.weights; });
+    return Object.values(r).reduce((a,b)=>a+b,0)>0.5?r:null;
+  }
+  STRATEGY_GROUPS.forEach(g=>{
+    g.strategies.forEach(s=>{
+      if(!s.points)return;
+      const wObj=resolve(s.points);if(!wObj)return;
+      const st=pStats(wObj);
+      const entry={name:s.name,wObj,...st};
+      g.isProvider?providers.push(entry):comparators.push(entry);
     });
-
-    function resolveGlidepath(points) {
-        // Use max-years point (growth phase)
-        const maxYears = Math.max(...points.map(pt=>pt.years));
-        const pt = points.find(p=>p.years===maxYears);
-        if(!pt) return null;
-        const resolved = {};
-        for(const [pid, frac] of Object.entries(pt.weights)) {
-            const pw = portMap[pid];
-            if(!pw) continue;
-            for(const [k,v] of Object.entries(pw)) {
-                resolved[k] = (resolved[k]||0) + v*frac;
-            }
-        }
-        const tot = Object.values(resolved).reduce((a,b)=>a+b,0);
-        return tot > 0.5 ? resolved : null;
-    }
-
-    STRATEGY_GROUPS.forEach(group => {
-        group.strategies.forEach(strat => {
-            if(!strat.points) return;
-            const w = resolveGlidepath(strat.points);
-            if(!w) return;
-            const stats = computeStats(w);
-            const entry = { name: strat.name, ...stats };
-            if(group.isProvider) providers.push(entry);
-            else comparators.push(entry);
-        });
-    });
-
-    return { providers, comparators };
+  });
+  return {providers,comparators};
 }
 
-/* ── 6. SIMULATION STATE ───────────────────────────────────────────────── */
-let optCloudData  = [];   // all feasible random portfolios
-let optOverlay    = { providers:[], comparators:[] };
-let optSelectedPt = null;
-let optChartMeta  = null;
-let optRunning    = false;
+/* ── 6. STATE ──────────────────────────────────────────────────────────── */
+let cloud=[], overlay={providers:[],comparators:[]};
+let selectedIdx=null, chartMeta=null, running=false;
 
-/* ── 7. MAIN RUN FUNCTION ──────────────────────────────────────────────── */
-window.optRunOptimizer = async function() {
-    if(optRunning) return;
-    optRunning = true;
-    const btn = document.getElementById('opt-btnRun');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Simulating…';
-    const pw=document.getElementById('opt-progressWrap'), pb=document.getElementById('opt-progressBar');
-    pw.classList.add('visible'); pb.style.width='0%';
+/* ── 7. RUN ────────────────────────────────────────────────────────────── */
+window.optRunOptimizer=async function(){
+  if(running)return;
+  running=true;
+  const btn=document.getElementById('opt-btnRun');
+  btn.disabled=true;
+  btn.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Simulating…';
+  const pw=document.getElementById('opt-progressWrap'),pb=document.getElementById('opt-progressBar');
+  pw.classList.add('visible');pb.style.width='0%';
 
-    const C = getOptC();
-    const nTarget = parseInt(document.getElementById('opt-nPoints').value);
+  const C=getC();
+  const nTarget=+document.getElementById('opt-nPoints').value;
+  cloud=[];selectedIdx=null;
+  let attempts=0,feasible=0;
+  const maxAttempts=nTarget*25;
 
-    optCloudData = [];
-    optSelectedPt = null;
-
-    let attempts=0, feasible=0;
-    const maxAttempts = nTarget * 20; // try up to 20× target to fill quota
-
-    await new Promise(resolve => {
-        function step() {
-            // Batch 50 attempts per tick to balance speed vs UI responsiveness
-            for(let b=0; b<50 && attempts<maxAttempts && feasible<nTarget; b++) {
-                attempts++;
-                const w = generateRandomPortfolio(C);
-                if(w) {
-                    const vol  = optVol(w);
-                    const muG  = optGeom(w);
-                    const muA  = optArith(w);
-                    const gSort= muG / (0.707*vol + 1e-10);
-                    optCloudData.push({ w, vol, muG, muA, gSort });
-                    feasible++;
-                }
-            }
-            const pct = Math.round(feasible/nTarget*100);
-            pb.style.width = Math.min(pct,100)+'%';
-            document.getElementById('opt-statusMsg').textContent =
-                `${feasible.toLocaleString()} / ${nTarget.toLocaleString()} feasible portfolios · ${attempts.toLocaleString()} attempts`;
-
-            if(feasible >= nTarget || attempts >= maxAttempts) {
-                resolve();
-            } else {
-                setTimeout(step, 0);
-            }
+  await new Promise(resolve=>{
+    function step(){
+      for(let b=0;b<80&&attempts<maxAttempts&&feasible<nTarget;b++){
+        attempts++;
+        const w=genPortfolio(C);
+        if(w){
+          const vol=pVol(w),muG=pGeom(w),muA=pArith(w);
+          cloud.push({w,vol,muG,muA,gSort:muG/(0.707*vol+1e-10)});
+          feasible++;
         }
-        setTimeout(step, 0);
-    });
+      }
+      pb.style.width=Math.min(feasible/nTarget*100,100).toFixed(0)+'%';
+      document.getElementById('opt-statusMsg').textContent=
+        `${feasible.toLocaleString()} / ${nTarget.toLocaleString()} portfolios · ${attempts.toLocaleString()} attempts`;
+      if(feasible>=nTarget||attempts>=maxAttempts){resolve();}
+      else setTimeout(step,0);
+    }
+    setTimeout(step,0);
+  });
 
-    // Build overlay from provider/comparator strategies
-    optOverlay = buildOverlayPortfolios();
+  overlay=buildOverlay();
+  renderOptChart();
+  renderOptWeights(null);
 
-    optRenderChart();
-    optRenderWeights(null);
-
-    const acceptRate = attempts > 0 ? (feasible/attempts*100).toFixed(1) : '0';
-    document.getElementById('opt-statusMsg').textContent =
-        `✓ ${feasible.toLocaleString()} feasible portfolios · ${(attempts-feasible).toLocaleString()} rejected · ${acceptRate}% acceptance rate`;
-
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-play me-2"></i>Rerun Simulation';
-    pw.classList.remove('visible');
-    optRunning = false;
+  const rate=(feasible/attempts*100).toFixed(1);
+  document.getElementById('opt-statusMsg').textContent=
+    `✓ ${feasible.toLocaleString()} portfolios · ${(attempts-feasible).toLocaleString()} rejected · ${rate}% acceptance`;
+  btn.disabled=false;
+  btn.innerHTML='<i class="fas fa-play me-2"></i>Rerun Simulation';
+  pw.classList.remove('visible');
+  running=false;
 };
 
-/* ── 8. CHART RENDERING ────────────────────────────────────────────────── */
-const OPT_CAT_COLORS = {
-    'Equities':   '#1B5EBE', 'Real Assets':'#7E22CE',
-    'Alternatives':'#B45309','Credit':     '#047857', 'Sov & Cash':'#0E7490'
-};
+/* ── 8. CHART ──────────────────────────────────────────────────────────── */
+function renderOptChart(){
+  if(!cloud.length)return;
+  const canvas=document.getElementById('opt-canvas');
+  if(!canvas)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  const H=420;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
 
-function optRenderChart() {
-    if(!optCloudData.length) return;
-    const canvas = document.getElementById('opt-canvas');
-    const dpr = window.devicePixelRatio || 1;
-    const W   = canvas.parentElement.clientWidth;
-    const H   = 420;
-    canvas.width  = W*dpr; canvas.height = H*dpr;
-    canvas.style.width = W+'px'; canvas.style.height = H+'px';
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
+  const PAD={top:36,right:40,bottom:52,left:62};
+  const cw=W-PAD.left-PAD.right, ch=H-PAD.top-PAD.bottom;
 
-    const PAD = {top:32, right:32, bottom:48, left:58};
-    const cw = W - PAD.left - PAD.right;
-    const ch = H - PAD.top  - PAD.bottom;
+  // Axis ranges — union of cloud + overlay
+  const all=[...cloud,...overlay.providers,...overlay.comparators];
+  const vols=all.map(p=>p.vol), rets=all.map(p=>p.muG);
+  const xMin=Math.max(0,Math.min(...vols)-0.015);
+  const xMax=Math.max(...vols)+0.025;
+  const yMin=Math.min(...rets)-0.008;
+  const yMax=Math.max(...rets)+0.015;
 
-    // Axis ranges — include overlay portfolios
-    const allPts = [...optCloudData, ...optOverlay.providers, ...optOverlay.comparators];
-    const allVols = allPts.map(p=>p.vol);
-    const allRets = allPts.map(p=>p.muG);
-    const xMin = Math.max(0, Math.min(...allVols) - 0.01);
-    const xMax = Math.max(...allVols) + 0.02;
-    const yMin = Math.min(...allRets) - 0.005;
-    const yMax = Math.max(...allRets) + 0.012;
+  const tx=v=>PAD.left+(v-xMin)/(xMax-xMin)*cw;
+  const ty=r=>PAD.top+(1-(r-yMin)/(yMax-yMin))*ch;
 
-    function tx(v) { return PAD.left + (v-xMin)/(xMax-xMin)*cw; }
-    function ty(r) { return PAD.top  + (1-(r-yMin)/(yMax-yMin))*ch; }
+  // Clear
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
 
-    // Background + grid
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle='#F1F5F9'; ctx.lineWidth=1;
-    for(let i=0;i<=6;i++){
-        const x=PAD.left+i/6*cw;
-        ctx.beginPath(); ctx.moveTo(x,PAD.top); ctx.lineTo(x,PAD.top+ch); ctx.stroke();
-        const y=PAD.top+i/6*ch;
-        ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cw,y); ctx.stroke();
-    }
-    ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(PAD.left,PAD.top); ctx.lineTo(PAD.left,PAD.top+ch); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(PAD.left,PAD.top+ch); ctx.lineTo(PAD.left+cw,PAD.top+ch); ctx.stroke();
+  // Grid
+  ctx.strokeStyle='#F1F5F9';ctx.lineWidth=1;
+  for(let i=0;i<=6;i++){
+    const x=PAD.left+i/6*cw;
+    ctx.beginPath();ctx.moveTo(x,PAD.top);ctx.lineTo(x,PAD.top+ch);ctx.stroke();
+  }
+  for(let i=0;i<=5;i++){
+    const y=PAD.top+i/5*ch;
+    ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+cw,y);ctx.stroke();
+  }
 
-    // Axis labels
-    ctx.fillStyle='#8896A8'; ctx.font=`400 10px 'DM Mono',monospace`;
-    ctx.textAlign='center';
-    for(let i=0;i<=6;i++){
-        const v=xMin+i/6*(xMax-xMin);
-        ctx.fillText((v*100).toFixed(0)+'%', PAD.left+i/6*cw, PAD.top+ch+16);
-    }
-    ctx.textAlign='right';
-    for(let i=0;i<=6;i++){
-        const r=yMin+i/6*(yMax-yMin);
-        ctx.fillText((r*100).toFixed(1)+'%', PAD.left-8, ty(r)+3.5);
-    }
-    ctx.save(); ctx.translate(13,PAD.top+ch/2); ctx.rotate(-Math.PI/2);
-    ctx.textAlign='center'; ctx.font=`400 10px 'DM Mono',monospace`; ctx.fillStyle='#8896A8';
-    ctx.fillText('GEOMETRIC RETURN (μg)', 0, 0); ctx.restore();
+  // Axes
+  ctx.strokeStyle='#E2E8F0';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(PAD.left,PAD.top);ctx.lineTo(PAD.left,PAD.top+ch);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(PAD.left,PAD.top+ch);ctx.lineTo(PAD.left+cw,PAD.top+ch);ctx.stroke();
 
-    // ── Cloud dots (random feasible portfolios) ──
-    ctx.globalAlpha = 0.25;
-    optCloudData.forEach((p, i) => {
-        if(i === optSelectedPt) return; // draw selected on top
-        ctx.beginPath();
-        ctx.arc(tx(p.vol), ty(p.muG), 2.5, 0, Math.PI*2);
-        ctx.fillStyle = '#3B82F6';
-        ctx.fill();
-    });
-    ctx.globalAlpha = 1.0;
+  // Axis labels
+  ctx.fillStyle='#8896A8';ctx.font='400 10px DM Mono,monospace';
+  ctx.textAlign='center';
+  for(let i=0;i<=6;i++){
+    const v=xMin+i/6*(xMax-xMin);
+    ctx.fillText((v*100).toFixed(0)+'%',PAD.left+i/6*cw,PAD.top+ch+18);
+  }
+  ctx.textAlign='right';
+  for(let i=0;i<=5;i++){
+    const r=yMin+i/5*(yMax-yMin);
+    ctx.fillText((r*100).toFixed(1)+'%',PAD.left-8,ty(r)+4);
+  }
+  ctx.save();ctx.translate(14,PAD.top+ch/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillStyle='#8896A8';ctx.font='400 10px DM Mono,monospace';
+  ctx.fillText('GEOMETRIC RETURN  μg',0,0);ctx.restore();
 
-    // ── Find and draw efficient frontier envelope ──
-    // Sort cloud by vol, extract upper envelope (max muG at each vol bucket)
-    const sorted = [...optCloudData].sort((a,b)=>a.vol-b.vol);
-    const nBuckets = 60;
-    const bucketW = (xMax-xMin)/nBuckets;
-    const buckets = Array(nBuckets).fill(null);
-    sorted.forEach(p => {
-        const b = Math.min(nBuckets-1, Math.floor((p.vol-xMin)/bucketW));
-        if(!buckets[b] || p.muG > buckets[b].muG) buckets[b] = p;
-    });
-    // Smooth envelope: running max from right
-    let bestMu = -Infinity;
-    const envelope = [];
-    for(let b=nBuckets-1; b>=0; b--) {
-        if(buckets[b]) {
-            bestMu = Math.max(bestMu, buckets[b].muG);
-            envelope[b] = { vol: buckets[b].vol, muG: bestMu };
-        }
-    }
-    // Draw envelope line
-    const envPts = [];
-    for(let b=0; b<nBuckets; b++) { if(envelope[b]) envPts.push(envelope[b]); }
-    envPts.sort((a,b)=>a.vol-b.vol);
-    if(envPts.length > 1) {
-        ctx.beginPath();
-        envPts.forEach((p,i) => {
-            i===0 ? ctx.moveTo(tx(p.vol),ty(p.muG)) : ctx.lineTo(tx(p.vol),ty(p.muG));
-        });
-        ctx.strokeStyle = '#1B5EBE';
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.setLineDash([6,3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
+  // Cloud dots
+  ctx.globalAlpha=0.22;
+  cloud.forEach((p,i)=>{
+    if(i===selectedIdx)return;
+    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),2.5,0,Math.PI*2);
+    ctx.fillStyle='#3B82F6';ctx.fill();
+  });
+  ctx.globalAlpha=1;
 
-    // ── Special cloud points: Max μ_g and Max g/σ_down ──
-    const maxGeomPt   = optCloudData.reduce((best,p) => p.muG   > best.muG   ? p : best, optCloudData[0]);
-    const maxGSortPt  = optCloudData.reduce((best,p) => p.gSort > best.gSort ? p : best, optCloudData[0]);
+  // ── Efficient frontier ─────────────────────────────────────────────────
+  // For each vol bucket: record the point with MAX geometric return.
+  // Then draw a line connecting those bucket-peak points sorted by vol.
+  // No running-max or smoothing — the raw peaks ARE the frontier.
+  const nB=Math.min(80,Math.max(30,Math.floor(cloud.length/15)));
+  const bW=(xMax-xMin)/nB;
+  const bkt=new Array(nB).fill(null);
+  cloud.forEach(p=>{
+    const b=Math.min(nB-1,Math.floor((p.vol-xMin)/bW));
+    if(!bkt[b]||p.muG>bkt[b].muG)bkt[b]=p;
+  });
+  const fPts=bkt.filter(Boolean).sort((a,b)=>a.vol-b.vol);
 
-    // Max g/σ_down ray
-    const gSortSlope = maxGSortPt.muG / maxGSortPt.vol;
+  if(fPts.length>1){
     ctx.beginPath();
-    ctx.moveTo(tx(xMin), ty(gSortSlope*xMin));
-    ctx.lineTo(tx(maxGSortPt.vol), ty(maxGSortPt.muG));
-    ctx.strokeStyle='rgba(201,151,42,0.45)'; ctx.lineWidth=1.5;
-    ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+    fPts.forEach((p,i)=>i===0?ctx.moveTo(tx(p.vol),ty(p.muG)):ctx.lineTo(tx(p.vol),ty(p.muG)));
+    ctx.strokeStyle='#1B5EBE';ctx.lineWidth=2.5;
+    ctx.lineJoin='round';ctx.lineCap='round';
+    ctx.setLineDash([]);ctx.stroke();
+  }
 
-    // Draw special cloud points
-    function drawSpecialDot(p, color, label, labelAlign='left') {
-        const x=tx(p.vol), y=ty(p.muG);
-        ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
-        ctx.fillStyle=color; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle=color; ctx.font=`600 10px 'DM Mono',monospace`;
-        ctx.textAlign=labelAlign;
-        const xOff = labelAlign==='left' ? 10 : -10;
-        ctx.fillText(label, x+xOff, y-8);
-    }
-    if(maxGeomPt !== maxGSortPt) {
-        drawSpecialDot(maxGSortPt, '#C9972A', 'Max g/σ');
-        drawSpecialDot(maxGeomPt,  '#166534', 'Max μ_g');
-    } else {
-        drawSpecialDot(maxGeomPt, '#7E22CE', 'Max μ_g & g/σ');
-    }
+  // ── Special points ─────────────────────────────────────────────────────
+  const maxG =cloud.reduce((b,p)=>p.muG  >b.muG  ?p:b,cloud[0]);
+  const maxGS=cloud.reduce((b,p)=>p.gSort>b.gSort?p:b,cloud[0]);
 
-    // ── Provider overlay dots ──
-    const pts = [];
-    optOverlay.providers.forEach(p => {
-        const x=tx(p.vol), y=ty(p.muG);
-        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
-        ctx.fillStyle='#F97316'; ctx.strokeStyle='white'; ctx.lineWidth=1.5;
-        ctx.fill(); ctx.stroke();
-        pts.push({x,y,type:'provider',data:p});
-    });
-    optOverlay.comparators.forEach(p => {
-        const x=tx(p.vol), y=ty(p.muG);
-        ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
-        ctx.fillStyle='#EF4444'; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        // Draw diamond
-        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
-        ctx.fillRect(-4,-4,8,8); ctx.strokeRect(-4,-4,8,8);
-        ctx.restore();
-        pts.push({x,y,type:'comparator',data:p});
-    });
+  // Geometric Sortino ray
+  const slope=maxGS.muG/maxGS.vol;
+  ctx.beginPath();
+  ctx.moveTo(tx(xMin),ty(slope*xMin));
+  ctx.lineTo(tx(maxGS.vol),ty(maxGS.muG));
+  ctx.strokeStyle='rgba(201,151,42,0.5)';ctx.lineWidth=1.5;
+  ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);
 
-    // ── Selected cloud point ──
-    if(optSelectedPt !== null && optCloudData[optSelectedPt]) {
-        const p=optCloudData[optSelectedPt];
-        ctx.beginPath(); ctx.arc(tx(p.vol), ty(p.muG), 7, 0, Math.PI*2);
-        ctx.fillStyle='#1B5EBE'; ctx.strokeStyle='white'; ctx.lineWidth=2.5;
-        ctx.fill(); ctx.stroke();
-    }
+  function dot(p,color,label,right){
+    const x=tx(p.vol),y=ty(p.muG);
+    ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);
+    ctx.fillStyle=color;ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle=color;ctx.font='600 10px DM Mono,monospace';
+    ctx.textAlign=right?'right':'left';
+    ctx.fillText(label,x+(right?-10:10),y-9);
+  }
+  if(maxG!==maxGS)dot(maxGS,'#C9972A','Max g/σ');
+  dot(maxG,'#166534','Max μ_g',maxG===maxGS);
 
-    // Cloud dots (interactive)
-    optCloudData.forEach((_,i) => {
-        const p=optCloudData[i];
-        pts.push({x:tx(p.vol), y:ty(p.muG), type:'cloud', data:p, idx:i});
-    });
+  // Provider dots
+  const hitPts=[];
+  overlay.providers.forEach(p=>{
+    const x=tx(p.vol),y=ty(p.muG);
+    ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fillStyle='#F97316';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.fill();ctx.stroke();
+    hitPts.push({x,y,type:'provider',data:p});
+  });
+  overlay.comparators.forEach(p=>{
+    const x=tx(p.vol),y=ty(p.muG);
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+    ctx.fillStyle='#EF4444';ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.fillRect(-5,-5,10,10);ctx.strokeRect(-5,-5,10,10);
+    ctx.restore();
+    hitPts.push({x,y,type:'comparator',data:p});
+  });
 
-    optChartMeta = { tx, ty, PAD, cw, ch, W, H, pts, maxGeomPt, maxGSortPt };
+  // Selected cloud point
+  if(selectedIdx!==null&&cloud[selectedIdx]){
+    const p=cloud[selectedIdx];
+    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),7,0,Math.PI*2);
+    ctx.fillStyle='#1B5EBE';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
+    ctx.fill();ctx.stroke();
+  }
+
+  // Build hit-test list (cloud last so overlay has priority)
+  cloud.forEach((p,i)=>hitPts.push({x:tx(p.vol),y:ty(p.muG),type:'cloud',data:p,idx:i}));
+  chartMeta={tx,ty,PAD,W,H,hitPts};
 }
 
-/* ── 9. CHART INTERACTION ──────────────────────────────────────────────── */
-(function(){
-    const t=document.createElement('div'); t.id='opt-tooltip'; document.body.appendChild(t);
-})();
+/* ── 9. INTERACTION ────────────────────────────────────────────────────── */
+(function(){const t=document.createElement('div');t.id='opt-tooltip';document.body.appendChild(t);})();
 
-function optSetupCanvas() {
-    const canvas = document.getElementById('opt-canvas');
-    if(!canvas || canvas._optListenersAdded) return;
-    canvas._optListenersAdded = true;
+function nearest(mx,my){
+  if(!chartMeta)return null;
+  let best=null,bestD=22;
+  // Overlay first (higher priority)
+  chartMeta.hitPts.filter(p=>p.type!=='cloud').forEach(p=>{
+    const d=Math.hypot(p.x-mx,p.y-my);
+    if(d<bestD+6){bestD=d-6;best=p;}
+  });
+  chartMeta.hitPts.filter(p=>p.type==='cloud').forEach(p=>{
+    const d=Math.hypot(p.x-mx,p.y-my);
+    if(d<bestD){bestD=d;best=p;}
+  });
+  return best;
+}
 
-    function findNearest(mx, my) {
-        if(!optChartMeta) return null;
-        let best=null, bestD=20;
-        // Check overlay first (higher priority, larger dots)
-        optChartMeta.pts.filter(p=>p.type!=='cloud').forEach(p=>{
-            const d=Math.hypot(p.x-mx,p.y-my);
-            if(d<bestD+4){bestD=d-4;best=p;}
-        });
-        optChartMeta.pts.filter(p=>p.type==='cloud').forEach(p=>{
-            const d=Math.hypot(p.x-mx,p.y-my);
-            if(d<bestD){bestD=d;best=p;}
-        });
-        return best;
-    }
+function setupCanvas(){
+  const cv=document.getElementById('opt-canvas');
+  if(!cv||cv._ol)return;
+  cv._ol=true;
+  const tt=document.getElementById('opt-tooltip');
 
-    canvas.addEventListener('mousemove', function(e){
-        if(!optCloudData.length||!optChartMeta) return;
-        const rect=this.getBoundingClientRect();
-        const pt=findNearest(e.clientX-rect.left, e.clientY-rect.top);
-        const tt=document.getElementById('opt-tooltip');
-        if(pt){
-            const d=pt.data;
-            const typeLabel = pt.type==='provider' ? '📊 Provider' : pt.type==='comparator' ? '⭐ Comparator' : `Portfolio #${pt.idx+1}`;
-            tt.innerHTML=`<div class="tt-title">${typeLabel}</div>
-              ${pt.type!=='cloud'?`<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:140px;text-align:right;white-space:normal">${d.name}</span></div>`:''}
-              <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>`;
-            tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-10)+'px';
-            tt.classList.add('visible'); this.style.cursor='pointer';
-        } else { tt.classList.remove('visible'); this.style.cursor='default'; }
-    });
-    canvas.addEventListener('mouseleave',()=>document.getElementById('opt-tooltip').classList.remove('visible'));
-    canvas.addEventListener('click', function(e){
-        if(!optCloudData.length||!optChartMeta) return;
-        const rect=this.getBoundingClientRect();
-        const pt=findNearest(e.clientX-rect.left, e.clientY-rect.top);
-        if(!pt) return;
-        if(pt.type==='cloud') {
-            optSelectedPt=pt.idx; optRenderChart(); optRenderWeights(pt.data);
-        } else {
-            // Show overlay portfolio weights
-            optSelectedPt=null; optRenderChart(); optRenderOverlayWeights(pt.data);
-        }
-    });
+  cv.addEventListener('mousemove',function(e){
+    if(!cloud.length||!chartMeta)return;
+    const r=this.getBoundingClientRect();
+    const pt=nearest(e.clientX-r.left,e.clientY-r.top);
+    if(pt){
+      const d=pt.data;
+      tt.innerHTML=`<div class="tt-title">${pt.type==='cloud'?'Portfolio #'+(pt.idx+1):pt.type==='provider'?'📊 Provider':'⭐ Comparator'}</div>
+        ${pt.type!=='cloud'?`<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:150px;text-align:right;white-space:normal;font-size:.68rem">${d.name}</span></div>`:''}
+        <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
+        <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
+        <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
+        <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>`;
+      tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
+      tt.classList.add('visible');this.style.cursor='pointer';
+    } else {tt.classList.remove('visible');this.style.cursor='default';}
+  });
+  cv.addEventListener('mouseleave',()=>document.getElementById('opt-tooltip').classList.remove('visible'));
+  cv.addEventListener('click',function(e){
+    if(!cloud.length||!chartMeta)return;
+    const r=this.getBoundingClientRect();
+    const pt=nearest(e.clientX-r.left,e.clientY-r.top);
+    if(!pt)return;
+    if(pt.type==='cloud'){selectedIdx=pt.idx;renderOptChart();renderOptWeights(pt.data);}
+    else{selectedIdx=null;renderOptChart();renderOptOverlay(pt.data);}
+  });
 }
 
 /* ── 10. WEIGHTS TABLE ─────────────────────────────────────────────────── */
-function optp(v,dp=1){ return (v*100).toFixed(dp)+'%'; }
+function pct(v,dp=1){return(v*100).toFixed(dp)+'%';}
 
-function optRenderWeights(pt) {
-    if(!pt) {
-        document.getElementById('opt-weightsBody').innerHTML=`<div style="text-align:center;padding:40px 24px;color:var(--text-muted);"><div style="font-size:1.5rem;margin-bottom:8px;">◦</div><p style="font-size:.82rem;line-height:1.6;">Click any point in the cloud to inspect its asset allocation.</p></div>`;
-        document.getElementById('opt-summaryPills').style.display='none';
-        document.getElementById('opt-constraintStatus').style.display='none';
-        document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
-        const cw=document.getElementById('opt-alloc-chart-wrap');
-        if(cw) cw.style.display='none';
-        return;
-    }
-    renderWeightsTable(pt.w, pt, '');
+function renderOptWeights(pt){
+  if(!pt){
+    document.getElementById('opt-weightsBody').innerHTML=
+      `<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3">◦</div><p class="small mt-2 mb-0">Click any point in the simulation cloud to inspect its allocation.</p></div>`;
+    document.getElementById('opt-summaryPills').style.display='none';
+    document.getElementById('opt-constraintStatus').style.display='none';
+    document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
+    return;
+  }
+  drawWeightsPanel(pt.w, pt, '');
+}
+function renderOptOverlay(pt){
+  const w=OA.map(a=>pt.wObj?pt.wObj[a.key]||0:0);
+  drawWeightsPanel(w,{w,vol:pt.vol,muG:pt.muG,muA:pt.muA,gSort:pt.gSort},pt.name);
 }
 
-function optRenderOverlayWeights(pt) {
-    // For overlay portfolios - build w array from weights object
-    const wArr = OPT_ASSETS.map(a => pt.weights ? (pt.weights[a.key]||0) : (pt.w ? pt.w[OPT_ASSETS.findIndex(x=>x.key===a.key)] : 0));
-    const stats = { w:wArr, vol:pt.vol, muG:pt.muG, muA:pt.muA, gSort:pt.gSort };
-    renderWeightsTable(wArr, stats, pt.name);
+function drawWeightsPanel(w,stats,nameLabel){
+  const C=getC(), chk=chkC(w,C);
+  const priv =OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
+  const liq  =OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
+  const subig=OA.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
+  const dIdx =OA.findIndex(a=>a.key==='digitalAssets');
+
+  document.getElementById('opt-selectedLabel').textContent=
+    nameLabel||`σ=${pct(stats.vol,2)} · μ_g=${pct(stats.muG,2)} · g/σ=${stats.gSort.toFixed(3)}`;
+
+  // Pills
+  const pills=document.getElementById('opt-summaryPills');
+  pills.style.display='flex';
+  pills.innerHTML=`
+    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_g ${pct(stats.muG,2)}</span>
+    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_a ${pct(stats.muA,2)}</span>
+    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">σ ${pct(stats.vol,2)}</span>
+    <span class="badge rounded-pill" style="background:#FBF5E8;color:#C9972A;font-weight:500">g/σ ${stats.gSort.toFixed(3)}</span>
+    <span class="badge rounded-pill" style="background:${priv<=C.maxPrivate?'#DCFCE7':'#FEE2E2'};color:${priv<=C.maxPrivate?'#166534':'#991B1B'};font-weight:500">Private ${pct(priv,1)}</span>
+    <span class="badge rounded-pill" style="background:${chk.pass?'#DCFCE7':'#FEE2E2'};color:${chk.pass?'#166534':'#991B1B'};font-weight:500">${chk.pass?'✓ Feasible':chk.violations.length+' violation'+(chk.violations.length>1?'s':'')}</span>`;
+
+  // Constraint grid
+  const cst=document.getElementById('opt-constraintStatus');
+  const eqT=pEqTot(w);
+  cst.className='opt-cst-grid';cst.style.display='grid';
+  cst.innerHTML=[
+    {l:'Sum to 100%',          ok:Math.abs(w.reduce((a,b)=>a+b,0)-1)<0.015},
+    {l:`Private ≤ ${pct(C.maxPrivate)}`,   ok:priv<=C.maxPrivate+1e-4},
+    {l:`Liquid ≥ ${pct(C.minLiquid)}`,     ok:liq>=C.minLiquid-1e-4},
+    {l:`Sub-IG ≤ ${pct(C.maxSubIG)}`,      ok:subig<=C.maxSubIG+1e-4},
+    {l:`Digital ≤ ${pct(C.maxDigital)}`,   ok:w[dIdx]<=C.maxDigital+1e-4},
+    {l:'No shorts',            ok:w.every(wi=>wi>=-1e-4)},
+    {l:`Eq drift ≤${pct(C.maxEqDev)} of cap`, ok:(()=>{
+      if(eqT<0.02)return true;
+      for(let e=0;e<6;e++){
+        const i=OA.findIndex(a=>a.eqIdx===e);
+        if(Math.abs(w[i]/eqT-EQ_CAP[e])>EQ_CAP[e]*C.maxEqDev+2e-4)return false;
+      }
+      return true;
+    })()},
+    {l:`Max single ≤ ${pct(C.maxSingle)}`, ok:w.every(wi=>wi<=C.maxSingle+1e-4)},
+  ].map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.l}</span></div>`).join('');
+
+  // Weights table — uses app ASSET_CLASSES names and colors
+  const sorted=OA.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
+  const maxW=Math.max(...w,0.001);
+  document.getElementById('opt-weightsBody').innerHTML=`
+    <div class="table-responsive">
+    <table class="table table-sm mb-0" style="font-size:.8rem;">
+      <thead class="table-light">
+        <tr>
+          <th class="text-muted fw-medium border-0" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Asset Class</th>
+          <th class="text-end text-muted fw-medium border-0" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Weight</th>
+          <th class="border-0 d-none d-md-table-cell" style="min-width:100px;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:#8896A8">Allocation</th>
+          <th class="text-end text-muted fw-medium border-0 d-none d-sm-table-cell" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Return Contrib.</th>
+          <th class="text-end text-muted fw-medium border-0 d-none d-sm-table-cell" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">σ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map(a=>`<tr style="opacity:${a.w<0.001?0.35:1}">
+          <td class="border-0 align-middle">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${OA_COLORS[a.key]||'#94A3B8'};margin-right:7px;flex-shrink:0;"></span>
+            <span class="text-muted fw-medium">${a.name}</span>
+          </td>
+          <td class="text-end border-0 align-middle fw-bold" style="font-family:monospace;color:${a.w>0.001?'var(--text-main,#0E1117)':'#94A3B8'}">${pct(a.w,1)}</td>
+          <td class="border-0 align-middle d-none d-md-table-cell">
+            <div style="background:#F1F5F9;border-radius:2px;height:5px;">
+              <div style="width:${a.w/maxW*100}%;background:${OA_COLORS[a.key]||'#94A3B8'};height:5px;border-radius:2px;min-width:${a.w>0.001?2:0}px;"></div>
+            </div>
+          </td>
+          <td class="text-end border-0 align-middle d-none d-sm-table-cell" style="font-family:monospace;color:#4B5568">${pct(a.w*a.r,2)}</td>
+          <td class="text-end border-0 align-middle d-none d-sm-table-cell" style="font-family:monospace;color:#8896A8">${pct(a.v,1)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`;
 }
 
-function renderWeightsTable(w, stats, nameLabel) {
-    const body   = document.getElementById('opt-weightsBody');
-    const pills  = document.getElementById('opt-summaryPills');
-    const cstDiv = document.getElementById('opt-constraintStatus');
-    const lbl    = document.getElementById('opt-selectedLabel');
-    const C      = getOptC();
-    const chk    = checkOptC(w, C);
-    const priv   = OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-    const liq    = OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-    const subig  = OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-    const dIdx   = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-
-    lbl.textContent = nameLabel || `σ=${optp(stats.vol,2)} · μ_g=${optp(stats.muG,2)} · g/σ=${stats.gSort.toFixed(3)}`;
-
-    pills.style.display='flex';
-    pills.innerHTML=`
-        <span class="opt-pill opt-pill-blue">μ_g ${optp(stats.muG,2)}</span>
-        <span class="opt-pill opt-pill-blue">μ_a ${optp(stats.muA,2)}</span>
-        <span class="opt-pill opt-pill-blue">σ ${optp(stats.vol,2)}</span>
-        <span class="opt-pill opt-pill-gold">g/σ_down ${stats.gSort.toFixed(3)}</span>
-        <span class="opt-pill ${priv<=C.maxPrivate?'opt-pill-green':'opt-pill-red'}">Private ${optp(priv,1)}</span>
-        <span class="opt-pill ${liq>=C.minLiquid?'opt-pill-green':'opt-pill-red'}">Liquid ${optp(liq,1)}</span>
-        <span class="opt-pill ${chk.pass?'opt-pill-green':'opt-pill-red'}">${chk.pass?'✓ Feasible':chk.violations.length+' violation'+(chk.violations.length>1?'s':'')}</span>`;
-
-    const eqT = optEqTotal(w);
-    cstDiv.className='opt-cst-grid'; cstDiv.style.display='grid';
-    cstDiv.innerHTML=[
-        {label:'Sum to 100%',             ok:Math.abs(w.reduce((a,b)=>a+b,0)-1)<0.015},
-        {label:`Private ≤ ${optp(C.maxPrivate)}`,  ok:priv<=C.maxPrivate+1e-4},
-        {label:`Liquid ≥ ${optp(C.minLiquid)}`,    ok:liq>=C.minLiquid-1e-4},
-        {label:`Sub-IG ≤ ${optp(C.maxSubIG)}`,     ok:subig<=C.maxSubIG+1e-4},
-        {label:`Digital ≤ ${optp(C.maxDigital)}`,  ok:w[dIdx]<=C.maxDigital+1e-4},
-        {label:'No shorts',               ok:w.every(wi=>wi>=-1e-4)},
-        {label:`Eq drift ±${optp(C.maxEqDev)} of cap`, ok:(()=>{
-            if(eqT<0.02) return true;
-            for(let e=0;e<6;e++){
-                const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-                if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>EQ_MKTCAP[e]*C.maxEqDev+1e-4) return false;
-            }
-            return true;
-        })()},
-        {label:`Max single ≤ ${optp(C.maxSingle)}`, ok:w.every(wi=>wi<=C.maxSingle+1e-4)},
-    ].map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.label}</span></div>`).join('');
-
-    // Allocation doughnut
-    const chartWrap = document.getElementById('opt-alloc-chart-wrap');
-    const allocCanvas = document.getElementById('opt-alloc-canvas');
-    if(chartWrap && allocCanvas) {
-        chartWrap.style.display='block';
-        const catTotals = {};
-        OPT_ASSETS.forEach((a,i) => { if(w[i]>0.001) catTotals[a.cat]=(catTotals[a.cat]||0)+w[i]; });
-        const catEntries = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
-        if(window._optAllocChart) window._optAllocChart.destroy();
-        window._optAllocChart = new Chart(allocCanvas.getContext('2d'), {
-            type:'doughnut',
-            data:{ labels:catEntries.map(([c])=>c), datasets:[{ data:catEntries.map(([,v])=>+(v*100).toFixed(1)), backgroundColor:catEntries.map(([c])=>OPT_CAT_COLORS[c]||'#94A3B8'), borderWidth:0, hoverOffset:4 }] },
-            options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
-        });
-        const legendEl=document.getElementById('opt-alloc-legend');
-        if(legendEl) legendEl.innerHTML=catEntries.map(([cat,val])=>`
-            <div style="display:flex;align-items:center;gap:8px;">
-                <span style="width:10px;height:10px;border-radius:50%;background:${OPT_CAT_COLORS[cat]||'#94A3B8'};flex-shrink:0;display:inline-block;"></span>
-                <span style="color:#4B5568;flex:1;">${cat}</span>
-                <span style="font-family:monospace;color:#1B5EBE;font-weight:500;">${optp(val,1)}</span>
-            </div>`).join('');
-    }
-
-    // Weights table
-    const sorted=OPT_ASSETS.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
-    const maxW=Math.max(...w);
-    body.innerHTML=`<table class="opt-weights-table">
-        <thead><tr><th>Asset</th><th>Category</th><th>Weight</th><th style="min-width:90px">Allocation</th><th>Return contrib.</th><th>σ</th></tr></thead>
-        <tbody>${sorted.map(a=>`<tr class="${a.w<0.001?'opt-zero':''}">
-            <td>${a.name}</td>
-            <td><span class="opt-cat-tag" style="color:${OPT_CAT_COLORS[a.cat]};background:${OPT_CAT_COLORS[a.cat]}1A">${a.cat}</span></td>
-            <td style="font-weight:${a.w>0.05?500:400}">${optp(a.w,1)}</td>
-            <td><div class="opt-bar-bg"><div class="opt-bar-fill" style="width:${maxW>0?a.w/maxW*100:0}%;background:${OPT_CAT_COLORS[a.cat]}"></div></div></td>
-            <td>${optp(a.w*a.r,2)}</td>
-            <td style="color:var(--text-muted)">${optp(a.v,1)}</td>
-        </tr>`).join('')}</tbody></table>`;
-}
-
-/* ── 11. INITIALISE ────────────────────────────────────────────────────── */
+/* ── 11. INIT ──────────────────────────────────────────────────────────── */
 (function(){
-    const names=['US Equity','Dev Europe','EM Equity','Japan','UK','Dev APAC'];
-    const el=document.getElementById('opt-mktCapTable');
-    if(el) el.innerHTML=names.map((n,i)=>`<span style="display:flex;justify-content:space-between;gap:16px;"><span>${n}</span><span>${(EQ_MKTCAP[i]*100).toFixed(0)}%</span></span>`).join('');
+  const names=['US Equity','Dev Europe','EM Equity','Japan','UK','Dev APAC'];
+  const el=document.getElementById('opt-mktCapTable');
+  if(el)el.innerHTML=names.map((n,i)=>`
+    <div class="d-flex justify-content-between"><span>${n}</span><span>${(EQ_CAP[i]*100).toFixed(0)}%</span></div>`).join('');
 })();
 
-document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('.list-group-item[data-tab]').forEach(el=>{
-        el.addEventListener('click', function(){
-            if(this.dataset.tab==='optimizer') setTimeout(optSetupCanvas, 100);
-        });
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.list-group-item[data-tab]').forEach(el=>{
+    el.addEventListener('click',function(){
+      if(this.dataset.tab==='optimizer')setTimeout(setupCanvas,100);
     });
+  });
 });
-let optResizeTimer;
-window.addEventListener('resize', ()=>{
-    clearTimeout(optResizeTimer);
-    optResizeTimer=setTimeout(()=>{ if(optCloudData.length) optRenderChart(); },150);
+let _resizeT;
+window.addEventListener('resize',()=>{
+  clearTimeout(_resizeT);
+  _resizeT=setTimeout(()=>{if(cloud.length)renderOptChart();},150);
 });
 
 })(); // end IIFE
