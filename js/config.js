@@ -766,7 +766,95 @@ export const PRESET_PORTFOLIOS = [
               alphas: {}, tes: {} }
         ]
     }
+,
 
+    // ─── ILLUSTRATIVE / REFERENCE ─────────────────────────────────────────────
+    {
+        name: "Illustrative Optimal",
+        // Reference strategies illustrating theoretically optimal DC default designs.
+        // Based on CMA 2026-05 geometric return analysis and specified fund construction.
+        //
+        // FUND ARCHITECTURE (Strategy 1 — PM-Tilted, original):
+        //   Growth: free-form PM-tilted allocation (see p_opt_growth)
+        //   At-retirement: privCredit-heavy drawdown landing (see p_opt_retire)
+        //
+        // FUND ARCHITECTURE (Strategy 2 — Specified):
+        //   Global Equity Potential: 75% of growth. MSCI ACWI cap weights, NA -10% pro-rata uplift.
+        //     50% climate-aligned (α=0.25%, TE=0.75%) + 50% factor-based (α=0.5%, TE=1.5%).
+        //     Blended: α=0.375%, TE=1.125% applied to all equity classes.
+        //   Private Markets Growth Potential: 25% of growth.
+        //     PE 35%, infra 30%, real estate 10%, private credit 25%.
+        //   At-retirement: 40% equity + 10% PM Growth + 10% PM Income + 25% credit + 15% listed alts.
+        //     PM Income: privCredit 50%, infra 30%, real estate 20%.
+        //     Credit mix: igCredit 40%, globalHighYield 25%, emDebt 20%, sdCredit 15%.
+        //   De-risk: 10 years.
+        portfolios: [
+            // ── Strategy 1 portfolios ─────────────────────────────────────────
+            { id: "p_opt_growth", name: "Optimal PM-Tilted DC Growth",
+              // Free-form PM-tilted allocation maximising geometric return.
+              // Arithmetic: 7.80%, geometric≈6.29% vs Aviva Vision arith=7.46%, geom=6.01%.
+              weights: { usEq:0.200, devEq:0.100, emEq:0.120, jpnEq:0.050, apacEq:0.050, ukEq:0.030,
+                         privEq:0.150, infrastructure:0.120, realEstateDirect:0.030,
+                         privCredit:0.100, listedAlts:0.050 },
+              alphas: { emEq:0.003, apacEq:0.003, usEq:0.001 },
+              tes:    { emEq:0.010, apacEq:0.010, usEq:0.005 } },
+            { id: "p_opt_retire", name: "Optimal PM-Tilted DC At-Retirement (Drawdown)",
+              // privCredit-heavy drawdown landing. Arithmetic: 6.52%.
+              weights: { usEq:0.100, emEq:0.050, devEq:0.050, privEq:0.050,
+                         privCredit:0.120, infrastructure:0.080, globalHighYield:0.070, emDebt:0.060,
+                         igCredit:0.150, globalSov:0.100, inflLinked:0.080, sdCredit:0.040, moneyMkt:0.050 },
+              alphas: { emEq:0.003, usEq:0.001 },
+              tes:    { emEq:0.010, usEq:0.005 } },
+
+            // ── Strategy 2 portfolios ─────────────────────────────────────────
+            // Sub-fund: Private Markets Growth Potential
+            { id: "p_opt2_pm_growth", name: "Private Markets Growth Potential",
+              // PE 35%, Infrastructure 30%, Real Estate 10%, Private Credit 25%.
+              // Arithmetic return: 8.96%, geometric≈7.74% (best PM blend on geom basis).
+              // Private credit 25% is the highest-geom individual asset (7.70%).
+              weights: { privEq:0.350, infrastructure:0.300, realEstateDirect:0.100, privCredit:0.250 },
+              alphas: {}, tes: {} },
+
+            // Sub-fund: Private Markets Income Potential
+            { id: "p_opt2_pm_income", name: "Private Markets Income Potential",
+              // Private Credit 50%, Infrastructure 30%, Real Estate 20%.
+              // Cashflow-oriented. Lower vol than PM Growth. Geom: 7.57%.
+              // Private credit 50% is the highest-geom asset in the entire CMA (7.70%, vol 10%).
+              weights: { privCredit:0.500, infrastructure:0.300, realEstateDirect:0.200 },
+              alphas: {}, tes: {} },
+
+            // Combined growth fund: 75% Global Equity Potential + 25% PM Growth
+            { id: "p_opt2_growth", name: "Optimal Specified DC Growth (75% Equity + 25% PM Growth)",
+              // Equity sleeve (75%): MSCI ACWI cap weights, NA -10% redistributed pro-rata.
+              //   Original MSCI ACWI: US+Canada 64.8%, devEq 14.0%, emEq 11.5%, jpnEq 5.2%, ukEq 2.8%, apacEq 1.7%.
+              //   After NA -10% → usEq 54.8%, others uplifted proportionally:
+              //   devEq +2.98%, emEq +2.27%, jpnEq +1.48%, ukEq +0.80%, apacEq +0.48%.
+              //   Alpha: blended 50/50 (climate α=0.25% + factor α=0.5%) = 0.375% p.a.
+              //   TE:    blended 50/50 (climate TE=0.75% + factor TE=1.5%) = 1.125% p.a.
+              //   Applied uniformly across all equity classes.
+              // PM Growth sleeve (25%): p_opt2_pm_growth look-through.
+              // Arithmetic: 7.70% (incl. alpha), geometric≈6.28%.
+              weights: { usEq:0.4110, devEq:0.1348, emEq:0.1108, jpnEq:0.0501, ukEq:0.0270, apacEq:0.0163,
+                         privEq:0.0875, infrastructure:0.0750, realEstateDirect:0.0250, privCredit:0.0625 },
+              alphas: { usEq:0.00375, devEq:0.00375, emEq:0.00375, jpnEq:0.00375, ukEq:0.00375, apacEq:0.00375 },
+              tes:    { usEq:0.01125, devEq:0.01125, emEq:0.01125, jpnEq:0.01125, ukEq:0.01125, apacEq:0.01125 } },
+
+            // At-retirement: 40% equity + 10% PM Growth + 10% PM Income + 25% credit + 15% listedAlts
+            { id: "p_opt2_retire", name: "Optimal Specified DC At-Retirement (Drawdown)",
+              // 40% equity sleeve (same cap-adjusted weights as growth equity sleeve, scaled to 40%).
+              // 10% PM Growth look-through (PE 35%, infra 30%, RE 10%, privCredit 25%).
+              // 10% PM Income look-through (privCredit 50%, infra 30%, RE 20%).
+              // 25% credit mix: igCredit 40%, globalHighYield 25%, emDebt 20%, sdCredit 15%.
+              // 15% listed alts: listedAlts 100% — diversified absolute return / real assets.
+              // Arithmetic: 7.11%, geometric≈6.07% — outperforms most providers' GROWTH funds.
+              weights: { usEq:0.2192, devEq:0.0719, emEq:0.0591, jpnEq:0.0267, ukEq:0.0144, apacEq:0.0087,
+                         privEq:0.0350, infrastructure:0.0600, realEstateDirect:0.0300, privCredit:0.0750,
+                         igCredit:0.1000, globalHighYield:0.0625, emDebt:0.0500, sdCredit:0.0375,
+                         listedAlts:0.1500 },
+              alphas: { usEq:0.00375, devEq:0.00375, emEq:0.00375, jpnEq:0.00375, ukEq:0.00375, apacEq:0.00375 },
+              tes:    { usEq:0.01125, devEq:0.01125, emEq:0.01125, jpnEq:0.01125, ukEq:0.01125, apacEq:0.01125 } }
+        ]
+    }
 ];
 
 export const STRATEGY_GROUPS = [
@@ -780,6 +868,21 @@ export const STRATEGY_GROUPS = [
         name: "Provider Strategies",
         isProvider: true,
         strategies: [
+            { name: "Optimal PM-Tilted DC Lifecycle",
+              // Hypothetical optimal DC default lifecycle — illustrative strategy 1 (free-form PM).
+              // Growth: privEq 15%, privCredit 10%, infrastructure 12%, EM-tilted equity.
+              // Arithmetic return 7.80% (+34bp vs Aviva Vision); geometric 6.29% (+28bp).
+              // De-risk starts 15yr before TRA. At-retirement: privCredit-heavy drawdown landing.
+              points: [ { years:50, weights:{"p_opt_growth":1.0} }, { years:15, weights:{"p_opt_growth":1.0} }, { years:0, weights:{"p_opt_retire":1.0} } ] },
+            { name: "Optimal Specified DC Lifecycle",
+              // Hypothetical optimal DC default lifecycle — illustrative strategy 2 (specified design).
+              // Growth (p_opt2_growth): 75% Global Equity Potential (MSCI ACWI NA-10% adjusted,
+              //   50:50 climate-aligned/factor, blended α=0.375%, TE=1.125%) + 25% PM Growth.
+              //   Arithmetic 7.70%, geometric≈6.28%.
+              // At-retirement (p_opt2_retire): 40% equity + 10% PM Growth + 10% PM Income
+              //   + 25% credit mix + 15% listed alts. Arithmetic 7.11%, geometric≈6.07%.
+              // De-risk: 10 years to TRA.
+              points: [ { years:50, weights:{"p_opt2_growth":1.0} }, { years:10, weights:{"p_opt2_growth":1.0} }, { years:0, weights:{"p_opt2_retire":1.0} } ] },
             { name: "L&G Target Date Fund (Drawdown Default)",
               points: [ { years:50, weights:{"p_lg_tdf_growth":1.0} }, { years:10, weights:{"p_lg_tdf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
             // Note: the Cash/Annuity landing variant uses the same pre-retirement glidepath
