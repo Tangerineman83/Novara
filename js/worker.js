@@ -92,7 +92,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=52.2');
+        const worker = new Worker('./sim-worker.js?v=52.8');
 
         worker.onmessage = function(e) {
             if (errorFired) return;
@@ -259,7 +259,7 @@ function runVFMSimulation(data) {
     for (let w = 0; w < actualWorkers; w++) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
-        const worker = new Worker('./sim-worker.js?v=52.2');
+        const worker = new Worker('./sim-worker.js?v=52.8');
 
         worker.onmessage = function(e) {
             if (errorFired) return;
@@ -322,26 +322,46 @@ function buildVFMStats(realPots, strategies, simCount) {
     const nStrats = strategies.length;
 
     // Median terminal pot — full-retirement simulation in real terms.
-    // Converges to stochastic median within ±1.4% at 5,000 sims.
     const medianPots = realPots.map(pots => {
         const sorted = Float64Array.from(pots).sort();
         return sorted[Math.round(0.5 * (simCount - 1))];
     });
 
-    // Field median for vsField: median of provider medianPots (computed in renderVFMTable)
+    // Chance Top / Bottom uses two separate ranking universes:
+    //   • Provider strategies: ranked against each other only (comparators excluded).
+    //     This gives a provider-relevant metric — where does this strategy sit in the
+    //     actual market of DC defaults?
+    //   • Comparators: ranked against the full universe (all providers + comparators).
+    //     This shows what the comparator's ranking potential would be if adopted as a
+    //     provider strategy — the "what if" framing.
+
+    const providerIndices    = strategies.map((s, i) => s.isProvider ? i : -1).filter(i => i >= 0);
+    const allIndices         = strategies.map((_, i) => i);
+
     const pTop    = new Float64Array(nStrats);
     const pBottom = new Float64Array(nStrats);
 
     for (let s = 0; s < simCount; s++) {
-        let maxPot = -Infinity, minPot = Infinity;
-        let maxIdx = 0, minIdx = 0;
-        for (let si = 0; si < nStrats; si++) {
+        // ── Provider ranking (providers only) ──
+        let maxP = -Infinity, minP = Infinity, maxPi = -1, minPi = -1;
+        for (const si of providerIndices) {
             const p = realPots[si][s];
-            if (p > maxPot) { maxPot = p; maxIdx = si; }
-            if (p < minPot) { minPot = p; minIdx = si; }
+            if (p > maxP) { maxP = p; maxPi = si; }
+            if (p < minP) { minP = p; minPi = si; }
         }
-        pTop[maxIdx]++;
-        pBottom[minIdx]++;
+        if (maxPi >= 0) pTop[maxPi]++;
+        if (minPi >= 0) pBottom[minPi]++;
+
+        // ── Full ranking (comparators only — vs all providers + comparators) ──
+        let maxA = -Infinity, minA = Infinity, maxAi = -1, minAi = -1;
+        for (const si of allIndices) {
+            const p = realPots[si][s];
+            if (p > maxA) { maxA = p; maxAi = si; }
+            if (p < minA) { minA = p; minAi = si; }
+        }
+        // Only credit the top/bottom to comparator indices
+        if (maxAi >= 0 && !strategies[maxAi].isProvider) pTop[maxAi]++;
+        if (minAi >= 0 && !strategies[minAi].isProvider) pBottom[minAi]++;
     }
 
     return strategies.map((strat, i) => ({
