@@ -748,37 +748,17 @@ export const PRESET_PORTFOLIOS = [
               weights: { usEq:0.3921, devEq:0.1245, emEq:0.0531, jpnEq:0.0836, ukEq:0.0594, apacEq:0.0691,
                          igCredit:0.0909, globalSov:0.0519, inflLinked:0.0195,
                          globalHighYield:0.0130, emDebt:0.0130, infrastructure:0.0299 },
-              alphas: {}, tes: {} },
-            { id: "p_tpp_retire", name: "The People's Pension — Pre-Retirement Fund (at-retirement default)",
-              // Source: Pre-Retirement Fund factsheet, 31 March 2026. HIGH confidence on sleeve totals.
-              // Fund size £6,374.5m. Benchmark: UK CPI + 0.5% p.a.
-              // CORRECTION vs prior: this is the Pre-Retirement Fund, NOT "up to 15% shares".
-              //   "Up to 15% shares" is a separate self-select option; prior coding used wrong fund.
-              // Bond 78.8% (exact). Shares 20.4% (exact). Infrastructure 0.78% (exact, top-10).
-              // No cash sleeve (cash = -0.3% derivatives overlay only; prior 14% moneyMkt removed).
-              // Regional breakdown of shares (exact from factsheet, converted to % of fund):
-              //   US 50.0%, Japan 10.5%, Eurozone 8.7%, UK 7.8%, Asia-EM 6.8%, Rest 16.2%
-              // Bond sub-split MED confidence (Invesco mandate; no published breakdown).
-              //   Govts 30.5% dominant (confirmed by US Treasury + UK Gilt futures in top-10).
-              weights: { usEq:0.1020, devEq:0.0326, emEq:0.0139, jpnEq:0.0214, ukEq:0.0159, apacEq:0.0182,
-                         igCredit:0.2101, globalSov:0.3048, inflLinked:0.1051,
-                         sdCredit:0.0841, globalHighYield:0.0420, emDebt:0.0420, infrastructure:0.0078 },
-              alphas: {}, tes: {} }
-        ]
+              alphas: {}, tes: {} },        ]
     }
 ,
 
     // ─── ILLUSTRATIVE / REFERENCE ─────────────────────────────────────────────
     {
-        name: "Illustrative Optimal",
+        name: "Comparator Strategy",
         // Reference strategies illustrating theoretically optimal DC default designs.
         // Based on CMA 2026-05 geometric return analysis and specified fund construction.
         //
-        // FUND ARCHITECTURE (Strategy 1 — PM-Tilted, original):
-        //   Growth: free-form PM-tilted allocation (see p_opt_growth)
-        //   At-retirement: privCredit-heavy drawdown landing (see p_opt_retire)
-        //
-        // FUND ARCHITECTURE (Strategy 2 — Specified):
+        // FUND ARCHITECTURE:
         //   Global Equity Potential: 75% of growth. MSCI ACWI cap weights, NA -10% pro-rata uplift.
         //     50% climate-aligned (α=0.25%, TE=0.75%) + 50% factor-based (α=0.5%, TE=1.5%).
         //     Blended: α=0.375%, TE=1.125% applied to all equity classes.
@@ -789,24 +769,7 @@ export const PRESET_PORTFOLIOS = [
         //     Credit mix: igCredit 40%, globalHighYield 25%, emDebt 20%, sdCredit 15%.
         //   De-risk: 10 years.
         portfolios: [
-            // ── Strategy 1 portfolios ─────────────────────────────────────────
-            { id: "p_opt_growth", name: "Optimal PM-Tilted DC Growth",
-              // Free-form PM-tilted allocation maximising geometric return.
-              // Arithmetic: 7.80%, geometric≈6.29% vs Aviva Vision arith=7.46%, geom=6.01%.
-              weights: { usEq:0.200, devEq:0.100, emEq:0.120, jpnEq:0.050, apacEq:0.050, ukEq:0.030,
-                         privEq:0.150, infrastructure:0.120, realEstateDirect:0.030,
-                         privCredit:0.100, listedAlts:0.050 },
-              alphas: { emEq:0.003, apacEq:0.003, usEq:0.001 },
-              tes:    { emEq:0.010, apacEq:0.010, usEq:0.005 } },
-            { id: "p_opt_retire", name: "Optimal PM-Tilted DC At-Retirement (Drawdown)",
-              // privCredit-heavy drawdown landing. Arithmetic: 6.52%.
-              weights: { usEq:0.100, emEq:0.050, devEq:0.050, privEq:0.050,
-                         privCredit:0.120, infrastructure:0.080, globalHighYield:0.070, emDebt:0.060,
-                         igCredit:0.150, globalSov:0.100, inflLinked:0.080, sdCredit:0.040, moneyMkt:0.050 },
-              alphas: { emEq:0.003, usEq:0.001 },
-              tes:    { emEq:0.010, usEq:0.005 } },
-
-            // ── Strategy 2 portfolios ─────────────────────────────────────────
+                        // ── Strategy 2 portfolios ─────────────────────────────────────────
             // Sub-fund: Private Markets Growth Potential
             { id: "p_opt2_pm_growth", name: "Private Markets Growth Potential",
               // PE 35%, Infrastructure 30%, Real Estate 10%, Private Credit 25%.
@@ -868,13 +831,7 @@ export const STRATEGY_GROUPS = [
         name: "Provider Strategies",
         isProvider: true,
         strategies: [
-            { name: "Optimal PM-Tilted DC Lifecycle",
-              // Hypothetical optimal DC default lifecycle — illustrative strategy 1 (free-form PM).
-              // Growth: privEq 15%, privCredit 10%, infrastructure 12%, EM-tilted equity.
-              // Arithmetic return 7.80% (+34bp vs Aviva Vision); geometric 6.29% (+28bp).
-              // De-risk starts 15yr before TRA. At-retirement: privCredit-heavy drawdown landing.
-              points: [ { years:50, weights:{"p_opt_growth":1.0} }, { years:15, weights:{"p_opt_growth":1.0} }, { years:0, weights:{"p_opt_retire":1.0} } ] },
-            { name: "Optimal Specified DC Lifecycle",
+            { name: "Optimal Specified DC Lifecycle (Comparator)",
               // Hypothetical optimal DC default lifecycle — illustrative strategy 2 (specified design).
               // Growth (p_opt2_growth): 75% Global Equity Potential (MSCI ACWI NA-10% adjusted,
               //   50:50 climate-aligned/factor, blended α=0.375%, TE=1.125%) + 25% PM Growth.
