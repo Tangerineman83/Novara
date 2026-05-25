@@ -571,15 +571,60 @@ export const PRESET_PORTFOLIOS = [
     // ─── LIFESIGHT ────────────────────────────────────────────────────────────
     {
         name: "Lifesight",
+        // ── Source: LifeSight Equity and DGF factsheets, 31 March 2026 (WTW / L&G) ──
+        // The LifeSight Default is the Medium Risk Drawdown Lifecycle:
+        //   100% Equity Fund → 20yr de-risk → ~35% Equity / 35% DGF / 30% Cash at TRA
+        // De-risk start: 20 years before Target Retirement Age (corrected from 25yr).
+        // Source: Appendix D (Core Savings Phase Strategies), March 2026 WTW document.
+        //
+        // LifeSight Equity Fund (£13.1bn, 31 Mar 2026):
+        //   99.2% equities via WTW Global Diversified Equity Index (37.7% + 37.4% GBP-hedged),
+        //   AMX STOXX Climate Transition (9.2%), MSCI regional funds (14.9%).
+        //   0.8% private equity (CG WTW Private Equity Access LTAF).
+        //   Country breakdown: US 61.3%, Japan 7.4%, Taiwan/Korea/China/EM ~9.3%,
+        //   Europe ex-UK ~11.4%, UK 2.5%, APAC ex-Japan ~4.4%.
+        //   Alpha: fund targets +0.5% p.a. net outperformance vs MSCI ACWI 50% hedged.
+        //   Implemented via active ESG tilts on index base and active currency management.
+        //   TE: ~80bp consistent with ESG exclusion/tilt mandate.
+        //
+        // LifeSight DGF (£7.8bn, 31 Mar 2026):
+        //   Equities 36.2% (same underlying vehicles as Equity Fund, scaled),
+        //   Corporate Bonds 27.7% (AXA Carbon IG 10.1%, LGIM Climate B&M 7.6%, HY 6.6%, other),
+        //   Government Bonds 10.9% (EM USD Govt 5.0%, Gilts 3.4%, EM Local 2.5%),
+        //   Alternatives 25.2% (Infra+Renewables 15.6%, Property 5.4%, ILS 4.0%, PE 0.3%).
+        //   Alpha: modest active management on equity portion only.
+        //
+        // Landing portfolio (Medium Risk Drawdown at TRA):
+        //   ~35% LifeSight Equity look-through + 35% DGF look-through + 30% Cash.
+        //   Derived from Appendix D glidepath chart reading at years=0.
         portfolios: [
             { id: "p_lifesight_equity", name: "LifeSight Equity Fund (Growth)",
-              weights: { usEq:0.424, devEq:0.140, emEq:0.072, jpnEq:0.048, ukEq:0.032, apacEq:0.040, listedAlts:0.044, igCredit:0.055, globalSov:0.045, sdCredit:0.060, privCredit:0.040 },
+              // 31 Mar 2026 factsheet: 99.2% equity, 0.8% private equity (CG WTW LTAF)
+              // Country weights derived from factsheet country breakdown table
+              weights: { usEq:0.6406, devEq:0.1147, emEq:0.0934, jpnEq:0.0741, ukEq:0.0254, apacEq:0.0437, privEq:0.0081 },
+              alphas: { usEq:0.003, devEq:0.003, emEq:0.003, jpnEq:0.003, ukEq:0.003, apacEq:0.003 },
+              tes:    { usEq:0.008, devEq:0.008, emEq:0.008, jpnEq:0.008, ukEq:0.008, apacEq:0.008 } },
+            { id: "p_lifesight_dgf", name: "LifeSight Diversified Growth Fund (DGF)",
+              // 31 Mar 2026 factsheet: Equities 36.2%, Corp Bonds 27.7%, Govt 10.9%, Alts 25.2%
+              // Equity sub-allocation mirrors Equity Fund regional proportions, scaled to 36.2%
+              // infrastructure = Infra Equity MFG (12.9%) + Schroder Greencoat Renewables (2.7%)
+              // listedAlts = Leadenhall UCITs ILS Fund (insurance-linked securities, 4.0%)
+              weights: { usEq:0.2299, devEq:0.0413, emEq:0.0333, jpnEq:0.0262, ukEq:0.0091, apacEq:0.0161,
+                         igCredit:0.1361, sdCredit:0.0766, globalHighYield:0.0665,
+                         emDebt:0.0756, globalSov:0.0343,
+                         infrastructure:0.1573, globalReits:0.0544, listedAlts:0.0403, privEq:0.003 },
               alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, ukEq:0.0025, apacEq:0.0025 },
-              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, ukEq:0.0075, apacEq:0.0075 } },
-            { id: "p_lifesight_dgf", name: "LifeSight DGF (At-Retirement, 70% DGF + 30% Cash)",
-              weights: { usEq:0.120, devEq:0.048, emEq:0.024, jpnEq:0.018, ukEq:0.016, apacEq:0.012, globalReits:0.025, realEstateDirect:0.020, infrastructure:0.025, privEq:0.015, privCredit:0.020, igCredit:0.110, globalSov:0.100, inflLinked:0.040, globalHighYield:0.030, sdCredit:0.040, emDebt:0.020, listedAlts:0.017, moneyMkt:0.300 },
+              tes:    { usEq:0.008, devEq:0.008, emEq:0.008, jpnEq:0.008, ukEq:0.008, apacEq:0.008 } },
+            { id: "p_lifesight_landing", name: "LifeSight Medium Risk Drawdown Landing (at TRA)",
+              // At-retirement blend: ~35% Equity Fund + 35% DGF + 30% Cash
+              // Derived from Appendix D Medium Risk Drawdown chart at years=0 (March 2026 WTW doc)
+              // Weights are look-through to underlying asset classes
+              weights: { usEq:0.3047, devEq:0.0546, emEq:0.0443, jpnEq:0.0351, ukEq:0.0121, apacEq:0.0209,
+                         privEq:0.0039, igCredit:0.0476, sdCredit:0.0268, globalHighYield:0.0233,
+                         emDebt:0.0265, globalSov:0.012, infrastructure:0.0551, globalReits:0.019,
+                         listedAlts:0.0141, moneyMkt:0.3 },
               alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, ukEq:0.0025, apacEq:0.0025 },
-              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, ukEq:0.0075, apacEq:0.0075 } }
+              tes:    { usEq:0.008, devEq:0.008, emEq:0.008, jpnEq:0.008, ukEq:0.008, apacEq:0.008 } }
         ]
     },
 
@@ -707,7 +752,12 @@ export const STRATEGY_GROUPS = [
             { name: "Aon Managed Retirement Pathway Fund",
               points: [ { years:50, weights:{"p_aon_growth":1.0} }, { years:15, weights:{"p_aon_growth":1.0} }, { years:0, weights:{"p_aon_retire":1.0} } ] },
             { name: "LifeSight Drawdown Lifecycle (WTW)",
-              points: [ { years:50, weights:{"p_lifesight_equity":1.0} }, { years:25, weights:{"p_lifesight_equity":1.0} }, { years:0, weights:{"p_lifesight_dgf":1.0} } ] },
+              // Medium Risk Drawdown — LifeSight default strategy (March 2026)
+              // Source: Appendix D, WTW Confidential, March 2026
+              // Growth: 100% LifeSight Equity Fund throughout
+              // De-risk starts 20 years before TRA (corrected from prior 25yr assumption)
+              // Landing at TRA: ~35% Equity / 35% DGF / 30% Cash (medium risk drawdown)
+              points: [ { years:50, weights:{"p_lifesight_equity":1.0} }, { years:20, weights:{"p_lifesight_equity":1.0} }, { years:0, weights:{"p_lifesight_landing":1.0} } ] },
             { name: "Cushon Sustainable Investment Strategy",
               points: [ { years:50, weights:{"p_cushon_growth":1.0} }, { years:7, weights:{"p_cushon_growth":1.0} }, { years:0, weights:{"p_cushon_retire":1.0} } ] },
             { name: "Smart Pension Sustainable Growth Default",
