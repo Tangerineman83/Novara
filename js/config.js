@@ -497,15 +497,17 @@ export const PRESET_PORTFOLIOS = [
     // ─── ROYAL LONDON ─────────────────────────────────────────────────────────
     {
         name: "Royal London",
+        // Equity implemented via standard market-cap indices (no active stock selection).
+        // Alpha and tracking error set to zero; return modelled as pure CMA beta.
         portfolios: [
             { id: "p_rl_gpd", name: "Royal London Governed Portfolio Dynamic (15+ yrs)",
               weights: { usEq:0.340, devEq:0.165, emEq:0.084, jpnEq:0.042, ukEq:0.189, apacEq:0.017, globalReits:0.044, realEstateDirect:0.040, globalHighYield:0.038, listedAlts:0.008, moneyMkt:0.033 },
-              alphas: { usEq:0.005, devEq:0.005, emEq:0.005, ukEq:0.005, jpnEq:0.005, apacEq:0.005 },
-              tes:    { usEq:0.015, devEq:0.015, emEq:0.015, ukEq:0.015, jpnEq:0.015, apacEq:0.015 } },
+              alphas: {},
+              tes:    {} },
             { id: "p_rl_grip3", name: "Royal London GRIP 3 (At-Retirement Drawdown)",
               weights: { ukEq:0.079, usEq:0.140, devEq:0.028, emEq:0.039, jpnEq:0.014, apacEq:0.016, globalHighYield:0.103, igCredit:0.151, inflLinked:0.100, globalSov:0.132, sdCredit:0.019, globalReits:0.070, listedAlts:0.058, moneyMkt:0.051 },
-              alphas: { usEq:0.005, devEq:0.005, emEq:0.005, ukEq:0.005, jpnEq:0.005, apacEq:0.005 },
-              tes:    { usEq:0.015, devEq:0.015, emEq:0.015, ukEq:0.015, jpnEq:0.015, apacEq:0.015 } }
+              alphas: {},
+              tes:    {} }
         ]
     },
 
