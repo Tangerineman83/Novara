@@ -671,8 +671,11 @@ export const STRATEGY_GROUPS = [
         strategies: [
             { name: "L&G Target Date Fund (Drawdown Default)",
               points: [ { years:50, weights:{"p_lg_tdf_growth":1.0} }, { years:10, weights:{"p_lg_tdf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
-            { name: "L&G Target Date Fund (Cash/Annuity Target)",
-              points: [ { years:50, weights:{"p_lg_tdf_growth":1.0} }, { years:10, weights:{"p_lg_tdf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
+            // Note: the Cash/Annuity landing variant uses the same pre-retirement glidepath
+            // as the Drawdown Default. The distinction (cash vs drawdown landing) applies
+            // post-retirement and is not modelled in pre-retirement accumulation simulations.
+            // The variant has been removed to avoid spurious MC sampling differences
+            // between two identically-specified strategies.
             { name: "L&G Lifetime Advantage Fund (LAF)",
               points: [ { years:50, weights:{"p_lg_laf_growth":1.0} }, { years:10, weights:{"p_lg_laf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
             { name: "Aviva My Future Focus",

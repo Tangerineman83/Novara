@@ -9,15 +9,55 @@
 
 // ── RNG ──────────────────────────────────────────────────────────────
 
+
+// ── Seeded PRNG: xoshiro128+ ────────────────────────────────────────────────
+// All random draws use this seeded generator so that identical strategies
+// produce identical simulation paths — enabling true apples-vs-apples comparison.
+// The seed is set by the coordinator (chunkStart-based) before each chunk runs,
+// ensuring full reproducibility and cross-strategy shock consistency.
+let _s0 = 0, _s1 = 0, _s2 = 0, _s3 = 0;
+
+function setSeed(seed) {
+    // SplitMix32-style seed expansion into four 32-bit state words.
+    // Math.imul used throughout to avoid floating-point drift in 32-bit multiply.
+    let h = seed >>> 0;
+    function sm32(x) {
+        x = (x ^ (x >>> 16)) >>> 0;
+        x = Math.imul(x, 0x45d9f3b) >>> 0;
+        x = (x ^ (x >>> 16)) >>> 0;
+        x = Math.imul(x, 0x45d9f3b) >>> 0;
+        return (x ^ (x >>> 16)) >>> 0;
+    }
+    _s0 = sm32(h);
+    _s1 = sm32((h + 0x9e3779b9) >>> 0);
+    _s2 = sm32((h + 0x6c62272e) >>> 0);
+    _s3 = sm32((h + 0x3c6ef372) >>> 0);
+}
+
+function xoshiro128p() {
+    // xoshiro128+ — output masked to 32 bits before dividing, guarantees [0, 1)
+    const result = (_s0 + _s3) >>> 0;
+    const t = (_s1 << 9) >>> 0;
+    _s2 ^= _s0; _s3 ^= _s1; _s1 ^= _s2; _s0 ^= _s3;
+    _s2 ^= t;
+    _s3 = ((_s3 << 11) | (_s3 >>> 21)) >>> 0;
+    return result / 4294967296;
+}
+
+// Drop-in replacement for Math.random()
+function seededRandom() {
+    return xoshiro128p();
+}
+
 function randn_bm() {
     let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
+    while (u === 0) u = seededRandom();
+    while (v === 0) v = seededRandom();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
 function rand_gamma(alpha) {
-    if (alpha < 1) return rand_gamma(1.0 + alpha) * Math.pow(Math.random(), 1.0 / alpha);
+    if (alpha < 1) return rand_gamma(1.0 + alpha) * Math.pow(seededRandom(), 1.0 / alpha);
     const d = alpha - 1.0 / 3.0;
     const c = 1.0 / Math.sqrt(9.0 * d);
     while (true) {
@@ -25,7 +65,7 @@ function rand_gamma(alpha) {
         let v = 1.0 + c * x;
         while (v <= 0) { x = randn_bm(); v = 1.0 + c * x; }
         v = v * v * v;
-        const u = Math.random();
+        const u = seededRandom();
         const x2 = x * x;
         if (u < 1.0 - 0.0331 * x2 * x2) return d * v;
         if (Math.log(u) < 0.5 * x2 + d * (1.0 - v + Math.log(v))) return d * v;
@@ -87,6 +127,12 @@ function getRobustCholesky(matrix) {
 self.onmessage = function(e) {
     const { chunkStart, chunkSize, data } = e.data;
     const { cma, strategies, persona, settings, assetKeys } = data;
+
+    // Seed the PRNG deterministically from chunkStart.
+    // Same chunkStart → same sequence → identical strategies → identical medians.
+    // Different chunkStart values produce independent (non-overlapping) sequences.
+    const MASTER_SEED = 0xDEADBEEF;
+    setSeed((MASTER_SEED ^ (chunkStart * 2654435761)) >>> 0);
 
     const n       = assetKeys.length;
     const retirementMonths = Math.max(1, (persona.retirementAge - persona.age) * 12);
