@@ -425,17 +425,58 @@ export const PRESET_PORTFOLIOS = [
     // ─── NEST ─────────────────────────────────────────────────────────────────
     {
         name: "NEST",
+        // Source: Q4 2025 NEST Retirement Date Fund PDF (nestpensions.org.uk).
+        // Four distinct phases: Foundation (Starter), Growth plateau, Consolidation, Retirement.
+        // All weights exact from Q4 2025 PDF; HIGH confidence throughout.
+        // Climate transition equity via LGIM Future World throughout all phases.
         portfolios: [
             { id: "p_nest_foundation", name: "NEST Foundation Phase (Starter fund)",
-              weights: { usEq:0.161, devEq:0.093, emEq:0.039, jpnEq:0.032, apacEq:0.043, realEstateDirect:0.085, privCredit:0.050, emDebt:0.029, globalHighYield:0.028, igCredit:0.173, moneyMkt:0.074, sdCredit:0.053, infrastructure:0.089, privEq:0.033, globalSov:0.003, listedAlts:0.015 },
+              // Source: Q4 2025 PDF — Starter row (exact). HIGH confidence.
+              // Characteristic split: Higher Growth 50%, Long-Term Stable Growth 45%, Capital Preservation 5%.
+              // Identical to vintages 2068-2071 (50+ yrs from TRA).
+              // Lower equity (36.8%) and higher infrastructure (8.9%) vs Growth phase.
+              // moneyMkt 7.4% (confirmed correct in Q4 2025 data).
+              weights: { usEq:0.1608, devEq:0.0929, emEq:0.0390, jpnEq:0.0324, apacEq:0.0432,
+                         igCredit:0.1730, sdCredit:0.0530, globalHighYield:0.0280, emDebt:0.0290,
+                         globalSov:0.0030, realEstateDirect:0.0850, infrastructure:0.0890,
+                         privEq:0.0330, privCredit:0.0500, listedAlts:0.0150, moneyMkt:0.0740 },
               alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
               tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
-            { id: "p_nest_growth", name: "NEST Growth Phase (30+ yrs, 2048+ vintage)",
-              weights: { usEq:0.205, devEq:0.120, emEq:0.049, jpnEq:0.042, apacEq:0.056, globalReits:0.043, realEstateDirect:0.020, infrastructure:0.068, privEq:0.042, privCredit:0.038, globalHighYield:0.036, emDebt:0.036, igCredit:0.079, sdCredit:0.043, globalSov:0.003, moneyMkt:0.108, listedAlts:0.012 },
+            { id: "p_nest_growth", name: "NEST Growth Phase (2046-2063 plateau, 20-37 yrs from TRA)",
+              // Source: Q4 2025 PDF — 2046 row (exact; identical to 2047-2063 rows). HIGH confidence.
+              // Characteristic split: Higher Growth 65%, Long-Term Stable Growth 30%, Capital Preservation 5%.
+              // Plateau is flat across 2046-2063 vintages. Equity 47.8%.
+              // moneyMkt 6.5% (corrected from prior 10.8% — prior was based on wrong vintage).
+              weights: { usEq:0.2073, devEq:0.1205, emEq:0.0510, jpnEq:0.0421, apacEq:0.0561,
+                         igCredit:0.1160, sdCredit:0.0460, globalHighYield:0.0360, emDebt:0.0380,
+                         globalSov:0.0030, realEstateDirect:0.0610, infrastructure:0.0590,
+                         privEq:0.0440, privCredit:0.0370, listedAlts:0.0180, moneyMkt:0.0650 },
               alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
               tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
-            { id: "p_nest_retire", name: "NEST At-Retirement Fund (2024/25 vintage)",
-              weights: { usEq:0.095, devEq:0.058, emEq:0.023, jpnEq:0.020, apacEq:0.022, globalReits:0.008, realEstateDirect:0.008, infrastructure:0.012, privEq:0.019, privCredit:0.012, globalHighYield:0.047, emDebt:0.046, igCredit:0.228, sdCredit:0.129, globalSov:0.047, moneyMkt:0.219, listedAlts:0.007 },
+            { id: "p_nest_consolidation", name: "NEST Consolidation Phase (2036, 10 yrs from TRA)",
+              // Source: Q4 2025 PDF — 2036 row (exact). HIGH confidence.
+              // Characteristic split: Higher Growth 70%, Income Seeking 10%, Long-Term Stable 15%,
+              //   Capital Preservation 5%. Income Seeking emerges at 10%, signalling active de-risking.
+              // Notable: equity 51.5% — higher than growth plateau (47.8%) because Higher Growth
+              //   characteristic dominates at 70%. Shift is from Long-Term Stable → Income Seeking.
+              // Retained as reference portfolio; glidepath uses Foundation/Growth/Retirement only.
+              weights: { usEq:0.2226, devEq:0.1297, emEq:0.0550, jpnEq:0.0453, apacEq:0.0604,
+                         igCredit:0.1060, sdCredit:0.0460, globalHighYield:0.0460, emDebt:0.0480,
+                         globalSov:0.0110, realEstateDirect:0.0440, infrastructure:0.0330,
+                         privEq:0.0470, privCredit:0.0260, listedAlts:0.0220, moneyMkt:0.0580 },
+              alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
+              tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } },
+            { id: "p_nest_retire", name: "NEST At-Retirement Fund (2026 vintage, at TRA)",
+              // Source: Q4 2025 PDF — 2026 row (exact; identical to 2025). HIGH confidence.
+              // Characteristic split: Higher Growth 30%, Income Seeking 40%, Capital Preservation 27%,
+              //   Longevity Protection 2%.
+              // moneyMkt 10.9% (corrected from prior 21.9% which was Q2 2025 data).
+              // sdCredit 20.1% now dominant fixed income line (was 12.9% in prior version).
+              // igCredit 21.0% (sterling 13.6% + global 7.4%). globalSov 5.6% (was 4.7%).
+              weights: { usEq:0.0964, devEq:0.0557, emEq:0.0230, jpnEq:0.0194, apacEq:0.0259,
+                         igCredit:0.2100, sdCredit:0.2010, globalHighYield:0.0470, emDebt:0.0480,
+                         globalSov:0.0560, realEstateDirect:0.0330, infrastructure:0.0180,
+                         privEq:0.0200, privCredit:0.0160, listedAlts:0.0220, moneyMkt:0.1090 },
               alphas: { usEq:0.0025, devEq:0.0025, emEq:0.0025, jpnEq:0.0025, apacEq:0.0025 },
               tes:    { usEq:0.0075, devEq:0.0075, emEq:0.0075, jpnEq:0.0075, apacEq:0.0075 } }
         ]
@@ -691,12 +732,37 @@ export const PRESET_PORTFOLIOS = [
     // ─── TPP ──────────────────────────────────────────────────────────────────
     {
         name: "TPP",
+        // Source: Q1 2026 factsheets (31 March 2026), peoplespension.co.uk. HIGH confidence on sleeve totals.
+        // Managers: Amundi (passive developed equity), Invesco (fixed income), State Street (EM equity).
         portfolios: [
-            { id: "p_tpp_growth", name: "The People's Pension — Growth",
-              weights: { usEq:0.540, devEq:0.110, emEq:0.065, jpnEq:0.040, ukEq:0.030, apacEq:0.020, igCredit:0.070, globalSov:0.040, inflLinked:0.015, globalHighYield:0.010, emDebt:0.010, moneyMkt:0.050 },
+            { id: "p_tpp_growth", name: "The People's Pension — Growth (Global Investments, up to 85% shares)",
+              // Source: Global Investment (up to 85% shares) factsheet, 31 March 2026. HIGH confidence.
+              // Fund size £29,995.2m. Benchmark: UK CPI + 2.5% p.a.
+              // Shares 78.4% (exact). Regional breakdown of shares from factsheet (exact):
+              //   US 50.2%, Japan 10.7%, Eurozone 8.7%, UK 7.6%, Asia-EM 6.8%, Rest 16.1%
+              //   "Rest of world" 16.1% split: ~55% apacEq (Aus/HK/Singapore/Korea) + ~45% devEq.
+              // Bond 18.9% (Invesco mandate): IG corp, govt, inflation-linked, HY, EM — sub-split MED.
+              // Infrastructure 3.0% (TPP UK Listed Infrastructure, exact from top-10 holdings).
+              // No cash sleeve (cash = -0.6% derivatives overlay only).
+              // CORRECTION vs prior: usEq 39.2% (was 54.0%), no moneyMkt (was 5.0%), igCredit 9.1% added.
+              weights: { usEq:0.3921, devEq:0.1245, emEq:0.0531, jpnEq:0.0836, ukEq:0.0594, apacEq:0.0691,
+                         igCredit:0.0909, globalSov:0.0519, inflLinked:0.0195,
+                         globalHighYield:0.0130, emDebt:0.0130, infrastructure:0.0299 },
               alphas: {}, tes: {} },
-            { id: "p_tpp_retire", name: "The People's Pension — At-Retirement",
-              weights: { usEq:0.060, devEq:0.020, emEq:0.015, jpnEq:0.008, ukEq:0.007, igCredit:0.200, globalSov:0.290, inflLinked:0.100, sdCredit:0.080, globalHighYield:0.040, emDebt:0.040, moneyMkt:0.140 },
+            { id: "p_tpp_retire", name: "The People's Pension — Pre-Retirement Fund (at-retirement default)",
+              // Source: Pre-Retirement Fund factsheet, 31 March 2026. HIGH confidence on sleeve totals.
+              // Fund size £6,374.5m. Benchmark: UK CPI + 0.5% p.a.
+              // CORRECTION vs prior: this is the Pre-Retirement Fund, NOT "up to 15% shares".
+              //   "Up to 15% shares" is a separate self-select option; prior coding used wrong fund.
+              // Bond 78.8% (exact). Shares 20.4% (exact). Infrastructure 0.78% (exact, top-10).
+              // No cash sleeve (cash = -0.3% derivatives overlay only; prior 14% moneyMkt removed).
+              // Regional breakdown of shares (exact from factsheet, converted to % of fund):
+              //   US 50.0%, Japan 10.5%, Eurozone 8.7%, UK 7.8%, Asia-EM 6.8%, Rest 16.2%
+              // Bond sub-split MED confidence (Invesco mandate; no published breakdown).
+              //   Govts 30.5% dominant (confirmed by US Treasury + UK Gilt futures in top-10).
+              weights: { usEq:0.1020, devEq:0.0326, emEq:0.0139, jpnEq:0.0214, ukEq:0.0159, apacEq:0.0182,
+                         igCredit:0.2101, globalSov:0.3048, inflLinked:0.1051,
+                         sdCredit:0.0841, globalHighYield:0.0420, emDebt:0.0420, infrastructure:0.0078 },
               alphas: {}, tes: {} }
         ]
     }
@@ -732,7 +798,13 @@ export const STRATEGY_GROUPS = [
             { name: "Standard Life Future Opps",
               points: [ { years:50, weights:{"p_sl_future_growth":1.0} }, { years:15, weights:{"p_sl_future_growth":1.0} }, { years:0, weights:{"p_sl_sma_retire":1.0} } ] },
             { name: "NEST Retirement Date Fund",
-              points: [ { years:50, weights:{"p_nest_foundation":1.0} }, { years:45, weights:{"p_nest_growth":1.0} }, { years:0, weights:{"p_nest_retire":1.0} } ] },
+              // TDF. Four phases from Q4 2025 exact data.
+              // Foundation (Starter/2068+, 45+ yrs): 50% Higher Growth + 45% Long-Term Stable — equity 36.8%, infra 8.9%.
+              // Growth plateau (2046-2063, 20-37 yrs): 65% Higher Growth + 30% Long-Term Stable — equity 47.8%, moneyMkt 6.5%.
+              // Retirement (2026, at TRA): Higher Growth 30% + Income Seeking 40% + Cap Pres 27% — sdCredit 20.1%, moneyMkt 10.9%.
+              // p_nest_consolidation (2036, 10 yrs) available as reference portfolio but not used in glidepath.
+              // Glidepath uses Foundation→Growth (20yr)→Retirement (0yr). Source: Q4 2025 PDF.
+              points: [ { years:50, weights:{"p_nest_foundation":1.0} }, { years:20, weights:{"p_nest_growth":1.0} }, { years:0, weights:{"p_nest_retire":1.0} } ] },
             { name: "Aegon Universal Balanced Collection",
               points: [ { years:50, weights:{"p_aegon_ubc_growth":1.0} }, { years:6, weights:{"p_aegon_ubc_growth":1.0} }, { years:0, weights:{"p_aegon_ubc_retire":1.0} } ] },
             { name: "Aegon LifePath Flexi (Drawdown)",
@@ -767,7 +839,10 @@ export const STRATEGY_GROUPS = [
             { name: "TPT Sustainable Future Target Date Fund",
               points: [ { years:50, weights:{"p_tpt_growth":1.0} }, { years:19, weights:{"p_tpt_growth":1.0} }, { years:0, weights:{"p_tpt_retire":1.0} } ] },
             { name: "The People's Pension (B&CE) Balanced Default",
-              points: [ { years:50, weights:{"p_tpp_growth":1.0} }, { years:10, weights:{"p_tpp_growth":1.0} }, { years:0, weights:{"p_tpp_retire":1.0} } ] }
+              // Lifestyle. Growth: Global Investments up to 85% shares (£30bn, CPI+2.5%).
+              // At-retirement: Pre-Retirement Fund (£6.4bn, CPI+0.5%) — corrected from prior "up to 15% shares".
+              // De-risk: 10yr to TRA. Source: Q1 2026 factsheets (31 March 2026).
+              points: [ { years:50, weights:{"p_tpp_growth":1.0} }, { years:10, weights:{"p_tpp_growth":1.0} }, { years:0, weights:{"p_tpp_retire":1.0} } ] },
         ]
     }
 ];
