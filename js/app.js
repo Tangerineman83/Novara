@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=54.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=55.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=54.0'); 
+    state.worker = new Worker('./js/worker.js?v=55.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3019,10 +3019,15 @@ function renderResultsTable(results) {
 
 
 
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   OPTIMISER MODULE — Efficient Frontier
-   Augmented Lagrangian + L-BFGS · Geometric return maximisation
-   CMA data injected from active preset on first open.
+   OPTIMISER MODULE — Murmuration / Monte Carlo Scatter
+   
+   Architecture: generate N random feasible portfolios, plot as scatter cloud.
+   The efficient frontier emerges from the upper-left envelope of the cloud.
+   Special points: Max μ_g (highest geometric return) and Max g/σ_down
+   (highest Geometric Sortino). Provider and comparator strategies overlaid
+   in distinct colours so users can see where they sit in the universe.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function() {
 'use strict';
@@ -3051,9 +3056,9 @@ const OPT_ASSETS = [
   { key:'moneyMkt',         name:'Money Markets',          cat:'Sov & Cash',   r:0.035, v:0.010, liq:true,  priv:false, subig:false, eqIdx:-1 },
 ];
 const N = OPT_ASSETS.length;
-const EQ_MKTCAP = [0.64, 0.15, 0.11, 0.06, 0.02, 0.02]; // MSCI ACWI approx May 2026
+const EQ_MKTCAP = [0.64, 0.15, 0.11, 0.06, 0.02, 0.02];
 
-/* Full correlation matrix (symmetric, 20×20) */
+/* Full 20×20 correlation matrix */
 const RHO = [
   [ 1.00, 0.75, 0.68, 0.45, 0.65, 0.55, 0.75, 0.40, 0.45, 0.88, 0.65, 0.62, 0.42, 0.62, 0.50, 0.35, 0.25,-0.05, 0.12, 0.00],
   [ 0.75, 1.00, 0.75, 0.60, 0.85, 0.70, 0.55, 0.40, 0.45, 0.80, 0.60, 0.30, 0.40, 0.60, 0.50, 0.20, 0.10,-0.10,-0.05, 0.00],
@@ -3084,255 +3089,260 @@ function optVar(w) {
 }
 function optVol(w) { return Math.sqrt(optVar(w)); }
 function optArith(w) { return w.reduce((s,wi,i)=>s+wi*OPT_ASSETS[i].r,0); }
-function optGeom(w, useGeo) {
-    const mu = optArith(w);
-    return useGeo ? mu - 0.5*optVar(w) : mu;
-}
+function optGeom(w) { return optArith(w) - 0.5*optVar(w); } // always geometric
 function optEqTotal(w) { return OPT_ASSETS.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0),0); }
-function optDot(a,b) { return a.reduce((s,ai,i)=>s+ai*b[i],0); }
+
+// Compute stats for any weight vector (keyed by OPT_ASSETS key)
+function computeStats(weights) {
+    const w = OPT_ASSETS.map(a => weights[a.key] || 0);
+    const vol  = optVol(w);
+    const muG  = optGeom(w);
+    const muA  = optArith(w);
+    const gSort= muG / (0.707 * vol + 1e-10);
+    return { w, vol, muG, muA, gSort };
+}
 
 /* ── 3. CONSTRAINTS ────────────────────────────────────────────────────── */
 function getOptC() {
     return {
         maxPrivate: parseFloat(document.getElementById('opt-maxPriv').value)/100,
-        maxEqDev:   parseFloat(document.getElementById('opt-maxEqDev').value)/100, // fraction of cap weight
+        maxEqDev:   parseFloat(document.getElementById('opt-maxEqDev').value)/100,
         maxSingle:  parseFloat(document.getElementById('opt-maxSingle').value)/100,
         minPos:     parseFloat(document.getElementById('opt-minPos').value)/100,
         minLiquid:  parseFloat(document.getElementById('opt-minLiq').value)/100,
         maxSubIG:   parseFloat(document.getElementById('opt-maxSubIG').value)/100,
         maxDigital: parseFloat(document.getElementById('opt-maxDig').value)/100,
-        useGeo:     document.getElementById('opt-useGeo').checked,
     };
 }
 function checkOptC(w, C) {
     const violations = [];
     const sum = w.reduce((a,b)=>a+b,0);
-    if (Math.abs(sum-1)>0.01) violations.push('Weights ≠ 100%');
+    if (Math.abs(sum-1)>0.015) violations.push('Weights ≠ 100%');
     if (w.some(wi=>wi<-1e-4)) violations.push('Short position');
     const priv = OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-    if (priv>C.maxPrivate+1e-4) violations.push(`Private ${(priv*100).toFixed(1)}% > ${(C.maxPrivate*100).toFixed(0)}%`);
+    if (priv>C.maxPrivate+1e-4) violations.push(`Private ${(priv*100).toFixed(1)}%`);
     const eqT = optEqTotal(w);
     if (eqT>1e-6) {
         for(let e=0;e<6;e++){
             const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
             const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
             if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>absAllowed+1e-4)
-                violations.push(`${OPT_ASSETS[idx].name} eq share out of range`);
+                violations.push(`Eq region ${e} drift`);
         }
     }
-    w.forEach((wi,i)=>{ if(wi>C.maxSingle+1e-4) violations.push(`${OPT_ASSETS[i].name} > max`); });
+    w.forEach((wi,i)=>{ if(wi>C.maxSingle+1e-4) violations.push(`${OPT_ASSETS[i].key} > max`); });
     const liq = OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-    if (liq<C.minLiquid-1e-4) violations.push(`Liquid ${(liq*100).toFixed(0)}% < min`);
+    if (liq<C.minLiquid-1e-4) violations.push(`Liquid ${(liq*100).toFixed(0)}%`);
     const subig = OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-    if (subig>C.maxSubIG+1e-4) violations.push(`Sub-IG ${(subig*100).toFixed(0)}% > max`);
+    if (subig>C.maxSubIG+1e-4) violations.push(`SubIG ${(subig*100).toFixed(0)}%`);
     const dIdx = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-    if (w[dIdx]>C.maxDigital+1e-4) violations.push(`Digital ${(w[dIdx]*100).toFixed(1)}% > max`);
+    if (w[dIdx]>C.maxDigital+1e-4) violations.push(`Digital ${(w[dIdx]*100).toFixed(1)}%`);
     return { pass: violations.length===0, violations };
 }
 
-/* ── 4. OPTIMISER — Augmented Lagrangian + L-BFGS ─────────────────────── */
-function augObj(w, muTarget, C, rho) {
-    let f = optVar(w);
-    let p = 0;
-    const wSum = w.reduce((a,b)=>a+b,0);
-    const mu   = optArith(w);
-    p += rho*(wSum-1)**2;
-    p += rho*(mu-muTarget)**2;
-    w.forEach(wi=>{ const v=Math.max(0,-wi);          p+=rho*v*v; });
-    w.forEach(wi=>{ const v=Math.max(0,wi-C.maxSingle); p+=rho*v*v; });
-    const priv = OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-    { const v=Math.max(0,priv-C.maxPrivate); p+=rho*v*v; }
-    const eqT = optEqTotal(w);
-    if (eqT>0.02) {
-        for(let e=0;e<6;e++){
-            const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-            const share=w[idx]/eqT;
-            // Proportional: maxEqDev is fraction of cap weight, so band = capWt ± capWt*maxEqDev
-            const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
-            const lo=EQ_MKTCAP[e]-absAllowed, hi=EQ_MKTCAP[e]+absAllowed;
-            { const v=Math.max(0,lo-share); p+=rho*v*v; }
-            { const v=Math.max(0,share-hi); p+=rho*v*v; }
-        }
+/* ── 4. RANDOM PORTFOLIO GENERATION ───────────────────────────────────── */
+// Generate one random feasible portfolio via Dirichlet-like sampling.
+// Strategy:
+//   1. Draw N random weights from Exp(1) distribution (uniform on simplex)
+//   2. Optionally zero out some assets (sparsity) to avoid every portfolio
+//      holding all 20 assets
+//   3. Normalise to sum=1
+//   4. Check constraints — if fail, return null (caller retries)
+// This gives true uniformly-random portfolios on the simplex, naturally
+// exploring the full feasible space.
+
+function randExp() { return -Math.log(Math.random() + 1e-12); }
+
+function generateRandomPortfolio(C) {
+    // Random sparsity: hold between 3 and N assets
+    const nActive = 3 + Math.floor(Math.random() * (N - 2));
+    // Shuffle asset indices
+    const indices = Array.from({length:N}, (_,i)=>i).sort(()=>Math.random()-0.5);
+    const active  = new Set(indices.slice(0, nActive));
+
+    // Draw weights only for active assets
+    const raw = OPT_ASSETS.map((_,i) => active.has(i) ? randExp() : 0);
+    const sum = raw.reduce((a,b)=>a+b,0);
+    if(sum < 1e-12) return null;
+    let w = raw.map(wi=>wi/sum);
+
+    // Apply min-position threshold
+    if(C.minPos > 0) {
+        w = w.map(wi => wi < C.minPos && wi > 0 ? 0 : wi);
+        const s2 = w.reduce((a,b)=>a+b,0);
+        if(s2 < 1e-10) return null;
+        w = w.map(wi=>wi/s2);
     }
-    const liq = OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-    { const v=Math.max(0,C.minLiquid-liq); p+=rho*v*v; }
-    const subig = OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-    { const v=Math.max(0,subig-C.maxSubIG); p+=rho*v*v; }
-    const dIdx = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-    { const v=Math.max(0,w[dIdx]-C.maxDigital); p+=rho*v*v; }
-    return f + p;
-}
-function numGrad(fn, w) {
-    const eps=1e-5, g=new Array(N).fill(0), f0=fn(w), wc=w.slice();
-    for(let i=0;i<N;i++){ wc[i]+=eps; g[i]=(fn(wc)-f0)/eps; wc[i]-=eps; }
-    return g;
-}
-function lbfgsOpt(fn, w0, maxIter=350, tol=1e-7) {
-    const m=5; let w=w0.slice(), f=fn(w), g=numGrad(fn,w);
-    const ss=[],ys=[],rhos=[];
-    for(let iter=0;iter<maxIter;iter++){
-        let q=g.slice(); const alphas=[];
-        for(let j=ss.length-1;j>=0;j--){
-            const a=rhos[j]*optDot(ss[j],q); alphas.unshift(a);
-            q=q.map((qi,k)=>qi-a*ys[j][k]);
-        }
-        let r=q.slice();
-        if(ss.length>0){
-            const last=ss.length-1;
-            const sc=optDot(ss[last],ys[last])/(optDot(ys[last],ys[last])+1e-12);
-            r=r.map(ri=>ri*sc);
-        }
-        for(let j=0;j<ss.length;j++){
-            const b=rhos[j]*optDot(ys[j],r);
-            r=r.map((ri,k)=>ri+(alphas[j]-b)*ss[j][k]);
-        }
-        const d=r.map(ri=>-ri);
-        let alpha=1.0;
-        const slope=optDot(g,d);
-        for(let ls=0;ls<20;ls++){
-            const wn=w.map((wi,i)=>wi+alpha*d[i]);
-            if(fn(wn)<=f+0.001*alpha*slope) break;
-            alpha*=0.5;
-        }
-        const wNew=w.map((wi,i)=>wi+alpha*d[i]);
-        const gNew=numGrad(fn,wNew);
-        const s=wNew.map((wi,i)=>wi-w[i]), y=gNew.map((gi,i)=>gi-g[i]);
-        const sy=optDot(s,y);
-        if(sy>1e-12){ ss.push(s);ys.push(y);rhos.push(1/sy); if(ss.length>m){ss.shift();ys.shift();rhos.shift();} }
-        const gnorm=Math.sqrt(optDot(gNew,gNew));
-        w=wNew; f=fn(wNew); g=gNew;
-        if(gnorm<tol) break;
-    }
+
+    // Check all constraints
+    const chk = checkOptC(w, C);
+    if(!chk.pass) return null;
     return w;
 }
-function projectSimplex(w, maxSingle) {
-    let wc=w.map(wi=>Math.max(0,Math.min(maxSingle,wi)));
-    const s=wc.reduce((a,b)=>a+b,0);
-    return s<1e-10 ? Array(N).fill(1/N) : wc.map(wi=>wi/s);
-}
-function optimiseForTarget(muTarget, C, warmStart) {
-    let w = warmStart ? warmStart.slice() : Array(N).fill(1/N);
-    w = projectSimplex(w, C.maxSingle);
-    for(let outer=0;outer<6;outer++){
-        const rho=500*Math.pow(4,outer);
-        const fn=ww=>augObj(ww,muTarget,C,rho);
-        w=lbfgsOpt(fn,w,300,1e-8);
-        w=projectSimplex(w,C.maxSingle);
+
+/* ── 5. PROVIDER PORTFOLIOS (loaded from config) ───────────────────────── */
+// Build provider and comparator overlay points by resolving strategy glidepath
+// growth-phase portfolios to asset class weights.
+function buildOverlayPortfolios() {
+    const providers   = [];
+    const comparators = [];
+
+    if(typeof STRATEGY_GROUPS === 'undefined' || typeof PRESET_PORTFOLIOS === 'undefined') {
+        return { providers, comparators };
     }
-    w=w.map(wi=>Math.max(0,wi));
-    if(C.minPos>0) w=w.map(wi=>wi<C.minPos?0:wi);
-    const s=w.reduce((a,b)=>a+b,0);
-    return s>1e-10 ? w.map(wi=>wi/s) : Array(N).fill(1/N);
+
+    // Build portfolio weight lookup
+    const portMap = {};
+    PRESET_PORTFOLIOS.forEach(group => {
+        group.portfolios.forEach(p => { portMap[p.id] = p.weights; });
+    });
+
+    function resolveGlidepath(points) {
+        // Use max-years point (growth phase)
+        const maxYears = Math.max(...points.map(pt=>pt.years));
+        const pt = points.find(p=>p.years===maxYears);
+        if(!pt) return null;
+        const resolved = {};
+        for(const [pid, frac] of Object.entries(pt.weights)) {
+            const pw = portMap[pid];
+            if(!pw) continue;
+            for(const [k,v] of Object.entries(pw)) {
+                resolved[k] = (resolved[k]||0) + v*frac;
+            }
+        }
+        const tot = Object.values(resolved).reduce((a,b)=>a+b,0);
+        return tot > 0.5 ? resolved : null;
+    }
+
+    STRATEGY_GROUPS.forEach(group => {
+        group.strategies.forEach(strat => {
+            if(!strat.points) return;
+            const w = resolveGlidepath(strat.points);
+            if(!w) return;
+            const stats = computeStats(w);
+            const entry = { name: strat.name, ...stats };
+            if(group.isProvider) providers.push(entry);
+            else comparators.push(entry);
+        });
+    });
+
+    return { providers, comparators };
 }
 
-/* ── 5. FRONTIER COMPUTATION ───────────────────────────────────────────── */
-let optFrontierData = null;
-let optSelectedPt   = null;
-let optChartMeta    = null;
+/* ── 6. SIMULATION STATE ───────────────────────────────────────────────── */
+let optCloudData  = [];   // all feasible random portfolios
+let optOverlay    = { providers:[], comparators:[] };
+let optSelectedPt = null;
+let optChartMeta  = null;
+let optRunning    = false;
 
+/* ── 7. MAIN RUN FUNCTION ──────────────────────────────────────────────── */
 window.optRunOptimizer = async function() {
+    if(optRunning) return;
+    optRunning = true;
     const btn = document.getElementById('opt-btnRun');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Computing…';
-    document.getElementById('opt-statusMsg').textContent = 'Initialising…';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Simulating…';
     const pw=document.getElementById('opt-progressWrap'), pb=document.getElementById('opt-progressBar');
     pw.classList.add('visible'); pb.style.width='0%';
 
     const C = getOptC();
-    const nPts = parseInt(document.getElementById('opt-nPoints').value);
-    const muMin = OPT_ASSETS.reduce((mn,a)=>Math.min(mn,a.r), Infinity);
-    const muMax = OPT_ASSETS.reduce((mx,a)=>Math.max(mx,a.key!=='digitalAssets'?a.r:a.r*0.5), 0);
-    // Use jittered grid for denser, more uniform coverage of the return range
-    // Each step gets a unique target with small random perturbation to avoid
-    // the optimiser finding the same local minimum repeatedly at nearby targets
-    const targets = Array.from({length:nPts}, (_,i)=>{
-        const base = muMin + (muMax-muMin)*i/(nPts-1);
-        const jitter = (Math.random()-0.5) * (muMax-muMin) / (nPts*2);
-        return Math.max(muMin, Math.min(muMax, base+jitter));
-    });
+    const nTarget = parseInt(document.getElementById('opt-nPoints').value);
 
-    const results=[];
-    let warmStart=null;
-    let feasibleCount=0;
+    optCloudData = [];
+    optSelectedPt = null;
 
-    await new Promise(resolve=>{
-        let idx=0;
-        function step(){
-            if(idx>=targets.length){ resolve(); return; }
-            const w=optimiseForTarget(targets[idx], C, warmStart);
-            const chk=checkOptC(w, C);
-            if(chk.pass) {
-                warmStart=w.slice();
-                feasibleCount++;
+    let attempts=0, feasible=0;
+    const maxAttempts = nTarget * 20; // try up to 20× target to fill quota
+
+    await new Promise(resolve => {
+        function step() {
+            // Batch 50 attempts per tick to balance speed vs UI responsiveness
+            for(let b=0; b<50 && attempts<maxAttempts && feasible<nTarget; b++) {
+                attempts++;
+                const w = generateRandomPortfolio(C);
+                if(w) {
+                    const vol  = optVol(w);
+                    const muG  = optGeom(w);
+                    const muA  = optArith(w);
+                    const gSort= muG / (0.707*vol + 1e-10);
+                    optCloudData.push({ w, vol, muG, muA, gSort });
+                    feasible++;
+                }
             }
-            const vol=optVol(w), muG=optGeom(w,C.useGeo), muA=optArith(w);
-            results.push({w,vol,muG,muA,muTarget:targets[idx],feasible:chk.pass});
-            pb.style.width=((idx+1)/targets.length*100).toFixed(1)+'%';
-            document.getElementById('opt-statusMsg').textContent=
-                `${idx+1}/${targets.length} evaluations · ${feasibleCount} feasible · μ_g=${(muG*100).toFixed(2)}%`;
-            idx++;
-            if(idx%4===0) setTimeout(step,0); else step();
+            const pct = Math.round(feasible/nTarget*100);
+            pb.style.width = Math.min(pct,100)+'%';
+            document.getElementById('opt-statusMsg').textContent =
+                `${feasible.toLocaleString()} / ${nTarget.toLocaleString()} feasible portfolios · ${attempts.toLocaleString()} attempts`;
+
+            if(feasible >= nTarget || attempts >= maxAttempts) {
+                resolve();
+            } else {
+                setTimeout(step, 0);
+            }
         }
-        setTimeout(step,0);
+        setTimeout(step, 0);
     });
 
-    // Filter 1: Remove any portfolio that violates constraints
-    const feasible = results.filter(pt => checkOptC(pt.w, C).pass);
-    
-    // Filter 2: Keep only Pareto-efficient (non-dominated) portfolios
-    // A portfolio is on the frontier if no other feasible portfolio has both
-    // lower volatility AND higher or equal geometric return.
-    feasible.sort((a,b)=>a.vol-b.vol);
-    let frontier=[], bestMu=-Infinity;
-    for(const pt of feasible){
-        if(pt.muG > bestMu - 0.0005){ frontier.push(pt); bestMu=Math.max(bestMu,pt.muG); }
-    }
-    optFrontierData=frontier; optSelectedPt=null;
-    optRenderChart(); optRenderWeights(null);
+    // Build overlay from provider/comparator strategies
+    optOverlay = buildOverlayPortfolios();
 
-    btn.disabled=false;
-    btn.innerHTML='<i class="fas fa-play me-2"></i>Recompute Frontier';
-    const rejectedCount = results.length - feasible.length;
-    document.getElementById('opt-statusMsg').textContent=`✓ ${frontier.length} frontier portfolios · ${feasible.length} feasible · ${rejectedCount} rejected`;
+    optRenderChart();
+    optRenderWeights(null);
+
+    const acceptRate = attempts > 0 ? (feasible/attempts*100).toFixed(1) : '0';
+    document.getElementById('opt-statusMsg').textContent =
+        `✓ ${feasible.toLocaleString()} feasible portfolios · ${(attempts-feasible).toLocaleString()} rejected · ${acceptRate}% acceptance rate`;
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play me-2"></i>Rerun Simulation';
     pw.classList.remove('visible');
+    optRunning = false;
 };
 
-/* ── 6. CHART RENDERING ────────────────────────────────────────────────── */
+/* ── 8. CHART RENDERING ────────────────────────────────────────────────── */
+const OPT_CAT_COLORS = {
+    'Equities':   '#1B5EBE', 'Real Assets':'#7E22CE',
+    'Alternatives':'#B45309','Credit':     '#047857', 'Sov & Cash':'#0E7490'
+};
+
 function optRenderChart() {
-    if(!optFrontierData || !optFrontierData.length) return;
-    const canvas=document.getElementById('opt-canvas');
-    const dpr=window.devicePixelRatio||1;
-    const W=canvas.parentElement.clientWidth;
-    const H=400;
-    canvas.width=W*dpr; canvas.height=H*dpr;
-    canvas.style.width=W+'px'; canvas.style.height=H+'px';
-    const ctx=canvas.getContext('2d');
-    ctx.scale(dpr,dpr);
+    if(!optCloudData.length) return;
+    const canvas = document.getElementById('opt-canvas');
+    const dpr = window.devicePixelRatio || 1;
+    const W   = canvas.parentElement.clientWidth;
+    const H   = 420;
+    canvas.width  = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
 
-    const PAD={top:32,right:32,bottom:48,left:58};
-    const cw=W-PAD.left-PAD.right, ch=H-PAD.top-PAD.bottom;
-    const vols=optFrontierData.map(p=>p.vol), rets=optFrontierData.map(p=>p.muG);
-    const xMin=Math.max(0,Math.min(...vols)-0.01), xMax=Math.max(...vols)+0.02;
-    const yMin=Math.max(0,Math.min(...rets)-0.005), yMax=Math.max(...rets)+0.012;
-    function tx(v){return PAD.left+(v-xMin)/(xMax-xMin)*cw;}
-    function ty(r){return PAD.top+(1-(r-yMin)/(yMax-yMin))*ch;}
+    const PAD = {top:32, right:32, bottom:48, left:58};
+    const cw = W - PAD.left - PAD.right;
+    const ch = H - PAD.top  - PAD.bottom;
 
-    // Background
+    // Axis ranges — include overlay portfolios
+    const allPts = [...optCloudData, ...optOverlay.providers, ...optOverlay.comparators];
+    const allVols = allPts.map(p=>p.vol);
+    const allRets = allPts.map(p=>p.muG);
+    const xMin = Math.max(0, Math.min(...allVols) - 0.01);
+    const xMax = Math.max(...allVols) + 0.02;
+    const yMin = Math.min(...allRets) - 0.005;
+    const yMax = Math.max(...allRets) + 0.012;
+
+    function tx(v) { return PAD.left + (v-xMin)/(xMax-xMin)*cw; }
+    function ty(r) { return PAD.top  + (1-(r-yMin)/(yMax-yMin))*ch; }
+
+    // Background + grid
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,W,H);
-
-    // Grid
     ctx.strokeStyle='#F1F5F9'; ctx.lineWidth=1;
     for(let i=0;i<=6;i++){
         const x=PAD.left+i/6*cw;
         ctx.beginPath(); ctx.moveTo(x,PAD.top); ctx.lineTo(x,PAD.top+ch); ctx.stroke();
-    }
-    for(let i=0;i<=6;i++){
         const y=PAD.top+i/6*ch;
         ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cw,y); ctx.stroke();
     }
-
-    // Axes
     ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.moveTo(PAD.left,PAD.top); ctx.lineTo(PAD.left,PAD.top+ch); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(PAD.left,PAD.top+ch); ctx.lineTo(PAD.left+cw,PAD.top+ch); ctx.stroke();
@@ -3353,82 +3363,121 @@ function optRenderChart() {
     ctx.textAlign='center'; ctx.font=`400 10px 'DM Mono',monospace`; ctx.fillStyle='#8896A8';
     ctx.fillText('GEOMETRIC RETURN (μg)', 0, 0); ctx.restore();
 
-    // Frontier fill
-    ctx.beginPath();
-    optFrontierData.forEach((p,i)=>{ i===0?ctx.moveTo(tx(p.vol),ty(p.muG)):ctx.lineTo(tx(p.vol),ty(p.muG)); });
-    ctx.lineTo(tx(optFrontierData[optFrontierData.length-1].vol),PAD.top+ch);
-    ctx.lineTo(tx(optFrontierData[0].vol),PAD.top+ch); ctx.closePath();
-    const grad=ctx.createLinearGradient(0,PAD.top,0,PAD.top+ch);
-    grad.addColorStop(0,'rgba(27,94,190,0.12)'); grad.addColorStop(1,'rgba(27,94,190,0.01)');
-    ctx.fillStyle=grad; ctx.fill();
+    // ── Cloud dots (random feasible portfolios) ──
+    ctx.globalAlpha = 0.25;
+    optCloudData.forEach((p, i) => {
+        if(i === optSelectedPt) return; // draw selected on top
+        ctx.beginPath();
+        ctx.arc(tx(p.vol), ty(p.muG), 2.5, 0, Math.PI*2);
+        ctx.fillStyle = '#3B82F6';
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
 
-    // Frontier line
-    ctx.beginPath();
-    optFrontierData.forEach((p,i)=>{ i===0?ctx.moveTo(tx(p.vol),ty(p.muG)):ctx.lineTo(tx(p.vol),ty(p.muG)); });
-    ctx.strokeStyle='#1B5EBE'; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+    // ── Find and draw efficient frontier envelope ──
+    // Sort cloud by vol, extract upper envelope (max muG at each vol bucket)
+    const sorted = [...optCloudData].sort((a,b)=>a.vol-b.vol);
+    const nBuckets = 60;
+    const bucketW = (xMax-xMin)/nBuckets;
+    const buckets = Array(nBuckets).fill(null);
+    sorted.forEach(p => {
+        const b = Math.min(nBuckets-1, Math.floor((p.vol-xMin)/bucketW));
+        if(!buckets[b] || p.muG > buckets[b].muG) buckets[b] = p;
+    });
+    // Smooth envelope: running max from right
+    let bestMu = -Infinity;
+    const envelope = [];
+    for(let b=nBuckets-1; b>=0; b--) {
+        if(buckets[b]) {
+            bestMu = Math.max(bestMu, buckets[b].muG);
+            envelope[b] = { vol: buckets[b].vol, muG: bestMu };
+        }
+    }
+    // Draw envelope line
+    const envPts = [];
+    for(let b=0; b<nBuckets; b++) { if(envelope[b]) envPts.push(envelope[b]); }
+    envPts.sort((a,b)=>a.vol-b.vol);
+    if(envPts.length > 1) {
+        ctx.beginPath();
+        envPts.forEach((p,i) => {
+            i===0 ? ctx.moveTo(tx(p.vol),ty(p.muG)) : ctx.lineTo(tx(p.vol),ty(p.muG));
+        });
+        ctx.strokeStyle = '#1B5EBE';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([6,3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
 
-    // ── Special points ──────────────────────────────────────────────────────
-    // Max geometric return (highest μ_g on frontier)
-    const maxGeomIdx = optFrontierData.reduce((mi,p,i)=>p.muG>optFrontierData[mi].muG?i:mi,0);
-    // Max geometric Sortino (μ_g / σ_down, where σ_down ≈ 0.707σ)
-    const maxGSortinoIdx = optFrontierData.reduce((mi,p,i)=>{
-        const gSort = p.muG / (0.707*p.vol);
-        const mSort = optFrontierData[mi].muG / (0.707*optFrontierData[mi].vol);
-        return gSort > mSort ? i : mi;
-    }, 0);
+    // ── Special cloud points: Max μ_g and Max g/σ_down ──
+    const maxGeomPt   = optCloudData.reduce((best,p) => p.muG   > best.muG   ? p : best, optCloudData[0]);
+    const maxGSortPt  = optCloudData.reduce((best,p) => p.gSort > best.gSort ? p : best, optCloudData[0]);
 
-    // Geometric Sortino ray (capital market line analogue)
-    const gSortP = optFrontierData[maxGSortinoIdx];
-    const gSortSlope = gSortP.muG / gSortP.vol; // origin = 0 (not rf; Sortino starts at 0)
+    // Max g/σ_down ray
+    const gSortSlope = maxGSortPt.muG / maxGSortPt.vol;
     ctx.beginPath();
     ctx.moveTo(tx(xMin), ty(gSortSlope*xMin));
-    ctx.lineTo(tx(gSortP.vol), ty(gSortP.muG));
-    ctx.strokeStyle='rgba(201,151,42,0.4)'; ctx.lineWidth=1.2;
+    ctx.lineTo(tx(maxGSortPt.vol), ty(maxGSortPt.muG));
+    ctx.strokeStyle='rgba(201,151,42,0.45)'; ctx.lineWidth=1.5;
     ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
 
-    // Store chart meta for hit testing
-    optChartMeta={tx,ty,PAD,cw,ch,W,H,maxGeomIdx,maxGSortinoIdx,dpr};
-
-    // Draw points
-    const pts=[];
-    optFrontierData.forEach((p,i)=>{
+    // Draw special cloud points
+    function drawSpecialDot(p, color, label, labelAlign='left') {
         const x=tx(p.vol), y=ty(p.muG);
-        const isMaxGeom    = i===maxGeomIdx;
-        const isMaxGSort   = i===maxGSortinoIdx;
-        const isSelected   = i===optSelectedPt;
-        const isSpecial    = isMaxGeom || isMaxGSort;
-
-        ctx.beginPath();
-        ctx.arc(x, y, isSelected?6:isSpecial?5.5:3.5, 0, Math.PI*2);
-
-        if(isMaxGSort && isMaxGeom){
-            ctx.fillStyle='#7E22CE'; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        } else if(isMaxGSort){
-            ctx.fillStyle='#C9972A'; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        } else if(isMaxGeom){
-            ctx.fillStyle='#166534'; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        } else if(isSelected){
-            ctx.fillStyle='#1B5EBE'; ctx.strokeStyle='white'; ctx.lineWidth=2;
-        } else {
-            ctx.fillStyle='white'; ctx.strokeStyle='#1B5EBE'; ctx.lineWidth=1.5;
-        }
+        ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+        ctx.fillStyle=color; ctx.strokeStyle='white'; ctx.lineWidth=2;
         ctx.fill(); ctx.stroke();
+        ctx.fillStyle=color; ctx.font=`600 10px 'DM Mono',monospace`;
+        ctx.textAlign=labelAlign;
+        const xOff = labelAlign==='left' ? 10 : -10;
+        ctx.fillText(label, x+xOff, y-8);
+    }
+    if(maxGeomPt !== maxGSortPt) {
+        drawSpecialDot(maxGSortPt, '#C9972A', 'Max g/σ');
+        drawSpecialDot(maxGeomPt,  '#166534', 'Max μ_g');
+    } else {
+        drawSpecialDot(maxGeomPt, '#7E22CE', 'Max μ_g & g/σ');
+    }
 
-        if(isMaxGSort && !isMaxGeom){
-            ctx.fillStyle='#7A5A1E'; ctx.font=`500 10px 'DM Mono',monospace`;
-            ctx.textAlign='left'; ctx.fillText('Max g/σ', x+9, y+4);
-        }
-        if(isMaxGeom){
-            ctx.fillStyle='#14532D'; ctx.font=`500 10px 'DM Mono',monospace`;
-            ctx.textAlign='left'; ctx.fillText('Max μ_g', x+9, y+4);
-        }
-        pts.push({x,y,i});
+    // ── Provider overlay dots ──
+    const pts = [];
+    optOverlay.providers.forEach(p => {
+        const x=tx(p.vol), y=ty(p.muG);
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
+        ctx.fillStyle='#F97316'; ctx.strokeStyle='white'; ctx.lineWidth=1.5;
+        ctx.fill(); ctx.stroke();
+        pts.push({x,y,type:'provider',data:p});
     });
-    optChartMeta.pts=pts;
+    optOverlay.comparators.forEach(p => {
+        const x=tx(p.vol), y=ty(p.muG);
+        ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+        ctx.fillStyle='#EF4444'; ctx.strokeStyle='white'; ctx.lineWidth=2;
+        // Draw diamond
+        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
+        ctx.fillRect(-4,-4,8,8); ctx.strokeRect(-4,-4,8,8);
+        ctx.restore();
+        pts.push({x,y,type:'comparator',data:p});
+    });
+
+    // ── Selected cloud point ──
+    if(optSelectedPt !== null && optCloudData[optSelectedPt]) {
+        const p=optCloudData[optSelectedPt];
+        ctx.beginPath(); ctx.arc(tx(p.vol), ty(p.muG), 7, 0, Math.PI*2);
+        ctx.fillStyle='#1B5EBE'; ctx.strokeStyle='white'; ctx.lineWidth=2.5;
+        ctx.fill(); ctx.stroke();
+    }
+
+    // Cloud dots (interactive)
+    optCloudData.forEach((_,i) => {
+        const p=optCloudData[i];
+        pts.push({x:tx(p.vol), y:ty(p.muG), type:'cloud', data:p, idx:i});
+    });
+
+    optChartMeta = { tx, ty, PAD, cw, ch, W, H, pts, maxGeomPt, maxGSortPt };
 }
 
-/* ── 7. CHART INTERACTION ──────────────────────────────────────────────── */
-// Append tooltip to body
+/* ── 9. CHART INTERACTION ──────────────────────────────────────────────── */
 (function(){
     const t=document.createElement('div'); t.id='opt-tooltip'; document.body.appendChild(t);
 })();
@@ -3438,141 +3487,149 @@ function optSetupCanvas() {
     if(!canvas || canvas._optListenersAdded) return;
     canvas._optListenersAdded = true;
 
+    function findNearest(mx, my) {
+        if(!optChartMeta) return null;
+        let best=null, bestD=20;
+        // Check overlay first (higher priority, larger dots)
+        optChartMeta.pts.filter(p=>p.type!=='cloud').forEach(p=>{
+            const d=Math.hypot(p.x-mx,p.y-my);
+            if(d<bestD+4){bestD=d-4;best=p;}
+        });
+        optChartMeta.pts.filter(p=>p.type==='cloud').forEach(p=>{
+            const d=Math.hypot(p.x-mx,p.y-my);
+            if(d<bestD){bestD=d;best=p;}
+        });
+        return best;
+    }
+
     canvas.addEventListener('mousemove', function(e){
-        if(!optFrontierData||!optChartMeta) return;
+        if(!optCloudData.length||!optChartMeta) return;
         const rect=this.getBoundingClientRect();
-        const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-        let closest=null, bestDist=18;
-        optChartMeta.pts.forEach(p=>{ const d=Math.hypot(p.x-mx,p.y-my); if(d<bestDist){bestDist=d;closest=p;} });
+        const pt=findNearest(e.clientX-rect.left, e.clientY-rect.top);
         const tt=document.getElementById('opt-tooltip');
-        if(closest){
-            const pt=optFrontierData[closest.i];
-            const C=getOptC(); const chk=checkOptC(pt.w,C);
-            const gSort=(pt.muG/(0.707*pt.vol)).toFixed(3);
-            tt.innerHTML=`<div class="tt-title">Portfolio #${closest.i+1}</div>
-              <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(pt.muG*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(pt.muA*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(pt.vol*100).toFixed(2)}%</span></div>
-              <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${gSort}</span></div>
-              <div class="tt-row"><span class="tt-key">Constraints</span><span class="tt-val" style="color:${chk.pass?'#86EFAC':'#FCA5A5'}">${chk.pass?'✓ Pass':chk.violations.length+' fail'}</span></div>`;
+        if(pt){
+            const d=pt.data;
+            const typeLabel = pt.type==='provider' ? '📊 Provider' : pt.type==='comparator' ? '⭐ Comparator' : `Portfolio #${pt.idx+1}`;
+            tt.innerHTML=`<div class="tt-title">${typeLabel}</div>
+              ${pt.type!=='cloud'?`<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:140px;text-align:right;white-space:normal">${d.name}</span></div>`:''}
+              <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
+              <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
+              <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
+              <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>`;
             tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-10)+'px';
             tt.classList.add('visible'); this.style.cursor='pointer';
-        } else { document.getElementById('opt-tooltip').classList.remove('visible'); this.style.cursor='default'; }
+        } else { tt.classList.remove('visible'); this.style.cursor='default'; }
     });
     canvas.addEventListener('mouseleave',()=>document.getElementById('opt-tooltip').classList.remove('visible'));
-    canvas.addEventListener('click',function(e){
-        if(!optFrontierData||!optChartMeta) return;
+    canvas.addEventListener('click', function(e){
+        if(!optCloudData.length||!optChartMeta) return;
         const rect=this.getBoundingClientRect();
-        const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-        let closest=null, bestDist=20;
-        optChartMeta.pts.forEach(p=>{ const d=Math.hypot(p.x-mx,p.y-my); if(d<bestDist){bestDist=d;closest=p;} });
-        if(closest){ optSelectedPt=closest.i; optRenderChart(); optRenderWeights(optFrontierData[closest.i]); }
+        const pt=findNearest(e.clientX-rect.left, e.clientY-rect.top);
+        if(!pt) return;
+        if(pt.type==='cloud') {
+            optSelectedPt=pt.idx; optRenderChart(); optRenderWeights(pt.data);
+        } else {
+            // Show overlay portfolio weights
+            optSelectedPt=null; optRenderChart(); optRenderOverlayWeights(pt.data);
+        }
     });
 }
 
-/* ── 8. PORTFOLIO WEIGHTS TABLE ────────────────────────────────────────── */
-const OPT_CAT_COLORS = {
-    'Equities':   '#1B5EBE', 'Real Assets':'#7E22CE',
-    'Alternatives':'#B45309','Credit':      '#047857', 'Sov & Cash': '#0E7490'
-};
+/* ── 10. WEIGHTS TABLE ─────────────────────────────────────────────────── */
 function optp(v,dp=1){ return (v*100).toFixed(dp)+'%'; }
 
 function optRenderWeights(pt) {
-    const body  = document.getElementById('opt-weightsBody');
-    const pills = document.getElementById('opt-summaryPills');
-    const cstDiv= document.getElementById('opt-constraintStatus');
-    const lbl   = document.getElementById('opt-selectedLabel');
-
-    if(!pt){
-        body.innerHTML=`<div style="text-align:center;padding:40px 24px;color:var(--text-muted);"><div style="font-size:1.5rem;margin-bottom:8px;">◦</div><p style="font-size:.82rem;line-height:1.6;">Run the optimiser then click any point on the frontier to inspect the portfolio weights.</p></div>`;
-        pills.style.display='none'; cstDiv.style.display='none';
-        lbl.textContent='— click a point on the frontier —';
+    if(!pt) {
+        document.getElementById('opt-weightsBody').innerHTML=`<div style="text-align:center;padding:40px 24px;color:var(--text-muted);"><div style="font-size:1.5rem;margin-bottom:8px;">◦</div><p style="font-size:.82rem;line-height:1.6;">Click any point in the cloud to inspect its asset allocation.</p></div>`;
+        document.getElementById('opt-summaryPills').style.display='none';
+        document.getElementById('opt-constraintStatus').style.display='none';
+        document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
+        const cw=document.getElementById('opt-alloc-chart-wrap');
+        if(cw) cw.style.display='none';
         return;
     }
-    const C=getOptC(), w=pt.w, chk=checkOptC(w,C);
-    const priv  =OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-    const liq   =OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-    const subig =OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-    const dIdx  =OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
-    const gSort =(pt.muG/(0.707*pt.vol)).toFixed(3);
+    renderWeightsTable(pt.w, pt, '');
+}
 
-    lbl.textContent=`Portfolio #${optFrontierData.indexOf(pt)+1} · σ=${optp(pt.vol,2)} · μ_g=${optp(pt.muG,2)}`;
+function optRenderOverlayWeights(pt) {
+    // For overlay portfolios - build w array from weights object
+    const wArr = OPT_ASSETS.map(a => pt.weights ? (pt.weights[a.key]||0) : (pt.w ? pt.w[OPT_ASSETS.findIndex(x=>x.key===a.key)] : 0));
+    const stats = { w:wArr, vol:pt.vol, muG:pt.muG, muA:pt.muA, gSort:pt.gSort };
+    renderWeightsTable(wArr, stats, pt.name);
+}
+
+function renderWeightsTable(w, stats, nameLabel) {
+    const body   = document.getElementById('opt-weightsBody');
+    const pills  = document.getElementById('opt-summaryPills');
+    const cstDiv = document.getElementById('opt-constraintStatus');
+    const lbl    = document.getElementById('opt-selectedLabel');
+    const C      = getOptC();
+    const chk    = checkOptC(w, C);
+    const priv   = OPT_ASSETS.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
+    const liq    = OPT_ASSETS.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
+    const subig  = OPT_ASSETS.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
+    const dIdx   = OPT_ASSETS.findIndex(a=>a.key==='digitalAssets');
+
+    lbl.textContent = nameLabel || `σ=${optp(stats.vol,2)} · μ_g=${optp(stats.muG,2)} · g/σ=${stats.gSort.toFixed(3)}`;
 
     pills.style.display='flex';
     pills.innerHTML=`
-        <span class="opt-pill opt-pill-blue">μ_g ${optp(pt.muG,2)}</span>
-        <span class="opt-pill opt-pill-blue">μ_a ${optp(pt.muA,2)}</span>
-        <span class="opt-pill opt-pill-blue">σ ${optp(pt.vol,2)}</span>
-        <span class="opt-pill opt-pill-gold">g/σ_down ${gSort}</span>
+        <span class="opt-pill opt-pill-blue">μ_g ${optp(stats.muG,2)}</span>
+        <span class="opt-pill opt-pill-blue">μ_a ${optp(stats.muA,2)}</span>
+        <span class="opt-pill opt-pill-blue">σ ${optp(stats.vol,2)}</span>
+        <span class="opt-pill opt-pill-gold">g/σ_down ${stats.gSort.toFixed(3)}</span>
         <span class="opt-pill ${priv<=C.maxPrivate?'opt-pill-green':'opt-pill-red'}">Private ${optp(priv,1)}</span>
         <span class="opt-pill ${liq>=C.minLiquid?'opt-pill-green':'opt-pill-red'}">Liquid ${optp(liq,1)}</span>
-        <span class="opt-pill ${chk.pass?'opt-pill-green':'opt-pill-red'}">${chk.pass?'✓ Pass':chk.violations.length+' issue'+(chk.violations.length>1?'s':'')}</span>`;
+        <span class="opt-pill ${chk.pass?'opt-pill-green':'opt-pill-red'}">${chk.pass?'✓ Feasible':chk.violations.length+' violation'+(chk.violations.length>1?'s':'')}</span>`;
 
-    // Constraint status
+    const eqT = optEqTotal(w);
     cstDiv.className='opt-cst-grid'; cstDiv.style.display='grid';
-    const eqT=optEqTotal(w);
-    const cstItems=[
-        {label:'Sum to 100%',              ok:Math.abs(w.reduce((a,b)=>a+b,0)-1)<0.005},
-        {label:`Private ≤ ${optp(C.maxPrivate)}`,    ok:priv<=C.maxPrivate+1e-4},
-        {label:`Liquid ≥ ${optp(C.minLiquid)}`,      ok:liq>=C.minLiquid-1e-4},
-        {label:`Sub-IG ≤ ${optp(C.maxSubIG)}`,       ok:subig<=C.maxSubIG+1e-4},
-        {label:`Digital ≤ ${optp(C.maxDigital)}`,    ok:w[dIdx]<=C.maxDigital+1e-4},
-        {label:'No short positions',        ok:w.every(wi=>wi>=-1e-4)},
-        {label:`Eq regional ±${optp(C.maxEqDev)} of cap wt`,  ok:(()=>{
+    cstDiv.innerHTML=[
+        {label:'Sum to 100%',             ok:Math.abs(w.reduce((a,b)=>a+b,0)-1)<0.015},
+        {label:`Private ≤ ${optp(C.maxPrivate)}`,  ok:priv<=C.maxPrivate+1e-4},
+        {label:`Liquid ≥ ${optp(C.minLiquid)}`,    ok:liq>=C.minLiquid-1e-4},
+        {label:`Sub-IG ≤ ${optp(C.maxSubIG)}`,     ok:subig<=C.maxSubIG+1e-4},
+        {label:`Digital ≤ ${optp(C.maxDigital)}`,  ok:w[dIdx]<=C.maxDigital+1e-4},
+        {label:'No shorts',               ok:w.every(wi=>wi>=-1e-4)},
+        {label:`Eq drift ±${optp(C.maxEqDev)} of cap`, ok:(()=>{
             if(eqT<0.02) return true;
             for(let e=0;e<6;e++){
                 const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-                const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
-                if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>absAllowed+1e-4) return false;
+                if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>EQ_MKTCAP[e]*C.maxEqDev+1e-4) return false;
             }
             return true;
         })()},
         {label:`Max single ≤ ${optp(C.maxSingle)}`, ok:w.every(wi=>wi<=C.maxSingle+1e-4)},
-    ];
-    cstDiv.innerHTML=cstItems.map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.label}</span></div>`).join('');
+    ].map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.label}</span></div>`).join('');
 
-    // Draw allocation doughnut chart
+    // Allocation doughnut
     const chartWrap = document.getElementById('opt-alloc-chart-wrap');
     const allocCanvas = document.getElementById('opt-alloc-canvas');
     if(chartWrap && allocCanvas) {
-        chartWrap.style.display = 'block';
-        // Build chart data grouped by category
+        chartWrap.style.display='block';
         const catTotals = {};
-        const catColors = OPT_CAT_COLORS;
-        OPT_ASSETS.forEach((a,i) => {
-            if(w[i] > 0.001) {
-                catTotals[a.cat] = (catTotals[a.cat]||0) + w[i];
-            }
-        });
+        OPT_ASSETS.forEach((a,i) => { if(w[i]>0.001) catTotals[a.cat]=(catTotals[a.cat]||0)+w[i]; });
         const catEntries = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
-        const chartLabels = catEntries.map(([cat])=>cat);
-        const chartData   = catEntries.map(([,v])=>+(v*100).toFixed(1));
-        const chartColors = catEntries.map(([cat])=>catColors[cat]||'#94A3B8');
-
         if(window._optAllocChart) window._optAllocChart.destroy();
-        const ctx2 = allocCanvas.getContext('2d');
-        window._optAllocChart = new Chart(ctx2, {
-            type: 'doughnut',
-            data: { labels: chartLabels, datasets:[{ data: chartData, backgroundColor: chartColors, borderWidth: 0, hoverOffset: 4 }] },
-            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
+        window._optAllocChart = new Chart(allocCanvas.getContext('2d'), {
+            type:'doughnut',
+            data:{ labels:catEntries.map(([c])=>c), datasets:[{ data:catEntries.map(([,v])=>+(v*100).toFixed(1)), backgroundColor:catEntries.map(([c])=>OPT_CAT_COLORS[c]||'#94A3B8'), borderWidth:0, hoverOffset:4 }] },
+            options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
         });
-
-        // Legend
-        const legendEl = document.getElementById('opt-alloc-legend');
-        if(legendEl) legendEl.innerHTML = catEntries.map(([cat, val])=>`
+        const legendEl=document.getElementById('opt-alloc-legend');
+        if(legendEl) legendEl.innerHTML=catEntries.map(([cat,val])=>`
             <div style="display:flex;align-items:center;gap:8px;">
-                <span style="width:10px;height:10px;border-radius:50%;background:${catColors[cat]||'#94A3B8'};flex-shrink:0;display:inline-block;"></span>
+                <span style="width:10px;height:10px;border-radius:50%;background:${OPT_CAT_COLORS[cat]||'#94A3B8'};flex-shrink:0;display:inline-block;"></span>
                 <span style="color:#4B5568;flex:1;">${cat}</span>
-                <span style="font-family:monospace;color:#1B5EBE;font-weight:500;">${(val*100).toFixed(1)}%</span>
+                <span style="font-family:monospace;color:#1B5EBE;font-weight:500;">${optp(val,1)}</span>
             </div>`).join('');
     }
+
+    // Weights table
+    const sorted=OPT_ASSETS.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
     const maxW=Math.max(...w);
     body.innerHTML=`<table class="opt-weights-table">
-        <thead><tr>
-            <th>Asset</th><th>Category</th><th>Weight</th>
-            <th style="min-width:90px">Allocation</th>
-            <th>Return contrib.</th><th>σ</th><th>σ contrib.</th>
-        </tr></thead>
+        <thead><tr><th>Asset</th><th>Category</th><th>Weight</th><th style="min-width:90px">Allocation</th><th>Return contrib.</th><th>σ</th></tr></thead>
         <tbody>${sorted.map(a=>`<tr class="${a.w<0.001?'opt-zero':''}">
             <td>${a.name}</td>
             <td><span class="opt-cat-tag" style="color:${OPT_CAT_COLORS[a.cat]};background:${OPT_CAT_COLORS[a.cat]}1A">${a.cat}</span></td>
@@ -3580,36 +3637,27 @@ function optRenderWeights(pt) {
             <td><div class="opt-bar-bg"><div class="opt-bar-fill" style="width:${maxW>0?a.w/maxW*100:0}%;background:${OPT_CAT_COLORS[a.cat]}"></div></div></td>
             <td>${optp(a.w*a.r,2)}</td>
             <td style="color:var(--text-muted)">${optp(a.v,1)}</td>
-            <td style="color:var(--text-secondary)">${optp(a.w*a.v,2)}</td>
-        </tr>`).join('')}</tbody>
-    </table>`;
+        </tr>`).join('')}</tbody></table>`;
 }
 
-/* ── 9. INITIALISE ON TAB OPEN ─────────────────────────────────────────── */
-// Fill market cap reference table
+/* ── 11. INITIALISE ────────────────────────────────────────────────────── */
 (function(){
     const names=['US Equity','Dev Europe','EM Equity','Japan','UK','Dev APAC'];
     const el=document.getElementById('opt-mktCapTable');
     if(el) el.innerHTML=names.map((n,i)=>`<span style="display:flex;justify-content:space-between;gap:16px;"><span>${n}</span><span>${(EQ_MKTCAP[i]*100).toFixed(0)}%</span></span>`).join('');
 })();
 
-// Wire up canvas events when tab is first opened
 document.addEventListener('DOMContentLoaded', function(){
-    // The canvas events are added when the tab first opens
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el=>{
         el.addEventListener('click', function(){
-            if(this.dataset.tab === 'optimizer'){
-                setTimeout(optSetupCanvas, 100);
-            }
+            if(this.dataset.tab==='optimizer') setTimeout(optSetupCanvas, 100);
         });
     });
 });
-
-// Resize handler
 let optResizeTimer;
 window.addEventListener('resize', ()=>{
     clearTimeout(optResizeTimer);
-    optResizeTimer=setTimeout(()=>{ if(optFrontierData) optRenderChart(); },150);
+    optResizeTimer=setTimeout(()=>{ if(optCloudData.length) optRenderChart(); },150);
 });
 
 })(); // end IIFE
