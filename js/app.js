@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=50.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=50.2';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -68,19 +68,20 @@ function togglePersonaPanel(which) {
     const menuId = which === 'vfm' ? 'vfm-persona-dropdown-menu' : 'run-persona-dropdown-menu';
     const menu = document.getElementById(menuId);
     if (!menu) return;
-    const isOpen = !menu.classList.contains('d-none');
+    const isOpen = menu.style.display === 'block';
     // Close all persona panels first
     ['vfm-persona-dropdown-menu','run-persona-dropdown-menu'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.classList.add('d-none');
+        if (el) el.style.display = 'none';
     });
     if (!isOpen) {
-        menu.classList.remove('d-none');
+        menu.style.display = 'block';
         // Close on outside click
         setTimeout(() => {
             const close = (ev) => {
-                if (!menu.contains(ev.target)) {
-                    menu.classList.add('d-none');
+                const btn = document.getElementById(which === 'vfm' ? 'vfm-persona-btn' : 'active-persona-btn');
+                if (!menu.contains(ev.target) && ev.target !== btn && !btn?.contains(ev.target)) {
+                    menu.style.display = 'none';
                     document.removeEventListener('click', close, true);
                 }
             };
@@ -200,14 +201,11 @@ function setupEventListeners() {
                 }
             }
             if (target === 'model') {
-                // Panel is already visible above — now resize or run
-                setTimeout(() => {
-                    if (state.chartInstance) {
-                        state.chartInstance.resize();
-                    } else {
-                        runSimulation();
-                    }
-                }, 50);
+                // Always re-run when Projections tab opens.
+                // The panel is already visible (revealed above), so the canvas
+                // has real dimensions. If sortedCache exists in the worker,
+                // the response is near-instant via RECALCULATE_STATS.
+                setTimeout(runSimulation, 50);
             }
         });
     });
@@ -1146,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=50.0'); 
+    state.worker = new Worker('./js/worker.js?v=50.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1322,21 +1320,22 @@ function renderPersonaDropdown() {
     if(!menu) return;
     menu.innerHTML = '';
     state.personas.forEach(p => {
-        const li = document.createElement('div');
-        li.innerHTML = `<div class="d-flex align-items-center gap-2 py-2 px-3" style="cursor:pointer;border-bottom:1px solid #F1F5F9;">
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
             <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
             <div class="d-flex flex-column">
                 <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
             </div>
-        </div>`;
-        li.addEventListener('click', () => {
+        </a>`;
+        li.querySelector('a').addEventListener('click', e => {
+            e.preventDefault();
             state.activePersonaId = p.id;
             document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active-persona'));
             const activeCard = document.querySelector(`.persona-card[data-id="${p.id}"]`);
             if (activeCard) activeCard.classList.add('active-persona');
             updateActivePersonaDisplay();
-            document.getElementById('run-persona-dropdown-menu')?.classList.add('d-none');
+            document.getElementById('run-persona-dropdown-menu').style.display = 'none';
             clearTimeout(debounceTimer); debounceTimer = setTimeout(runSimulation, 600);
         });
         menu.appendChild(li);
@@ -1411,18 +1410,19 @@ function renderVFMPersonaDropdown() {
     }
 
     state.personas.forEach(p => {
-        const li = document.createElement('div');
-        li.innerHTML = `<div class="d-flex align-items-center gap-2 py-2 px-3" style="cursor:pointer;border-bottom:1px solid #F1F5F9;">
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
             <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
             <div class="d-flex flex-column">
                 <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
             </div>
-        </div>`;
-        li.addEventListener('click', () => {
+        </a>`;
+        li.querySelector('a').addEventListener('click', e => {
+            e.preventDefault();
             state.vfm.activePersonaId = p.id;
             updateVFMPersonaDisplay();
-            document.getElementById('vfm-persona-dropdown-menu')?.classList.add('d-none');
+            document.getElementById('vfm-persona-dropdown-menu').style.display = 'none';
             runVFM();
         });
         menu.appendChild(li);
