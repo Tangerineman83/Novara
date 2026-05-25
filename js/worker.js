@@ -90,7 +90,7 @@ function runSimulation(data) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=47.0');
+        const worker = new Worker('./sim-worker.js?v=48.0');
 
         worker.onmessage = function(e) {
             worker.terminate();
@@ -247,7 +247,7 @@ function runVFMSimulation(data) {
     for (let w = 0; w < actualWorkers; w++) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
-        const worker = new Worker('./sim-worker.js?v=47.0');
+        const worker = new Worker('./sim-worker.js?v=48.0');
 
         worker.onmessage = function(e) {
             worker.terminate();

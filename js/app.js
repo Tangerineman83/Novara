@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=47.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=48.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -64,7 +64,7 @@ window.onerror = function(message, source, lineno, colno, error) { console.error
 window.addEventListener('beforeunload', () => { if (state.worker) state.worker.terminate(); });
 
 // Custom persona panel — bypasses Bootstrap Popper which clips overflow on mobile
-function togglePersonaPanel(which) {
+window.togglePersonaPanel = function togglePersonaPanel(which) {
     const menuId = which === 'vfm' ? 'vfm-persona-dropdown-menu' : 'run-persona-dropdown-menu';
     const menu = document.getElementById(menuId);
     if (!menu) return;
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=47.0'); 
+    state.worker = new Worker('./js/worker.js?v=48.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
