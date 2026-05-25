@@ -85,17 +85,26 @@ function runSimulation(data) {
 
     let chunksReceived = 0;
     let errorFired     = false;
+    const workerSimsDone = new Array(actualWorkers).fill(0);
+    const totalSimsProj  = actualWorkers * chunkSize;
 
     for (let w = 0; w < actualWorkers; w++) {
         const chunkStart = w * chunkSize;
         const thisChunk  = Math.min(chunkSize, simCount - chunkStart);
 
-        const worker = new Worker('./sim-worker.js?v=52.0');
+        const worker = new Worker('./sim-worker.js?v=52.2');
 
         worker.onmessage = function(e) {
-            worker.terminate();
-
             if (errorFired) return;
+
+            if (e.data.type === 'INTRA_PROGRESS') {
+                workerSimsDone[w] = e.data.done;
+                const td = workerSimsDone.reduce((a,b)=>a+b,0);
+                self.postMessage({ type: 'SIMULATION_PROGRESS', payload: { pct: Math.round(td/totalSimsProj*100) } });
+                return;
+            }
+
+            worker.terminate();
 
             if (e.data.type === 'ERROR') {
                 errorFired = true;
@@ -119,7 +128,9 @@ function runSimulation(data) {
             }
 
             chunksReceived++;
-            self.postMessage({ type: 'SIMULATION_PROGRESS', payload: { done: chunksReceived, total: actualWorkers } });
+            workerSimsDone[w] = thisChunk;
+            const tdFinal = workerSimsDone.reduce((a,b)=>a+b,0);
+            self.postMessage({ type: 'SIMULATION_PROGRESS', payload: { pct: Math.round(tdFinal/totalSimsProj*100) } });
             if (chunksReceived === actualWorkers) {
                 // All chunks received — sort every column once and cache.
                 sortedCache = assemblyBufs.map(stratBufs =>
@@ -243,13 +254,23 @@ function runVFMSimulation(data) {
 
     let chunksReceived = 0;
     let errorFired     = false;
+    const vfmWorkerSimsDone = new Array(actualWorkers).fill(0);
 
     for (let w = 0; w < actualWorkers; w++) {
         const cs  = w * chunkSize;
         const cs2 = Math.min(chunkSize, simCount - cs);
-        const worker = new Worker('./sim-worker.js?v=52.0');
+        const worker = new Worker('./sim-worker.js?v=52.2');
 
         worker.onmessage = function(e) {
+            if (errorFired) return;
+
+            if (e.data.type === 'INTRA_PROGRESS') {
+                vfmWorkerSimsDone[w] = e.data.done;
+                const td = vfmWorkerSimsDone.reduce((a,b)=>a+b,0);
+                self.postMessage({ type: 'VFM_PROGRESS', payload: { pct: Math.round(td/simCount*100) } });
+                return;
+            }
+
             worker.terminate();
             if (errorFired) return;
             if (e.data.type === 'ERROR') {
@@ -264,7 +285,9 @@ function runVFMSimulation(data) {
                 for (let s = 0; s < rcs2; s++) realPots[si][rcs + s] = src[lastBase + s];
             }
             chunksReceived++;
-            self.postMessage({ type: 'VFM_PROGRESS', payload: { done: chunksReceived, total: actualWorkers } });
+            vfmWorkerSimsDone[w] = rcs2;
+            const tdVfm = vfmWorkerSimsDone.reduce((a,b)=>a+b,0);
+            self.postMessage({ type: 'VFM_PROGRESS', payload: { pct: Math.round(tdVfm/simCount*100) } });
             if (chunksReceived === actualWorkers) {
                 const result = buildVFMStats(realPots, strategies, simCount);
                 self.postMessage({ type: 'VFM_COMPLETE', payload: result });

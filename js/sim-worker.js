@@ -198,7 +198,16 @@ self.onmessage = function(e) {
     const uncorr     = new Float64Array(n);
     const correlated = new Float64Array(n);
 
+    // Report progress roughly every 10% of the chunk, for smooth UI updates.
+    // Messages are cheap (no buffers transferred) and give ~10 events per worker.
+    const REPORT_INTERVAL = Math.max(1, Math.floor(chunkSize / 10));
+
     for (let s = 0; s < chunkSize; s++) {
+        // Intra-chunk progress: report every REPORT_INTERVAL sims (excluding s=0)
+        if (s > 0 && s % REPORT_INTERVAL === 0) {
+            self.postMessage({ type: 'INTRA_PROGRESS', done: s, total: chunkSize });
+        }
+
         // Per-strategy state
         const pots    = new Float64Array(nStrats).fill(persona.savings);
         const salaries = new Float64Array(nStrats).fill(persona.salary);

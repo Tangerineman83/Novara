@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=52.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=52.2';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=52.0'); 
+    state.worker = new Worker('./js/worker.js?v=52.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1157,11 +1157,11 @@ function initWorker() {
             updateChartConfidence(payload);
             renderResultsTable(payload);
         } else if (type === 'SIMULATION_PROGRESS') {
-            projUpdateProgress(payload.done, payload.total);
+            projUpdateProgress(payload.pct);
         } else if (type === 'VFM_COMPLETE') {
             renderVFMTable(payload);
         } else if (type === 'VFM_PROGRESS') {
-            updateVFMProgress(payload.done, payload.total);
+            updateVFMProgress(payload.pct);
         } else if (type === 'VFM_ERROR') {
             vfmShowError('Simulation error — check inputs and retry.');
             state.vfm.running = false;
@@ -1652,12 +1652,10 @@ function showProgressWheel(svgId, lblId, msg) {
     if (svg) { svg.style.display = 'inline-block'; drawProgressWheel(svg, 0, false); }
     if (lbl) { lbl.textContent = msg || ''; lbl.style.display = msg ? 'inline' : 'none'; }
 }
-function updateProgressWheel(svgId, lblId, done, total) {
-    if (done === 0) return;
-    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+function updateProgressWheel(svgId, lblId, pct) {
+    if (!pct || pct <= 0) return;
     const svg = document.getElementById(svgId);
     if (svg) drawProgressWheel(svg, pct, false);
-    // % is shown inside the SVG — no external label update needed
 }
 function completeProgressWheel(svgId, lblId, doneMsg) {
     const svg = document.getElementById(svgId);
@@ -1679,8 +1677,8 @@ function projShowRunning(simCount) {
     }
     showProgressWheel('proj-progress-svg', 'proj-progress-label', '');
 }
-function projUpdateProgress(done, total) {
-    updateProgressWheel('proj-progress-svg', 'proj-progress-label', done, total);
+function projUpdateProgress(pct) {
+    updateProgressWheel('proj-progress-svg', 'proj-progress-label', pct);
 }
 function projShowDone() {
     // Tick persists until next run, just like VFM
@@ -1695,8 +1693,8 @@ function vfmShowProgress(message) {
     if (lbl) lbl.dataset.base = message;
     showProgressWheel('vfm-progress-svg', 'vfm-progress-label', message);
 }
-function updateVFMProgress(done, total) {
-    updateProgressWheel('vfm-progress-svg', 'vfm-progress-label', done, total);
+function updateVFMProgress(pct) {
+    updateProgressWheel('vfm-progress-svg', 'vfm-progress-label', pct);
 }
 function vfmShowDone(message) {
     const wrap = document.getElementById('vfm-progress-wrap');
