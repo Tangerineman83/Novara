@@ -571,6 +571,14 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 #opt-tooltip .tt-row { display:flex; justify-content:space-between; gap:16px; }
 #opt-tooltip .tt-key { color:#94A3B8; }
 #opt-tooltip .tt-val { font-family:monospace; font-weight:500; }
+@media (max-width: 768px) {
+    #opt-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    .opt-range { width: 60px !important; }
+    .opt-constraint-row label.opt-label { font-size: .72rem !important; }
+}
 @media (max-width: 900px) {
     #opt-grid { grid-template-columns: 1fr !important; }
 }
