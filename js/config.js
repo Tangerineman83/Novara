@@ -754,7 +754,7 @@ export const PRESET_PORTFOLIOS = [
 
     // ─── ILLUSTRATIVE / REFERENCE ─────────────────────────────────────────────
     {
-        name: "Comparator Strategy",
+        name: "Optimal DC Strategy",
         // Reference strategies illustrating theoretically optimal DC default designs.
         // Based on CMA 2026-05 geometric return analysis and specified fund construction.
         //
@@ -825,14 +825,8 @@ export const STRATEGY_GROUPS = [
         name: "Comparators",
         strategies: [
             // Provider Median is generated dynamically in buildVFMStrategies — no static entries needed here
-        ]
-    },
-    {
-        name: "Provider Strategies",
-        isProvider: true,
-        strategies: [
-            { name: "Optimal Specified DC Lifecycle (Comparator)",
-              // Hypothetical optimal DC default lifecycle — illustrative strategy 2 (specified design).
+            { name: "Optimal DC Strategy Potential",
+              // Comparator: Optimal DC Strategy Potential. Specified design for illustrative benchmarking.
               // Growth (p_opt2_growth): 75% Global Equity Potential (MSCI ACWI NA-10% adjusted,
               //   50:50 climate-aligned/factor, blended α=0.375%, TE=1.125%) + 25% PM Growth.
               //   Arithmetic 7.70%, geometric≈6.28%.
@@ -840,7 +834,12 @@ export const STRATEGY_GROUPS = [
               //   + 25% credit mix + 15% listed alts. Arithmetic 7.11%, geometric≈6.07%.
               // De-risk: 10 years to TRA.
               points: [ { years:50, weights:{"p_opt2_growth":1.0} }, { years:10, weights:{"p_opt2_growth":1.0} }, { years:0, weights:{"p_opt2_retire":1.0} } ] },
-            { name: "L&G Target Date Fund (Drawdown Default)",
+        ]
+    },
+    {
+        name: "Provider Strategies",
+        isProvider: true,
+        strategies: [            { name: "L&G Target Date Fund (Drawdown Default)",
               points: [ { years:50, weights:{"p_lg_tdf_growth":1.0} }, { years:10, weights:{"p_lg_tdf_growth":1.0} }, { years:0, weights:{"p_lg_tdf_retire":1.0} } ] },
             // Note: the Cash/Annuity landing variant uses the same pre-retirement glidepath
             // as the Drawdown Default. The distinction (cash vs drawdown landing) applies
