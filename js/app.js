@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=50.2';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=51.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -255,7 +255,7 @@ function setupEventListeners() {
     document.getElementById('run-simulation-btn')?.addEventListener('click', runSimulation);
     document.getElementById('confidence-slider')?.addEventListener('input', updateConfidence);
     // auto-update-toggle removed — projections always auto-run
-    document.getElementById('vfm-persona-btn')?.addEventListener('click', () => togglePersonaPanel('vfm'));
+    // vfm-persona-btn removed — inline list used instead
     document.getElementById('active-persona-btn')?.addEventListener('click', () => togglePersonaPanel('run'));
     
     document.getElementById('cma-preset-select')?.addEventListener('change', (e) => { if(e.target.value !== "") loadCMAPreset(e.target.value); });
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=50.2'); 
+    state.worker = new Worker('./js/worker.js?v=51.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1397,41 +1397,41 @@ function initVFMTab() {
 }
 
 function renderVFMPersonaDropdown() {
-    const menu    = document.getElementById('vfm-persona-dropdown-menu');
-    const content = document.getElementById('vfm-persona-content');
-    if (!menu) return;
-    menu.innerHTML = '';
+    // Inline list — shows all personas expanded, no dropdown needed.
+    // Active persona is highlighted. Clicking any item selects and runs.
+    const list = document.getElementById('vfm-persona-list');
+    if (!list) return;
+    list.innerHTML = '';
 
-    // Validate stored activePersonaId — if it no longer exists in state.personas
-    // (e.g. after reload with a new build), reset to the first persona.
+    // Validate stored activePersonaId
     const validIds = new Set(state.personas.map(p => p.id));
     if (!state.vfm.activePersonaId || !validIds.has(state.vfm.activePersonaId)) {
         state.vfm.activePersonaId = state.personas[0]?.id || null;
     }
 
     state.personas.forEach(p => {
-        const li = document.createElement('li');
-        li.innerHTML = `<a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" data-id="${p.id}">
+        const isActive = p.id === state.vfm.activePersonaId;
+        const item = document.createElement('div');
+        item.className = 'd-flex align-items-center gap-2 px-2 py-2 rounded-3';
+        item.style.cssText = `cursor:pointer;background:${isActive ? 'var(--accent-blue,#3B82F6)' : '#F1F5F9'};transition:background 0.15s;`;
+        item.innerHTML = `
             <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
-            <div class="d-flex flex-column">
-                <span class="fw-bold small text-dark">${personaDisplayName(p)}</span>
-                <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">${getAvatarLabel(p.data.age)}</span>
-            </div>
-        </a>`;
-        li.querySelector('a').addEventListener('click', e => {
-            e.preventDefault();
+            <div class="d-flex flex-column flex-grow-1 overflow-hidden">
+                <span style="font-weight:700;font-size:0.82rem;color:${isActive ? 'white' : 'var(--text-main)'};">${personaDisplayName(p)}</span>
+                <span style="font-size:0.68rem;font-weight:600;color:${isActive ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)'};">${getAvatarLabel(p.data.age)}</span>
+            </div>`;
+        item.addEventListener('click', () => {
             state.vfm.activePersonaId = p.id;
-            updateVFMPersonaDisplay();
-            document.getElementById('vfm-persona-dropdown-menu').style.display = 'none';
+            renderVFMPersonaDropdown(); // re-render to update highlight
             runVFM();
         });
-        menu.appendChild(li);
+        list.appendChild(item);
     });
-
-    updateVFMPersonaDisplay();
 }
 
-function updateVFMPersonaDisplay() {
+
+function updateVFMPersonaDisplay() { return; // inline list handles display
+    if(false) {
     const p       = state.personas.find(x => x.id === state.vfm.activePersonaId);
     const content = document.getElementById('vfm-persona-content');
     if (!p || !content) return;
@@ -1439,7 +1439,7 @@ function updateVFMPersonaDisplay() {
         <div style="width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0;background:${getAvatarBgColor(p.data.age)};">${getAvatarSVG(p.data.age)}</div>
         <span class="fw-bold text-dark" style="font-size:0.85rem;white-space:nowrap;">${personaDisplayName(p)}</span>
     `;
-}
+}}
 
 function vfmShowIdle(message) {
     document.getElementById('vfm-status-idle').textContent = message;
@@ -2907,7 +2907,7 @@ function updateChartConfidence(results) {
             else if (d.label === strat.name + ' Lower') d.data = strat.percentiles.pLower;
         });
     });
-    state.chartInstance.update('active');
+    state.chartInstance.update('none'); // 'none' skips animation and avoids point rendering artefacts
 }
 
 function renderChart(results) {
