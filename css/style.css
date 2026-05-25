@@ -365,3 +365,12 @@ label.form-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted
 
 /* --- Progress circle arcs --- */
 .prog-arc { transition: opacity 0.2s ease; }
+
+/* Persona dropdown scrollable lists */
+#vfm-persona-dropdown-menu,
+#run-persona-dropdown-menu {
+    max-height: 52vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
