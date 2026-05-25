@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=56.1';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=56.3';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=56.1'); 
+    state.worker = new Worker('./js/worker.js?v=56.3'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3240,7 +3240,7 @@ window.optRunOptimizer=async function(){
   btn.disabled=true;
   btn.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Simulating…';
   const pw=document.getElementById('opt-progressWrap'),pb=document.getElementById('opt-progressBar');
-  pw.classList.add('visible');pb.style.width='0%';
+  pw.style.opacity='1';pb.style.width='0%';
 
   const C=getC();
   const nTarget=+document.getElementById('opt-nPoints').value;
@@ -3277,7 +3277,7 @@ window.optRunOptimizer=async function(){
     `✓ ${feasible.toLocaleString()} portfolios · ${(attempts-feasible).toLocaleString()} rejected · ${rate}% acceptance`;
   btn.disabled=false;
   btn.innerHTML='<i class="fas fa-play me-2"></i>Rerun Simulation';
-  pw.classList.remove('visible');
+  pw.style.opacity='0';
   running=false;
 };
 
@@ -3353,50 +3353,15 @@ function renderOptChart(){
   });
   ctx.globalAlpha=1;
 
-  // ── Efficient frontier ─────────────────────────────────────────────────
-  // For each vol bucket: record the point with MAX geometric return.
-  // Then draw a line connecting those bucket-peak points sorted by vol.
-  // No running-max or smoothing — the raw peaks ARE the frontier.
-  const nB=Math.min(80,Math.max(30,Math.floor(cloud.length/15)));
-  const bW=(xMax-xMin)/nB;
-  const bkt=new Array(nB).fill(null);
-  cloud.forEach(p=>{
-    const b=Math.min(nB-1,Math.floor((p.vol-xMin)/bW));
-    if(!bkt[b]||p.muG>bkt[b].muG)bkt[b]=p;
-  });
-  const fPts=bkt.filter(Boolean).sort((a,b)=>a.vol-b.vol);
 
-  if(fPts.length>1){
-    ctx.beginPath();
-    fPts.forEach((p,i)=>i===0?ctx.moveTo(tx(p.vol),ty(p.muG)):ctx.lineTo(tx(p.vol),ty(p.muG)));
-    ctx.strokeStyle='#1B5EBE';ctx.lineWidth=2.5;
-    ctx.lineJoin='round';ctx.lineCap='round';
-    ctx.setLineDash([]);ctx.stroke();
-  }
-
-  // ── Special points ─────────────────────────────────────────────────────
-  const maxG =cloud.reduce((b,p)=>p.muG  >b.muG  ?p:b,cloud[0]);
-  const maxGS=cloud.reduce((b,p)=>p.gSort>b.gSort?p:b,cloud[0]);
-
-  // Geometric Sortino ray
-  const slope=maxGS.muG/maxGS.vol;
-  ctx.beginPath();
-  ctx.moveTo(tx(xMin),ty(slope*xMin));
-  ctx.lineTo(tx(maxGS.vol),ty(maxGS.muG));
-  ctx.strokeStyle='rgba(201,151,42,0.5)';ctx.lineWidth=1.5;
-  ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);
-
-  function dot(p,color,label,right){
-    const x=tx(p.vol),y=ty(p.muG);
-    ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);
-    ctx.fillStyle=color;ctx.strokeStyle='#fff';ctx.lineWidth=2;
-    ctx.fill();ctx.stroke();
-    ctx.fillStyle=color;ctx.font='600 10px DM Mono,monospace';
-    ctx.textAlign=right?'right':'left';
-    ctx.fillText(label,x+(right?-10:10),y-9);
-  }
-  if(maxG!==maxGS)dot(maxGS,'#C9972A','Max g/σ');
-  dot(maxG,'#166534','Max μ_g',maxG===maxGS);
+  // ── Max geometric return point ───────────────────────────────────────────
+  const maxG=cloud.reduce((b,p)=>p.muG>b.muG?p:b,cloud[0]);
+  const xMG=tx(maxG.vol),yMG=ty(maxG.muG);
+  ctx.beginPath();ctx.arc(xMG,yMG,7,0,Math.PI*2);
+  ctx.fillStyle='#166534';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
+  ctx.fill();ctx.stroke();
+  ctx.fillStyle='#166534';ctx.font='600 10px DM Mono,monospace';
+  ctx.textAlign='left';ctx.fillText('Max μ_g',xMG+10,yMG-10);
 
   // Provider dots
   const hitPts=[];
@@ -3487,7 +3452,7 @@ function renderOptWeights(pt){
   if(!pt){
     document.getElementById('opt-weightsBody').innerHTML=
       `<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3">◦</div><p class="small mt-2 mb-0">Click any point in the simulation cloud to inspect its allocation.</p></div>`;
-    document.getElementById('opt-summaryPills').style.display='none';
+    const ph=document.getElementById('opt-summaryPills');ph.classList.add('d-none');ph.style.display='';
     document.getElementById('opt-constraintStatus').style.display='none';
     document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
     return;
@@ -3507,16 +3472,15 @@ function drawWeightsPanel(w,stats,nameLabel){
   const dIdx =OA.findIndex(a=>a.key==='digitalAssets');
 
   document.getElementById('opt-selectedLabel').textContent=
-    nameLabel||`σ=${pct(stats.vol,2)} · μ_g=${pct(stats.muG,2)} · g/σ=${stats.gSort.toFixed(3)}`;
+    nameLabel||`σ=${pct(stats.vol,2)} · μ_g=${pct(stats.muG,2)}`;
 
   // Pills
   const pills=document.getElementById('opt-summaryPills');
-  pills.style.display='flex';
+  pills.classList.remove('d-none');pills.style.display='flex';
   pills.innerHTML=`
     <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_g ${pct(stats.muG,2)}</span>
     <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_a ${pct(stats.muA,2)}</span>
     <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">σ ${pct(stats.vol,2)}</span>
-    <span class="badge rounded-pill" style="background:#FBF5E8;color:#C9972A;font-weight:500">g/σ ${stats.gSort.toFixed(3)}</span>
     <span class="badge rounded-pill" style="background:${priv<=C.maxPrivate?'#DCFCE7':'#FEE2E2'};color:${priv<=C.maxPrivate?'#166534':'#991B1B'};font-weight:500">Private ${pct(priv,1)}</span>
     <span class="badge rounded-pill" style="background:${chk.pass?'#DCFCE7':'#FEE2E2'};color:${chk.pass?'#166534':'#991B1B'};font-weight:500">${chk.pass?'✓ Feasible':chk.violations.length+' violation'+(chk.violations.length>1?'s':'')}</span>`;
 
