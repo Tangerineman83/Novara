@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=53.0';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=54.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=53.0'); 
+    state.worker = new Worker('./js/worker.js?v=54.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -2263,7 +2263,7 @@ function updatePortfolioVisuals(side) {
     const stats = calcDeterministicStats(portfolio.weights, portfolio.alphas, portfolio.tes, cmaData);
     
     document.getElementById(`stat-ret-${side}`).innerText = (stats.arithRet * 100).toFixed(2) + '%';
-    document.getElementById(`stat-unit-${side}`).innerText = stats.median20Yr.toFixed(2) + 'x';
+    document.getElementById(`stat-unit-${side}`).innerText = (stats.geomRet * 100).toFixed(2) + '%';
     document.getElementById(`stat-vol-${side}`).innerText = (stats.vol * 100).toFixed(2) + '%';
 
     let totalImpact = 0;
@@ -3095,7 +3095,7 @@ function optDot(a,b) { return a.reduce((s,ai,i)=>s+ai*b[i],0); }
 function getOptC() {
     return {
         maxPrivate: parseFloat(document.getElementById('opt-maxPriv').value)/100,
-        maxEqDev:   parseFloat(document.getElementById('opt-maxEqDev').value)/100,
+        maxEqDev:   parseFloat(document.getElementById('opt-maxEqDev').value)/100, // fraction of cap weight
         maxSingle:  parseFloat(document.getElementById('opt-maxSingle').value)/100,
         minPos:     parseFloat(document.getElementById('opt-minPos').value)/100,
         minLiquid:  parseFloat(document.getElementById('opt-minLiq').value)/100,
@@ -3115,7 +3115,8 @@ function checkOptC(w, C) {
     if (eqT>1e-6) {
         for(let e=0;e<6;e++){
             const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-            if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>C.maxEqDev+1e-4)
+            const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
+            if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>absAllowed+1e-4)
                 violations.push(`${OPT_ASSETS[idx].name} eq share out of range`);
         }
     }
@@ -3146,7 +3147,9 @@ function augObj(w, muTarget, C, rho) {
         for(let e=0;e<6;e++){
             const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
             const share=w[idx]/eqT;
-            const lo=EQ_MKTCAP[e]-C.maxEqDev, hi=EQ_MKTCAP[e]+C.maxEqDev;
+            // Proportional: maxEqDev is fraction of cap weight, so band = capWt ± capWt*maxEqDev
+            const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
+            const lo=EQ_MKTCAP[e]-absAllowed, hi=EQ_MKTCAP[e]+absAllowed;
             { const v=Math.max(0,lo-share); p+=rho*v*v; }
             { const v=Math.max(0,share-hi); p+=rho*v*v; }
         }
@@ -3239,39 +3242,58 @@ window.optRunOptimizer = async function() {
     const nPts = parseInt(document.getElementById('opt-nPoints').value);
     const muMin = OPT_ASSETS.reduce((mn,a)=>Math.min(mn,a.r), Infinity);
     const muMax = OPT_ASSETS.reduce((mx,a)=>Math.max(mx,a.key!=='digitalAssets'?a.r:a.r*0.5), 0);
-    const targets = Array.from({length:nPts}, (_,i)=>muMin+(muMax-muMin)*i/(nPts-1));
+    // Use jittered grid for denser, more uniform coverage of the return range
+    // Each step gets a unique target with small random perturbation to avoid
+    // the optimiser finding the same local minimum repeatedly at nearby targets
+    const targets = Array.from({length:nPts}, (_,i)=>{
+        const base = muMin + (muMax-muMin)*i/(nPts-1);
+        const jitter = (Math.random()-0.5) * (muMax-muMin) / (nPts*2);
+        return Math.max(muMin, Math.min(muMax, base+jitter));
+    });
 
     const results=[];
     let warmStart=null;
+    let feasibleCount=0;
 
     await new Promise(resolve=>{
         let idx=0;
         function step(){
             if(idx>=targets.length){ resolve(); return; }
             const w=optimiseForTarget(targets[idx], C, warmStart);
-            warmStart=w.slice();
+            const chk=checkOptC(w, C);
+            if(chk.pass) {
+                warmStart=w.slice();
+                feasibleCount++;
+            }
             const vol=optVol(w), muG=optGeom(w,C.useGeo), muA=optArith(w);
-            results.push({w,vol,muG,muA,muTarget:targets[idx]});
+            results.push({w,vol,muG,muA,muTarget:targets[idx],feasible:chk.pass});
             pb.style.width=((idx+1)/targets.length*100).toFixed(1)+'%';
             document.getElementById('opt-statusMsg').textContent=
-                `Portfolio ${idx+1}/${targets.length} · σ=${(vol*100).toFixed(1)}% · μ_g=${(muG*100).toFixed(2)}%`;
+                `${idx+1}/${targets.length} evaluations · ${feasibleCount} feasible · μ_g=${(muG*100).toFixed(2)}%`;
             idx++;
             if(idx%4===0) setTimeout(step,0); else step();
         }
         setTimeout(step,0);
     });
 
-    results.sort((a,b)=>a.vol-b.vol);
+    // Filter 1: Remove any portfolio that violates constraints
+    const feasible = results.filter(pt => checkOptC(pt.w, C).pass);
+    
+    // Filter 2: Keep only Pareto-efficient (non-dominated) portfolios
+    // A portfolio is on the frontier if no other feasible portfolio has both
+    // lower volatility AND higher or equal geometric return.
+    feasible.sort((a,b)=>a.vol-b.vol);
     let frontier=[], bestMu=-Infinity;
-    for(const pt of results){
-        if(pt.muG>bestMu-0.0005){ frontier.push(pt); bestMu=Math.max(bestMu,pt.muG); }
+    for(const pt of feasible){
+        if(pt.muG > bestMu - 0.0005){ frontier.push(pt); bestMu=Math.max(bestMu,pt.muG); }
     }
     optFrontierData=frontier; optSelectedPt=null;
     optRenderChart(); optRenderWeights(null);
 
     btn.disabled=false;
     btn.innerHTML='<i class="fas fa-play me-2"></i>Recompute Frontier';
-    document.getElementById('opt-statusMsg').textContent=`✓ ${frontier.length} frontier portfolios computed`;
+    const rejectedCount = results.length - feasible.length;
+    document.getElementById('opt-statusMsg').textContent=`✓ ${frontier.length} frontier portfolios · ${feasible.length} feasible · ${rejectedCount} rejected`;
     pw.classList.remove('visible');
 };
 
@@ -3496,11 +3518,12 @@ function optRenderWeights(pt) {
         {label:`Sub-IG ≤ ${optp(C.maxSubIG)}`,       ok:subig<=C.maxSubIG+1e-4},
         {label:`Digital ≤ ${optp(C.maxDigital)}`,    ok:w[dIdx]<=C.maxDigital+1e-4},
         {label:'No short positions',        ok:w.every(wi=>wi>=-1e-4)},
-        {label:`Eq regional ±${optp(C.maxEqDev)}`,  ok:(()=>{
+        {label:`Eq regional ±${optp(C.maxEqDev)} of cap wt`,  ok:(()=>{
             if(eqT<0.02) return true;
             for(let e=0;e<6;e++){
                 const idx=OPT_ASSETS.findIndex(a=>a.eqIdx===e);
-                if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>C.maxEqDev+1e-4) return false;
+                const absAllowed = EQ_MKTCAP[e] * C.maxEqDev;
+                if(Math.abs(w[idx]/eqT-EQ_MKTCAP[e])>absAllowed+1e-4) return false;
             }
             return true;
         })()},
@@ -3508,8 +3531,41 @@ function optRenderWeights(pt) {
     ];
     cstDiv.innerHTML=cstItems.map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.label}</span></div>`).join('');
 
-    // Weights table
-    const sorted=OPT_ASSETS.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
+    // Draw allocation doughnut chart
+    const chartWrap = document.getElementById('opt-alloc-chart-wrap');
+    const allocCanvas = document.getElementById('opt-alloc-canvas');
+    if(chartWrap && allocCanvas) {
+        chartWrap.style.display = 'block';
+        // Build chart data grouped by category
+        const catTotals = {};
+        const catColors = OPT_CAT_COLORS;
+        OPT_ASSETS.forEach((a,i) => {
+            if(w[i] > 0.001) {
+                catTotals[a.cat] = (catTotals[a.cat]||0) + w[i];
+            }
+        });
+        const catEntries = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+        const chartLabels = catEntries.map(([cat])=>cat);
+        const chartData   = catEntries.map(([,v])=>+(v*100).toFixed(1));
+        const chartColors = catEntries.map(([cat])=>catColors[cat]||'#94A3B8');
+
+        if(window._optAllocChart) window._optAllocChart.destroy();
+        const ctx2 = allocCanvas.getContext('2d');
+        window._optAllocChart = new Chart(ctx2, {
+            type: 'doughnut',
+            data: { labels: chartLabels, datasets:[{ data: chartData, backgroundColor: chartColors, borderWidth: 0, hoverOffset: 4 }] },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
+        });
+
+        // Legend
+        const legendEl = document.getElementById('opt-alloc-legend');
+        if(legendEl) legendEl.innerHTML = catEntries.map(([cat, val])=>`
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:${catColors[cat]||'#94A3B8'};flex-shrink:0;display:inline-block;"></span>
+                <span style="color:#4B5568;flex:1;">${cat}</span>
+                <span style="font-family:monospace;color:#1B5EBE;font-weight:500;">${(val*100).toFixed(1)}%</span>
+            </div>`).join('');
+    }
     const maxW=Math.max(...w);
     body.innerHTML=`<table class="opt-weights-table">
         <thead><tr>

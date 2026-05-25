@@ -1,5 +1,5 @@
 // js/mathUtils.js
-import { ASSET_CLASSES } from './config.js?v=53.0';
+import { ASSET_CLASSES } from './config.js?v=54.0';
 
 export function logGamma(z) {
     let co = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
@@ -85,5 +85,6 @@ export function calcDeterministicStats(weights, alphas, tes, cma) {
     const kurtosisAdjustment = Math.exp(-0.005 * port_k); 
     const median20Yr = Math.pow(1 + ret - (portVariance / 2), 20) * kurtosisAdjustment;
     
-    return { arithRet: ret, median20Yr: median20Yr, vol: portVol };
+    const geomRet = ret - portVariance / 2; // μ_g = μ_a − σ²/2
+    return { arithRet: ret, geomRet, median20Yr: median20Yr, vol: portVol };
 }
