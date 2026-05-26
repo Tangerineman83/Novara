@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.3';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.4';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1145,7 +1145,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=57.3'); 
+    state.worker = new Worker('./js/worker.js?v=57.4'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1531,6 +1531,51 @@ function buildVFMStrategies(horizonMonths, cma) {
         });
     });
 
+    // ── Custom user-created strategies ──────────────────────────────────────
+    // Load strategies saved via the Strategy Builder and resolve them exactly
+    // as provider strategies above. They are treated as non-provider (isProvider=false)
+    // so they rank against the full universe in pTop/pBottom (comparator behaviour).
+    const customStrats = UserDataEngine.load().strategies || [];
+    customStrats.forEach(strat => {
+        if (!strat.points || !strat.points.length) return;
+        const resolvedPoints = strat.points.map(pt => {
+            const weights = {}, alphas = {}, tes = {};
+            ASSET_CLASSES.forEach(ac => { weights[ac.key]=0; alphas[ac.key]=0; tes[ac.key]=0; });
+            Object.entries(pt.weights).forEach(([portId, weight]) => {
+                const port = getGlobalPortfolio(portId);
+                if (port) {
+                    ASSET_CLASSES.forEach(ac => {
+                        weights[ac.key] += (port.weights[ac.key] || 0) * weight;
+                        alphas[ac.key]  += (port.alphas?.[ac.key]  || 0) * weight;
+                        tes[ac.key]     += (port.tes?.[ac.key]     || 0) * weight;
+                    });
+                }
+            });
+            return { years: pt.years, weights, alphas, tes };
+        });
+
+        const monthlyData           = interpolateWeights(resolvedPoints, personaRetireMonths).slice(0, horizonMonths);
+        const fullRetireMonthlyData = interpolateWeights(resolvedPoints, personaRetireMonths);
+
+        let totalMonthlyRet = 0;
+        monthlyData.forEach(md => {
+            ASSET_CLASSES.forEach(ac => {
+                const w = md.weights[ac.key] || 0;
+                if (w === 0) return;
+                totalMonthlyRet += w * ((cma.r[ac.key] || 0) + (md.alphas?.[ac.key] || 0));
+            });
+        });
+
+        resolved.push({
+            name:                 strat.name,
+            isProvider:           false,   // ranks against full universe (comparator behaviour)
+            isCustom:             true,
+            monthlyData,
+            fullRetireMonthlyData,
+            annualisedArithReturn: totalMonthlyRet / horizonMonths
+        });
+    });
+
     // ── Provider Median synthetic strategy ──────────────────────────────────
     // Average asset mix across all provider strategies at each month.
     // Represents the typical glidepath across the provider universe.
@@ -1769,7 +1814,9 @@ function renderVFMTable(results) {
     renderVFMRows(results, state.vfm.sortField || 'pot', state.vfm.sortDir || 'desc');
     const _simCount  = Math.min(parseInt(document.getElementById('setting-sim-count-vfm')?.value) || 2000, 5000);
     const _nStrats   = results.filter(r => r.isProvider).length;
-    vfmShowDone(`${_simCount.toLocaleString()} simulations · ${_nStrats} strategies`);
+    const _nCustom   = results.filter(r => r.isCustom).length;
+    const _customStr = _nCustom > 0 ? ` · ${_nCustom} custom` : '';
+    vfmShowDone(`${_simCount.toLocaleString()} simulations · ${_nStrats} strategies${_customStr}`);
 
     // Wire sort header clicks (once per render)
     ['vfm-sort-pot','vfm-sort-ret'].forEach(id => {
@@ -1866,10 +1913,14 @@ function renderVFMRows(results, sortField, sortDir) {
         const ret   = fmtRet(r.annualisedReturn);
         const pot   = fmtPot(r.medianPot);
         if (isBmk) {
+            const isCustom = r.isCustom;
+            const tag = isCustom
+                ? `<span style="font-size:0.65rem;font-weight:700;background:#EBF3FF;color:#1B5EBE;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">custom</span>`
+                : `<span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>`;
             html += `<tr class="vfm-benchmark-row">
                 <td class="ps-3" style="width:36px;"></td>
                 <td style="font-size:0.85rem;font-style:italic;">${r.name}
-                    <span style="font-size:0.65rem;font-weight:700;background:#E2E8F0;color:#64748B;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle;">comparator</span>
+                    ${tag}
                 </td>
                 <td class="text-end" style="font-size:0.85rem;">${pot}${vsBadge(vs)}</td>
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
