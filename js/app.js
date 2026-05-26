@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=56.3';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.0';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=56.3'); 
+    state.worker = new Worker('./js/worker.js?v=57.0'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3021,12 +3021,12 @@ function renderResultsTable(results) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   OPTIMISER MODULE — Murmuration / Monte Carlo Scatter  v56
+   OPTIMISER MODULE v57 — Murmuration with full constraint taxonomy
    ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
 'use strict';
 
-/* ── 1. ASSET UNIVERSE ─────────────────────────────────────────────────── */
+/* ── 1. ASSET UNIVERSE (CMA 2026-05) ───────────────────────────────────── */
 const OA = [
   { key:'usEq',             name:'US Equity',             r:0.065,v:0.155,liq:true, priv:false,subig:false,eqIdx:0  },
   { key:'devEq',            name:'Dev Europe Equity',     r:0.072,v:0.150,liq:true, priv:false,subig:false,eqIdx:1  },
@@ -3050,17 +3050,16 @@ const OA = [
   { key:'moneyMkt',         name:'Money Markets',         r:0.035,v:0.010,liq:true, priv:false,subig:false,eqIdx:-1 },
 ];
 const N = OA.length;
-const EQ_CAP = [0.64, 0.15, 0.11, 0.06, 0.02, 0.02];
 
-// Asset colors matching config.js ASSET_CLASSES
+// MSCI ACWI March 2026: US+Canada 66.3%, Dev Europe 12.5%, EM 11.5%, Japan 5.1%, UK 3.4%, Dev APAC 1.2%
+const EQ_CAP = [0.663, 0.125, 0.115, 0.051, 0.034, 0.012];
+
 const OA_COLORS = {
-  usEq:'#1D4ED8', devEq:'#3B82F6', emEq:'#60A5FA', jpnEq:'#93C5FD',
-  ukEq:'#BFDBFE', apacEq:'#DBEAFE',
-  globalReits:'#6D28D9', realEstateDirect:'#7E22CE', infrastructure:'#A855F7',
-  privEq:'#B45309', listedAlts:'#F59E0B', digitalAssets:'#0F172A',
-  privCredit:'#D97706', globalHighYield:'#047857', emDebt:'#059669',
-  igCredit:'#10B981', sdCredit:'#34D399',
-  globalSov:'#0F766E', inflLinked:'#0E7490', moneyMkt:'#64748B',
+  usEq:'#1D4ED8',devEq:'#3B82F6',emEq:'#60A5FA',jpnEq:'#93C5FD',ukEq:'#BFDBFE',apacEq:'#DBEAFE',
+  globalReits:'#6D28D9',realEstateDirect:'#7E22CE',infrastructure:'#A855F7',
+  privEq:'#B45309',listedAlts:'#F59E0B',digitalAssets:'#0F172A',
+  privCredit:'#D97706',globalHighYield:'#047857',emDebt:'#059669',
+  igCredit:'#10B981',sdCredit:'#34D399',globalSov:'#0F766E',inflLinked:'#0E7490',moneyMkt:'#64748B',
 };
 
 const RHO=[
@@ -3093,116 +3092,347 @@ function pVol(w){return Math.sqrt(pVar(w));}
 function pArith(w){return w.reduce((s,wi,i)=>s+wi*OA[i].r,0);}
 function pGeom(w){return pArith(w)-0.5*pVar(w);}
 function pEqTot(w){return OA.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0),0);}
+function idxOf(key){return OA.findIndex(a=>a.key===key);}
 function pStats(wObj){
   const w=OA.map(a=>wObj[a.key]||0);
   const vol=pVol(w),muG=pGeom(w),muA=pArith(w);
-  return {w,vol,muG,muA,gSort:muG/(0.707*vol+1e-10)};
+  return{w,vol,muG,muA,gSort:muG/(0.707*vol+1e-10)};
 }
 
-/* ── 3. CONSTRAINTS ────────────────────────────────────────────────────── */
+/* ── 3. SLIDER DEFINITIONS & STATE ─────────────────────────────────────── */
+// Each slider: {id, lo, hi, step, defLo, defHi}
+const SLIDERS = [
+  // Private
+  {id:'priv-total',lo:0,hi:50, step:5, defLo:0, defHi:25},
+  {id:'privEq',    lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'infra',     lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'re',        lo:0,hi:30, step:5, defLo:0, defHi:15},
+  {id:'privCr',    lo:0,hi:40, step:5, defLo:0, defHi:20},
+  // Equity
+  {id:'eq-total',  lo:0,hi:100,step:5, defLo:0, defHi:95},
+  // eq-dev is single-handle (special case, handled separately)
+  {id:'usEq',      lo:0,hi:100,step:5, defLo:0, defHi:85},
+  {id:'devEq',     lo:0,hi:60, step:5, defLo:0, defHi:40},
+  {id:'emEq',      lo:0,hi:60, step:5, defLo:0, defHi:35},
+  {id:'jpnEq',     lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'ukEq',      lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'apacEq',    lo:0,hi:30, step:5, defLo:0, defHi:15},
+  // Liquid alts
+  {id:'reits',     lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'alts',      lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'dig',       lo:0,hi:20, step:1, defLo:0, defHi:5 },
+  // Credit
+  {id:'cr-total',  lo:0,hi:100,step:5, defLo:0, defHi:80},
+  {id:'subig',     lo:0,hi:60, step:5, defLo:0, defHi:30},
+  {id:'igCr',      lo:0,hi:60, step:5, defLo:0, defHi:40},
+  {id:'sdCr',      lo:0,hi:50, step:5, defLo:0, defHi:30},
+  {id:'hy',        lo:0,hi:50, step:5, defLo:0, defHi:25},
+  {id:'emDebt',    lo:0,hi:40, step:5, defLo:0, defHi:20},
+  {id:'gSov',      lo:0,hi:60, step:5, defLo:0, defHi:40},
+  {id:'il',        lo:0,hi:50, step:5, defLo:0, defHi:30},
+  {id:'mm',        lo:0,hi:40, step:5, defLo:0, defHi:20},
+  // General
+  {id:'liq',       lo:0,hi:100,step:5, defLo:40,defHi:100},
+];
+
+// Store slider instances and values
+const SV = {};  // SV['priv-total'] = {lo:0, hi:0.25}
+const SL = {};  // SL['priv-total'] = noUiSlider instance
+
+/* ── 4. SLIDER INITIALISATION ──────────────────────────────────────────── */
+function initSliders(){
+  if(!window.noUiSlider){
+    console.warn('noUiSlider not loaded');
+    return;
+  }
+  SLIDERS.forEach(def=>{
+    const el=document.getElementById('sl-'+def.id);
+    if(!el||el._init)return;
+    el._init=true;
+    noUiSlider.create(el,{
+      start:[def.defLo, def.defHi],
+      connect:true,
+      range:{min:def.lo, max:def.hi},
+      step:def.step,
+      tooltips:false,
+    });
+    SV[def.id]={lo:def.defLo/100, hi:def.defHi/100};
+    el.noUiSlider.on('update',(vals)=>{
+      const lo=Math.round(+vals[0]), hi=Math.round(+vals[1]);
+      SV[def.id]={lo:lo/100, hi:hi/100};
+      const loEl=document.getElementById('sv-'+def.id+'-lo');
+      const hiEl=document.getElementById('sv-'+def.id+'-hi');
+      if(loEl) loEl.textContent=lo+'%';
+      if(hiEl) hiEl.textContent=hi+'%';
+    });
+    SL[def.id]=el.noUiSlider;
+  });
+
+  // Single-handle drift slider (equity deviation)
+  const devEl=document.getElementById('sl-eq-dev');
+  if(devEl&&!devEl._init){
+    devEl._init=true;
+    devEl.classList.add('is-single');
+    noUiSlider.create(devEl,{
+      start:[20], connect:'lower',
+      range:{min:5, max:100}, step:5, tooltips:false,
+    });
+    SV['eq-dev']={val:0.20};
+    devEl.noUiSlider.on('update',(vals)=>{
+      const v=Math.round(+vals[0]);
+      SV['eq-dev']={val:v/100};
+      const el2=document.getElementById('sv-eq-dev');
+      if(el2) el2.textContent=v+'%';
+    });
+    SL['eq-dev']=devEl.noUiSlider;
+  }
+}
+
+/* ── 5. READ CONSTRAINTS ───────────────────────────────────────────────── */
 function getC(){
+  const sv=k=>SV[k]||{lo:0,hi:1};
   return {
-    maxPrivate:+document.getElementById('opt-maxPriv').value/100,
-    maxEqDev:  +document.getElementById('opt-maxEqDev').value/100,
+    // Private
+    priv:      sv('priv-total'),
+    privEq:    sv('privEq'),
+    infra:     sv('infra'),
+    re:        sv('re'),
+    privCr:    sv('privCr'),
+    // Equity
+    eqTotal:   sv('eq-total'),
+    eqDev:     (SV['eq-dev']||{val:0.20}).val,
+    usEq:      sv('usEq'),
+    devEq:     sv('devEq'),
+    emEq:      sv('emEq'),
+    jpnEq:     sv('jpnEq'),
+    ukEq:      sv('ukEq'),
+    apacEq:    sv('apacEq'),
+    // Liquid alts
+    reits:     sv('reits'),
+    alts:      sv('alts'),
+    dig:       sv('dig'),
+    // Credit
+    crTotal:   sv('cr-total'),
+    subig:     sv('subig'),
+    igCr:      sv('igCr'),
+    sdCr:      sv('sdCr'),
+    hy:        sv('hy'),
+    emDebt:    sv('emDebt'),
+    gSov:      sv('gSov'),
+    il:        sv('il'),
+    mm:        sv('mm'),
+    // General
+    liq:       sv('liq'),
     maxSingle: +document.getElementById('opt-maxSingle').value/100,
     minPos:    +document.getElementById('opt-minPos').value/100,
-    minLiquid: +document.getElementById('opt-minLiq').value/100,
-    maxSubIG:  +document.getElementById('opt-maxSubIG').value/100,
-    maxDigital:+document.getElementById('opt-maxDig').value/100,
   };
 }
+
+/* ── 6. CONSTRAINT CHECK ───────────────────────────────────────────────── */
 function chkC(w,C){
   const v=[];
-  if(Math.abs(w.reduce((a,b)=>a+b,0)-1)>0.015)v.push('sum≠1');
-  if(w.some(wi=>wi<-1e-4))v.push('short');
+  const I=(k)=>idxOf(k);
+  const sum=w.reduce((a,b)=>a+b,0);
+  if(Math.abs(sum-1)>0.02) v.push('sum');
+  if(w.some(wi=>wi<-1e-4)) v.push('short');
+  
+  // Private
   const priv=OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-  if(priv>C.maxPrivate+1e-4)v.push('private');
+  if(priv<C.priv.lo-1e-4) v.push('priv-lo');
+  if(priv>C.priv.hi+1e-4) v.push('priv-hi');
+  [[I('privEq'),'privEq'],[I('infrastructure'),'infra'],[I('realEstateDirect'),'re'],[I('privCredit'),'privCr']].forEach(([i,k])=>{
+    if(w[i]<C[k].lo-1e-4) v.push(k+'-lo');
+    if(w[i]>C[k].hi+1e-4) v.push(k+'-hi');
+  });
+  
+  // Equity
   const eqT=pEqTot(w);
-  if(eqT>1e-6){
-    for(let e=0;e<6;e++){
-      const idx=OA.findIndex(a=>a.eqIdx===e);
-      if(Math.abs(w[idx]/eqT-EQ_CAP[e])>EQ_CAP[e]*C.maxEqDev+2e-4)v.push('eqDev'+e);
+  if(eqT<C.eqTotal.lo-1e-4) v.push('eq-lo');
+  if(eqT>C.eqTotal.hi+1e-4) v.push('eq-hi');
+  // Individual equity with both min/max AND regional drift
+  const EQ_I=[0,1,2,3,4,5];
+  EQ_I.forEach(e=>{
+    const keys=['usEq','devEq','emEq','jpnEq','ukEq','apacEq'];
+    const i=I(keys[e]);
+    if(w[i]<C[keys[e]].lo-1e-4) v.push(keys[e]+'-lo');
+    if(w[i]>C[keys[e]].hi+1e-4) v.push(keys[e]+'-hi');
+    // Proportional drift check (applied to share within equity sleeve)
+    if(eqT>0.02){
+      const allowed=EQ_CAP[e]*C.eqDev;
+      if(Math.abs(w[i]/eqT-EQ_CAP[e])>allowed+2e-4) v.push('eqDev'+e);
     }
-  }
-  w.forEach((wi,i)=>{if(wi>C.maxSingle+1e-4)v.push('single'+i);});
-  const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-  if(liq<C.minLiquid-1e-4)v.push('liquid');
+  });
+  
+  // Liquid alts
+  [[I('globalReits'),'reits'],[I('listedAlts'),'alts'],[I('digitalAssets'),'dig']].forEach(([i,k])=>{
+    if(w[i]<C[k].lo-1e-4) v.push(k+'-lo');
+    if(w[i]>C[k].hi+1e-4) v.push(k+'-hi');
+  });
+  
+  // Credit
+  const cr=OA.reduce((s,a,i)=>s+(!a.priv&&!a.liq===false&&!a.eqIdx>=0?0:(!a.eqIdx===false&&a.liq&&a.eqIdx<0&&!a.priv?w[i]:0)),0);
+  // Simpler: credit = everything that's liq, not equity, not priv, not digital, not reits, not listedAlts
+  const crActual=OA.reduce((s,a,i)=>s+(a.liq&&a.eqIdx<0&&!a.priv&&a.key!=='digitalAssets'&&a.key!=='globalReits'&&a.key!=='listedAlts'?w[i]:0),0);
+  if(crActual<C.crTotal.lo-1e-4) v.push('cr-lo');
+  if(crActual>C.crTotal.hi+1e-4) v.push('cr-hi');
+  
   const subig=OA.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-  if(subig>C.maxSubIG+1e-4)v.push('subIG');
-  const dIdx=OA.findIndex(a=>a.key==='digitalAssets');
-  if(w[dIdx]>C.maxDigital+1e-4)v.push('digital');
-  return {pass:v.length===0,violations:v};
+  if(subig<C.subig.lo-1e-4) v.push('subig-lo');
+  if(subig>C.subig.hi+1e-4) v.push('subig-hi');
+  
+  [[I('igCredit'),'igCr'],[I('sdCredit'),'sdCr'],[I('globalHighYield'),'hy'],
+   [I('emDebt'),'emDebt'],[I('globalSov'),'gSov'],[I('inflLinked'),'il'],[I('moneyMkt'),'mm']].forEach(([i,k])=>{
+    if(w[i]<C[k].lo-1e-4) v.push(k+'-lo');
+    if(w[i]>C[k].hi+1e-4) v.push(k+'-hi');
+  });
+  
+  // General
+  const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
+  if(liq<C.liq.lo-1e-4) v.push('liq-lo');
+  if(liq>C.liq.hi+1e-4) v.push('liq-hi');
+  w.forEach((wi,i)=>{if(wi>C.maxSingle+1e-4)v.push('single'+i);});
+  
+  return{pass:v.length===0,violations:v};
 }
 
-/* ── 4. CONSTRAINED GENERATION ─────────────────────────────────────────── */
+/* ── 7. CONSTRAINED GENERATION ─────────────────────────────────────────── */
 function rExp(){return -Math.log(Math.random()+1e-12);}
 
-function sampleEqShares(dev){
-  for(let t=0;t<40;t++){
-    const s=EQ_CAP.map(c=>Math.max(0,c+(Math.random()*2-1)*c*dev*0.7));
+function sampleEqShares(C){
+  // Sample equity regional shares within proportional drift bands,
+  // also respecting individual per-region min/max constraints.
+  const EKEYS=['usEq','devEq','emEq','jpnEq','ukEq','apacEq'];
+  for(let t=0;t<50;t++){
+    const s=EQ_CAP.map((cap,e)=>{
+      // Apply both drift tolerance and per-asset min/max
+      const driftBand=cap*C.eqDev*0.75;
+      const lo=Math.max(C[EKEYS[e]].lo, Math.max(0,cap-driftBand));
+      const hi=Math.min(C[EKEYS[e]].hi, Math.min(1,cap+driftBand));
+      if(lo>=hi) return cap; // fallback to cap weight if constraints conflict
+      return lo+Math.random()*(hi-lo);
+    });
     const tot=s.reduce((a,b)=>a+b,0);
-    if(tot<1e-10)continue;
+    if(tot<1e-10) continue;
     const n=s.map(x=>x/tot);
-    if(EQ_CAP.every((c,e)=>Math.abs(n[e]-c)<=c*dev*0.85))return n;
+    // Validate against drift tolerance
+    if(EQ_CAP.every((cap,e)=>Math.abs(n[e]-cap)<=cap*C.eqDev*0.85+1e-4)) return n;
   }
   return null;
 }
 
 function genPortfolio(C){
-  const eqS=sampleEqShares(C.maxEqDev);
-  if(!eqS)return null;
-  const EQ_I=OA.map((a,i)=>a.eqIdx>=0?i:-1).filter(i=>i>=0);
-  const PR_I=OA.map((a,i)=>a.priv?i:-1).filter(i=>i>=0);
-  const DIG =OA.findIndex(a=>a.key==='digitalAssets');
-  const PCR =OA.findIndex(a=>a.key==='privCredit');
-  const SIG_P=OA.map((a,i)=>a.subig&&!a.priv?i:-1).filter(i=>i>=0);
-  const FILL=OA.map((a,i)=>a.eqIdx<0&&!a.priv&&!a.subig&&a.key!=='digitalAssets'?i:-1).filter(i=>i>=0);
+  const eqS=sampleEqShares(C);
+  if(!eqS) return null;
 
+  const EQ_I =OA.map((a,i)=>a.eqIdx>=0?i:-1).filter(i=>i>=0);
+  const PR_I =OA.map((a,i)=>a.priv?i:-1).filter(i=>i>=0);
+  const DIG  =idxOf('digitalAssets');
+  const SIG_P=OA.map((a,i)=>a.subig&&!a.priv?i:-1).filter(i=>i>=0);
+  const FILL =OA.map((a,i)=>a.liq&&a.eqIdx<0&&!a.priv&&!a.subig&&a.key!=='digitalAssets'&&a.key!=='globalReits'&&a.key!=='listedAlts'?i:-1).filter(i=>i>=0);
+  const LIQALT=[idxOf('globalReits'),idxOf('listedAlts')];
+
+  // 1. Equity block: total within [eqTotal.lo, eqTotal.hi], individual asset ≤ maxSingle
   const maxEqSh=Math.max(...eqS);
-  const maxEqTot=Math.min(0.95,C.maxSingle/maxEqSh);
-  const totalEq=0.05+Math.random()*(maxEqTot-0.05);
+  const maxEqFromSingle=Math.min(C.eqTotal.hi, C.maxSingle/maxEqSh);
+  const maxTotalEq=Math.min(maxEqFromSingle, C.eqTotal.hi);
+  const minTotalEq=C.eqTotal.lo;
+  if(minTotalEq>maxTotalEq) return null;
+  const totalEq=minTotalEq+Math.random()*(maxTotalEq-minTotalEq);
 
   const w=new Array(N).fill(0);
   EQ_I.forEach((idx,e)=>{w[idx]=totalEq*eqS[e];});
   let rem=1-totalEq;
 
-  const totP=Math.random()*Math.min(C.maxPrivate,rem*0.9);
-  const rP=PR_I.map(()=>rExp());const sP=rP.reduce((a,b)=>a+b,0);
-  PR_I.forEach((idx,k)=>{w[idx]=totP*rP[k]/sP;});
-  rem-=totP;
+  // 2. Private block within [priv.lo, priv.hi] and individual caps
+  const maxPriv=Math.min(C.priv.hi, rem*0.95);
+  const minPriv=Math.min(C.priv.lo, maxPriv);
+  const totPriv=minPriv+Math.random()*(maxPriv-minPriv);
+  
+  // Distribute private among 4 classes respecting individual [lo,hi]
+  const privDefs=[
+    {idx:idxOf('privEq'),         lo:C.privEq.lo, hi:C.privEq.hi},
+    {idx:idxOf('infrastructure'),  lo:C.infra.lo,  hi:C.infra.hi},
+    {idx:idxOf('realEstateDirect'),lo:C.re.lo,     hi:C.re.hi},
+    {idx:idxOf('privCredit'),      lo:C.privCr.lo, hi:C.privCr.hi},
+  ];
+  // Simple: distribute by scaled random within [lo,hi] then rescale to totPriv
+  const privRaw=privDefs.map(d=>Math.max(d.lo, d.lo+Math.random()*(d.hi-d.lo)));
+  const privRawSum=privRaw.reduce((a,b)=>a+b,0);
+  privDefs.forEach((d,k)=>{w[d.idx]=privRawSum>1e-10 ? Math.min(d.hi, totPriv*privRaw[k]/privRawSum) : d.lo;});
+  rem-=w.slice(0,N).reduce((s,wi,i)=>s+(OA[i].priv?wi:0),0);
 
-  w[DIG]=Math.random()*Math.min(C.maxDigital,rem*0.25);
+  // 3. Digital within [dig.lo, dig.hi]
+  w[DIG]=C.dig.lo+Math.random()*(Math.min(C.dig.hi,rem*0.25)-C.dig.lo);
+  w[DIG]=Math.max(C.dig.lo, Math.min(C.dig.hi, w[DIG]));
   rem-=w[DIG];
 
-  const mSP=Math.max(0,C.maxSubIG-w[PCR]);
-  const totSP=Math.random()*Math.min(mSP,rem*0.45);
+  // 4. Liquid alts (REITs, listedAlts) within their [lo,hi]
+  const liqAltDefs=[
+    {idx:idxOf('globalReits'), lo:C.reits.lo, hi:C.reits.hi},
+    {idx:idxOf('listedAlts'),  lo:C.alts.lo,  hi:C.alts.hi},
+  ];
+  const liqAltRaw=liqAltDefs.map(d=>d.lo+Math.random()*(Math.min(d.hi,rem*0.3)-d.lo));
+  liqAltDefs.forEach((d,k)=>{w[d.idx]=Math.max(0,liqAltRaw[k]);});
+  rem-=liqAltDefs.reduce((s,d)=>s+w[d.idx],0);
+
+  // 5. Sub-IG public credit within [subig.lo, subig.hi - privCredit]
+  const privCrW=w[idxOf('privCredit')];
+  const maxSubPub=Math.max(0,Math.min(C.subig.hi-privCrW, rem*0.45));
+  const minSubPub=Math.max(0,C.subig.lo-privCrW);
+  const totSP=Math.min(maxSubPub, Math.max(0, minSubPub+Math.random()*(maxSubPub-minSubPub)));
   if(SIG_P.length&&totSP>0){
-    const r=SIG_P.map(()=>rExp());const s=r.reduce((a,b)=>a+b,0);
-    SIG_P.forEach((idx,k)=>{w[idx]=totSP*r[k]/s;});
+    // Respect individual [lo,hi] for HY and EM debt
+    const hyDef={idx:idxOf('globalHighYield'),lo:C.hy.lo,hi:C.hy.hi};
+    const emDef={idx:idxOf('emDebt'),lo:C.emDebt.lo,hi:C.emDebt.hi};
+    const hyR=hyDef.lo+Math.random()*(Math.min(hyDef.hi,totSP)-hyDef.lo);
+    w[hyDef.idx]=Math.max(0,Math.min(hyDef.hi,hyR));
+    const emR=emDef.lo+Math.random()*(Math.min(emDef.hi,Math.max(0,totSP-w[hyDef.idx]))-emDef.lo);
+    w[emDef.idx]=Math.max(0,Math.min(emDef.hi,emR));
   }
-  rem-=totSP;
+  rem-=SIG_P.reduce((s,i)=>s+w[i],0);
 
-  const rF=FILL.map(()=>rExp());const sF=rF.reduce((a,b)=>a+b,0);
-  FILL.forEach((idx,k)=>{w[idx]=rem*rF[k]/sF;});
+  // 6. Fill with IG credit, sovereign, IL, cash — respecting individual [lo,hi]
+  const fillDefs=[
+    {idx:idxOf('igCredit'),   lo:C.igCr.lo,  hi:C.igCr.hi},
+    {idx:idxOf('sdCredit'),   lo:C.sdCr.lo,  hi:C.sdCr.hi},
+    {idx:idxOf('globalSov'),  lo:C.gSov.lo,  hi:C.gSov.hi},
+    {idx:idxOf('inflLinked'), lo:C.il.lo,    hi:C.il.hi},
+    {idx:idxOf('moneyMkt'),   lo:C.mm.lo,    hi:C.mm.hi},
+  ];
+  const fillRaw=fillDefs.map(d=>rExp()+d.lo);
+  const fillSum=fillRaw.reduce((a,b)=>a+b,0);
+  fillDefs.forEach((d,k)=>{
+    w[d.idx]=fillSum>1e-10 ? d.lo + (rem-fillDefs.reduce((s,dd,j)=>s+(j<k?w[dd.idx]-dd.lo:0),0)) * (fillRaw[k]-d.lo) / (fillSum - fillDefs.slice(0,k).reduce((s,r)=>s+fillRaw[r.idx]||0,fillRaw.slice(0,k).reduce((a,b)=>a+b,0))) : d.lo;
+    w[d.idx]=Math.max(0, Math.min(d.hi, w[d.idx]));
+  });
+  // Assign remaining proportionally
+  const fillLeft=rem-fillDefs.reduce((s,d)=>s+w[d.idx],0);
+  if(fillLeft>0.001){
+    const totalFillRaw=fillRaw.reduce((a,b)=>a+b,0);
+    fillDefs.forEach((d,k)=>{w[d.idx]=Math.min(d.hi, w[d.idx]+fillLeft*fillRaw[k]/totalFillRaw);});
+  }
 
-  // minPos: non-equity only; then restore equity total
+  // minPos: non-equity only
   if(C.minPos>0){
     for(let i=0;i<N;i++){if(OA[i].eqIdx<0&&w[i]>0&&w[i]<C.minPos)w[i]=0;}
     const eqTot=EQ_I.reduce((s,idx)=>s+w[idx],0);
     if(eqTot>1e-10)EQ_I.forEach(idx=>{w[idx]=w[idx]/eqTot*totalEq;});
   }
 
+  // Normalise
   const tot=w.reduce((a,b)=>a+b,0);
-  if(tot<1e-10)return null;
-  for(let i=0;i<N;i++)w[i]/=tot;
-  return chkC(w,C).pass?w:null;
+  if(tot<1e-10) return null;
+  for(let i=0;i<N;i++) w[i]/=tot;
+
+  // Final constraint check
+  return chkC(w,C).pass ? w : null;
 }
 
-/* ── 5. OVERLAY PORTFOLIOS ─────────────────────────────────────────────── */
+/* ── 8. OVERLAY PORTFOLIOS ─────────────────────────────────────────────── */
 function buildOverlay(){
   const providers=[],comparators=[];
   if(typeof STRATEGY_GROUPS==='undefined'||typeof PRESET_PORTFOLIOS==='undefined')
-    return {providers,comparators};
+    return{providers,comparators};
   const pm={};
   PRESET_PORTFOLIOS.forEach(g=>g.portfolios.forEach(p=>{pm[p.id]=p.weights;}));
   function resolve(points){
@@ -3225,14 +3455,14 @@ function buildOverlay(){
       g.isProvider?providers.push(entry):comparators.push(entry);
     });
   });
-  return {providers,comparators};
+  return{providers,comparators};
 }
 
-/* ── 6. STATE ──────────────────────────────────────────────────────────── */
-let cloud=[], overlay={providers:[],comparators:[]};
-let selectedIdx=null, chartMeta=null, running=false;
+/* ── 9. STATE ──────────────────────────────────────────────────────────── */
+let cloud=[],overlay={providers:[],comparators:[]};
+let selectedIdx=null,chartMeta=null,running=false;
 
-/* ── 7. RUN ────────────────────────────────────────────────────────────── */
+/* ── 10. RUN ───────────────────────────────────────────────────────────── */
 window.optRunOptimizer=async function(){
   if(running)return;
   running=true;
@@ -3241,12 +3471,11 @@ window.optRunOptimizer=async function(){
   btn.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Simulating…';
   const pw=document.getElementById('opt-progressWrap'),pb=document.getElementById('opt-progressBar');
   pw.style.opacity='1';pb.style.width='0%';
-
   const C=getC();
   const nTarget=+document.getElementById('opt-nPoints').value;
   cloud=[];selectedIdx=null;
   let attempts=0,feasible=0;
-  const maxAttempts=nTarget*25;
+  const maxAttempts=nTarget*30;
 
   await new Promise(resolve=>{
     function step(){
@@ -3262,7 +3491,7 @@ window.optRunOptimizer=async function(){
       pb.style.width=Math.min(feasible/nTarget*100,100).toFixed(0)+'%';
       document.getElementById('opt-statusMsg').textContent=
         `${feasible.toLocaleString()} / ${nTarget.toLocaleString()} portfolios · ${attempts.toLocaleString()} attempts`;
-      if(feasible>=nTarget||attempts>=maxAttempts){resolve();}
+      if(feasible>=nTarget||attempts>=maxAttempts)resolve();
       else setTimeout(step,0);
     }
     setTimeout(step,0);
@@ -3271,8 +3500,7 @@ window.optRunOptimizer=async function(){
   overlay=buildOverlay();
   renderOptChart();
   renderOptWeights(null);
-
-  const rate=(feasible/attempts*100).toFixed(1);
+  const rate=(feasible/Math.max(attempts,1)*100).toFixed(1);
   document.getElementById('opt-statusMsg').textContent=
     `✓ ${feasible.toLocaleString()} portfolios · ${(attempts-feasible).toLocaleString()} rejected · ${rate}% acceptance`;
   btn.disabled=false;
@@ -3281,7 +3509,7 @@ window.optRunOptimizer=async function(){
   running=false;
 };
 
-/* ── 8. CHART ──────────────────────────────────────────────────────────── */
+/* ── 11. CHART ─────────────────────────────────────────────────────────── */
 function renderOptChart(){
   if(!cloud.length)return;
   const canvas=document.getElementById('opt-canvas');
@@ -3293,58 +3521,34 @@ function renderOptChart(){
   canvas.style.width=W+'px';canvas.style.height=H+'px';
   const ctx=canvas.getContext('2d');
   ctx.scale(dpr,dpr);
-
   const PAD={top:36,right:40,bottom:52,left:62};
-  const cw=W-PAD.left-PAD.right, ch=H-PAD.top-PAD.bottom;
-
-  // Axis ranges — union of cloud + overlay
+  const cw=W-PAD.left-PAD.right,ch=H-PAD.top-PAD.bottom;
   const all=[...cloud,...overlay.providers,...overlay.comparators];
-  const vols=all.map(p=>p.vol), rets=all.map(p=>p.muG);
-  const xMin=Math.max(0,Math.min(...vols)-0.015);
-  const xMax=Math.max(...vols)+0.025;
-  const yMin=Math.min(...rets)-0.008;
-  const yMax=Math.max(...rets)+0.015;
-
+  const xMin=Math.max(0,Math.min(...all.map(p=>p.vol))-0.015);
+  const xMax=Math.max(...all.map(p=>p.vol))+0.025;
+  const yMin=Math.min(...all.map(p=>p.muG))-0.008;
+  const yMax=Math.max(...all.map(p=>p.muG))+0.015;
   const tx=v=>PAD.left+(v-xMin)/(xMax-xMin)*cw;
   const ty=r=>PAD.top+(1-(r-yMin)/(yMax-yMin))*ch;
 
-  // Clear
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
-
-  // Grid
   ctx.strokeStyle='#F1F5F9';ctx.lineWidth=1;
-  for(let i=0;i<=6;i++){
-    const x=PAD.left+i/6*cw;
-    ctx.beginPath();ctx.moveTo(x,PAD.top);ctx.lineTo(x,PAD.top+ch);ctx.stroke();
-  }
-  for(let i=0;i<=5;i++){
-    const y=PAD.top+i/5*ch;
-    ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+cw,y);ctx.stroke();
-  }
-
-  // Axes
+  for(let i=0;i<=6;i++){const x=PAD.left+i/6*cw;ctx.beginPath();ctx.moveTo(x,PAD.top);ctx.lineTo(x,PAD.top+ch);ctx.stroke();}
+  for(let i=0;i<=5;i++){const y=PAD.top+i/5*ch;ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+cw,y);ctx.stroke();}
   ctx.strokeStyle='#E2E8F0';ctx.lineWidth=1.5;
   ctx.beginPath();ctx.moveTo(PAD.left,PAD.top);ctx.lineTo(PAD.left,PAD.top+ch);ctx.stroke();
   ctx.beginPath();ctx.moveTo(PAD.left,PAD.top+ch);ctx.lineTo(PAD.left+cw,PAD.top+ch);ctx.stroke();
-
-  // Axis labels
   ctx.fillStyle='#8896A8';ctx.font='400 10px DM Mono,monospace';
   ctx.textAlign='center';
-  for(let i=0;i<=6;i++){
-    const v=xMin+i/6*(xMax-xMin);
-    ctx.fillText((v*100).toFixed(0)+'%',PAD.left+i/6*cw,PAD.top+ch+18);
-  }
+  for(let i=0;i<=6;i++){const v=xMin+i/6*(xMax-xMin);ctx.fillText((v*100).toFixed(0)+'%',PAD.left+i/6*cw,PAD.top+ch+18);}
   ctx.textAlign='right';
-  for(let i=0;i<=5;i++){
-    const r=yMin+i/5*(yMax-yMin);
-    ctx.fillText((r*100).toFixed(1)+'%',PAD.left-8,ty(r)+4);
-  }
+  for(let i=0;i<=5;i++){const r=yMin+i/5*(yMax-yMin);ctx.fillText((r*100).toFixed(1)+'%',PAD.left-8,ty(r)+4);}
   ctx.save();ctx.translate(14,PAD.top+ch/2);ctx.rotate(-Math.PI/2);
   ctx.textAlign='center';ctx.fillStyle='#8896A8';ctx.font='400 10px DM Mono,monospace';
   ctx.fillText('GEOMETRIC RETURN  μg',0,0);ctx.restore();
 
-  // Cloud dots
+  // Cloud
   ctx.globalAlpha=0.22;
   cloud.forEach((p,i)=>{
     if(i===selectedIdx)return;
@@ -3353,8 +3557,7 @@ function renderOptChart(){
   });
   ctx.globalAlpha=1;
 
-
-  // ── Max geometric return point ───────────────────────────────────────────
+  // Max μ_g
   const maxG=cloud.reduce((b,p)=>p.muG>b.muG?p:b,cloud[0]);
   const xMG=tx(maxG.vol),yMG=ty(maxG.muG);
   ctx.beginPath();ctx.arc(xMG,yMG,7,0,Math.PI*2);
@@ -3380,35 +3583,24 @@ function renderOptChart(){
     ctx.restore();
     hitPts.push({x,y,type:'comparator',data:p});
   });
-
-  // Selected cloud point
   if(selectedIdx!==null&&cloud[selectedIdx]){
     const p=cloud[selectedIdx];
     ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),7,0,Math.PI*2);
     ctx.fillStyle='#1B5EBE';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
     ctx.fill();ctx.stroke();
   }
-
-  // Build hit-test list (cloud last so overlay has priority)
-  cloud.forEach((p,i)=>hitPts.push({x:tx(p.vol),y:ty(p.muG),type:'cloud',data:p,idx:i}));
-  chartMeta={tx,ty,PAD,W,H,hitPts};
+  cloud.forEach((_,i)=>{const p=cloud[i];hitPts.push({x:tx(p.vol),y:ty(p.muG),type:'cloud',data:p,idx:i});});
+  chartMeta={tx,ty,hitPts};
 }
 
-/* ── 9. INTERACTION ────────────────────────────────────────────────────── */
+/* ── 12. INTERACTION ───────────────────────────────────────────────────── */
 (function(){const t=document.createElement('div');t.id='opt-tooltip';document.body.appendChild(t);})();
 
 function nearest(mx,my){
   if(!chartMeta)return null;
   let best=null,bestD=22;
-  // Overlay first (higher priority)
-  chartMeta.hitPts.filter(p=>p.type!=='cloud').forEach(p=>{
-    const d=Math.hypot(p.x-mx,p.y-my);
-    if(d<bestD+6){bestD=d-6;best=p;}
-  });
-  chartMeta.hitPts.filter(p=>p.type==='cloud').forEach(p=>{
-    const d=Math.hypot(p.x-mx,p.y-my);
-    if(d<bestD){bestD=d;best=p;}
-  });
+  chartMeta.hitPts.filter(p=>p.type!=='cloud').forEach(p=>{const d=Math.hypot(p.x-mx,p.y-my);if(d<bestD+6){bestD=d-6;best=p;}});
+  chartMeta.hitPts.filter(p=>p.type==='cloud').forEach(p=>{const d=Math.hypot(p.x-mx,p.y-my);if(d<bestD){bestD=d;best=p;}});
   return best;
 }
 
@@ -3417,7 +3609,6 @@ function setupCanvas(){
   if(!cv||cv._ol)return;
   cv._ol=true;
   const tt=document.getElementById('opt-tooltip');
-
   cv.addEventListener('mousemove',function(e){
     if(!cloud.length||!chartMeta)return;
     const r=this.getBoundingClientRect();
@@ -3432,7 +3623,7 @@ function setupCanvas(){
         <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>`;
       tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
       tt.classList.add('visible');this.style.cursor='pointer';
-    } else {tt.classList.remove('visible');this.style.cursor='default';}
+    }else{tt.classList.remove('visible');this.style.cursor='default';}
   });
   cv.addEventListener('mouseleave',()=>document.getElementById('opt-tooltip').classList.remove('visible'));
   cv.addEventListener('click',function(e){
@@ -3445,19 +3636,18 @@ function setupCanvas(){
   });
 }
 
-/* ── 10. WEIGHTS TABLE ─────────────────────────────────────────────────── */
+/* ── 13. WEIGHTS TABLE ─────────────────────────────────────────────────── */
 function pct(v,dp=1){return(v*100).toFixed(dp)+'%';}
 
 function renderOptWeights(pt){
   if(!pt){
-    document.getElementById('opt-weightsBody').innerHTML=
-      `<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3">◦</div><p class="small mt-2 mb-0">Click any point in the simulation cloud to inspect its allocation.</p></div>`;
+    document.getElementById('opt-weightsBody').innerHTML=`<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3;">◦</div><p class="small mt-2 mb-0">Click any point in the simulation cloud to inspect its allocation.</p></div>`;
     const ph=document.getElementById('opt-summaryPills');ph.classList.add('d-none');ph.style.display='';
     document.getElementById('opt-constraintStatus').style.display='none';
     document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
     return;
   }
-  drawWeightsPanel(pt.w, pt, '');
+  drawWeightsPanel(pt.w,pt,'');
 }
 function renderOptOverlay(pt){
   const w=OA.map(a=>pt.wObj?pt.wObj[a.key]||0:0);
@@ -3465,48 +3655,24 @@ function renderOptOverlay(pt){
 }
 
 function drawWeightsPanel(w,stats,nameLabel){
-  const C=getC(), chk=chkC(w,C);
-  const priv =OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
-  const liq  =OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
-  const subig=OA.reduce((s,a,i)=>s+(a.subig?w[i]:0),0);
-  const dIdx =OA.findIndex(a=>a.key==='digitalAssets');
+  const C=getC(),chk=chkC(w,C);
+  const priv=OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
+  const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
 
   document.getElementById('opt-selectedLabel').textContent=
     nameLabel||`σ=${pct(stats.vol,2)} · μ_g=${pct(stats.muG,2)}`;
 
-  // Pills
   const pills=document.getElementById('opt-summaryPills');
   pills.classList.remove('d-none');pills.style.display='flex';
   pills.innerHTML=`
-    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_g ${pct(stats.muG,2)}</span>
-    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">μ_a ${pct(stats.muA,2)}</span>
-    <span class="badge rounded-pill" style="background:var(--accent-pale,#EBF3FF);color:var(--accent-blue,#1B5EBE);font-weight:500">σ ${pct(stats.vol,2)}</span>
-    <span class="badge rounded-pill" style="background:${priv<=C.maxPrivate?'#DCFCE7':'#FEE2E2'};color:${priv<=C.maxPrivate?'#166534':'#991B1B'};font-weight:500">Private ${pct(priv,1)}</span>
+    <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">μ_g ${pct(stats.muG,2)}</span>
+    <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">μ_a ${pct(stats.muA,2)}</span>
+    <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">σ ${pct(stats.vol,2)}</span>
+    <span class="badge rounded-pill" style="background:${priv<=C.priv.hi?'#DCFCE7':'#FEE2E2'};color:${priv<=C.priv.hi?'#166534':'#991B1B'};font-weight:500">Private ${pct(priv,1)}</span>
     <span class="badge rounded-pill" style="background:${chk.pass?'#DCFCE7':'#FEE2E2'};color:${chk.pass?'#166534':'#991B1B'};font-weight:500">${chk.pass?'✓ Feasible':chk.violations.length+' violation'+(chk.violations.length>1?'s':'')}</span>`;
 
-  // Constraint grid
-  const cst=document.getElementById('opt-constraintStatus');
-  const eqT=pEqTot(w);
-  cst.className='opt-cst-grid';cst.style.display='grid';
-  cst.innerHTML=[
-    {l:'Sum to 100%',          ok:Math.abs(w.reduce((a,b)=>a+b,0)-1)<0.015},
-    {l:`Private ≤ ${pct(C.maxPrivate)}`,   ok:priv<=C.maxPrivate+1e-4},
-    {l:`Liquid ≥ ${pct(C.minLiquid)}`,     ok:liq>=C.minLiquid-1e-4},
-    {l:`Sub-IG ≤ ${pct(C.maxSubIG)}`,      ok:subig<=C.maxSubIG+1e-4},
-    {l:`Digital ≤ ${pct(C.maxDigital)}`,   ok:w[dIdx]<=C.maxDigital+1e-4},
-    {l:'No shorts',            ok:w.every(wi=>wi>=-1e-4)},
-    {l:`Eq drift ≤${pct(C.maxEqDev)} of cap`, ok:(()=>{
-      if(eqT<0.02)return true;
-      for(let e=0;e<6;e++){
-        const i=OA.findIndex(a=>a.eqIdx===e);
-        if(Math.abs(w[i]/eqT-EQ_CAP[e])>EQ_CAP[e]*C.maxEqDev+2e-4)return false;
-      }
-      return true;
-    })()},
-    {l:`Max single ≤ ${pct(C.maxSingle)}`, ok:w.every(wi=>wi<=C.maxSingle+1e-4)},
-  ].map(c=>`<div class="opt-cst-item"><div class="opt-cst-dot ${c.ok?'ok':'bad'}"></div><span>${c.l}</span></div>`).join('');
+  document.getElementById('opt-constraintStatus').style.display='none';
 
-  // Weights table — uses app ASSET_CLASSES names and colors
   const sorted=OA.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
   const maxW=Math.max(...w,0.001);
   document.getElementById('opt-weightsBody').innerHTML=`
@@ -3517,49 +3683,52 @@ function drawWeightsPanel(w,stats,nameLabel){
           <th class="text-muted fw-medium border-0" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Asset Class</th>
           <th class="text-end text-muted fw-medium border-0" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Weight</th>
           <th class="border-0 d-none d-md-table-cell" style="min-width:100px;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:#8896A8">Allocation</th>
-          <th class="text-end text-muted fw-medium border-0 d-none d-sm-table-cell" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Return Contrib.</th>
+          <th class="text-end text-muted fw-medium border-0 d-none d-sm-table-cell" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">Ret. Contrib.</th>
           <th class="text-end text-muted fw-medium border-0 d-none d-sm-table-cell" style="font-size:.7rem;letter-spacing:.04em;text-transform:uppercase">σ</th>
         </tr>
       </thead>
       <tbody>
-        ${sorted.map(a=>`<tr style="opacity:${a.w<0.001?0.35:1}">
+        ${sorted.map(a=>`<tr style="opacity:${a.w<0.001?0.3:1}">
           <td class="border-0 align-middle">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${OA_COLORS[a.key]||'#94A3B8'};margin-right:7px;flex-shrink:0;"></span>
-            <span class="text-muted fw-medium">${a.name}</span>
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${OA_COLORS[a.key]||'#94A3B8'};margin-right:7px;"></span>
+            <span class="text-secondary fw-medium">${a.name}</span>
           </td>
-          <td class="text-end border-0 align-middle fw-bold" style="font-family:monospace;color:${a.w>0.001?'var(--text-main,#0E1117)':'#94A3B8'}">${pct(a.w,1)}</td>
+          <td class="text-end border-0 align-middle fw-bold font-monospace" style="color:${a.w>0.001?'#0E1117':'#94A3B8'}">${pct(a.w,1)}</td>
           <td class="border-0 align-middle d-none d-md-table-cell">
-            <div style="background:#F1F5F9;border-radius:2px;height:5px;">
-              <div style="width:${a.w/maxW*100}%;background:${OA_COLORS[a.key]||'#94A3B8'};height:5px;border-radius:2px;min-width:${a.w>0.001?2:0}px;"></div>
-            </div>
+            <div style="background:#F1F5F9;border-radius:2px;height:5px;"><div style="width:${a.w/maxW*100}%;background:${OA_COLORS[a.key]||'#94A3B8'};height:5px;border-radius:2px;min-width:${a.w>0.001?2:0}px;"></div></div>
           </td>
-          <td class="text-end border-0 align-middle d-none d-sm-table-cell" style="font-family:monospace;color:#4B5568">${pct(a.w*a.r,2)}</td>
-          <td class="text-end border-0 align-middle d-none d-sm-table-cell" style="font-family:monospace;color:#8896A8">${pct(a.v,1)}</td>
+          <td class="text-end border-0 align-middle d-none d-sm-table-cell font-monospace" style="color:#4B5568">${pct(a.w*a.r,2)}</td>
+          <td class="text-end border-0 align-middle d-none d-sm-table-cell font-monospace" style="color:#8896A8">${pct(a.v,1)}</td>
         </tr>`).join('')}
       </tbody>
-    </table>
-    </div>`;
+    </table></div>`;
 }
 
-/* ── 11. INIT ──────────────────────────────────────────────────────────── */
+/* ── 14. COLLAPSE TOGGLE ───────────────────────────────────────────────── */
+window.optToggleConstraints=function(){
+  const body=document.getElementById('opt-cst-body');
+  const chev=document.getElementById('opt-cst-chevron');
+  if(!body||!chev)return;
+  const open=body.classList.toggle('d-none');
+  chev.style.transform=open?'':'rotate(180deg)';
+};
+
+/* ── 15. INIT ──────────────────────────────────────────────────────────── */
 (function(){
-  const names=['US Equity','Dev Europe','EM Equity','Japan','UK','Dev APAC'];
+  const names=['US Equity (NA)','Dev Europe','EM Equity','Japan','UK','Dev APAC'];
   const el=document.getElementById('opt-mktCapTable');
   if(el)el.innerHTML=names.map((n,i)=>`
-    <div class="d-flex justify-content-between"><span>${n}</span><span>${(EQ_CAP[i]*100).toFixed(0)}%</span></div>`).join('');
+    <div class="d-flex justify-content-between gap-3"><span>${n}</span><span>${(EQ_CAP[i]*100).toFixed(1)}%</span></div>`).join('');
 })();
 
 document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('.list-group-item[data-tab]').forEach(el=>{
     el.addEventListener('click',function(){
-      if(this.dataset.tab==='optimizer')setTimeout(setupCanvas,100);
+      if(this.dataset.tab==='optimizer')setTimeout(()=>{initSliders();setupCanvas();},100);
     });
   });
 });
 let _resizeT;
-window.addEventListener('resize',()=>{
-  clearTimeout(_resizeT);
-  _resizeT=setTimeout(()=>{if(cloud.length)renderOptChart();},150);
-});
+window.addEventListener('resize',()=>{clearTimeout(_resizeT);_resizeT=setTimeout(()=>{if(cloud.length)renderOptChart();},150);});
 
 })(); // end IIFE
