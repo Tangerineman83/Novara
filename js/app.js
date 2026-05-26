@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.4';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.5';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -466,12 +466,21 @@ function scrapeCMATable() {
 
 function refreshStrategyDropdowns() {
     const customStrats = UserDataEngine.load().strategies;
-    
+
+    // Custom strategies (user-created) come FIRST in the dropdown
+    let customHtml = '';
+    if(customStrats.length > 0) {
+        customHtml = '<optgroup label="Custom Strategies">';
+        customStrats.forEach(s => customHtml += `<option value="${s.id}">${s.name}</option>`);
+        customHtml += '</optgroup>';
+    }
+
+    // Preset strategies: Comparators group first, then Provider Strategies
+    // Skip empty groups
     let presetHtml = '';
     STRATEGY_GROUPS.forEach((group, gIdx) => {
-        if (group.strategies.length === 0) return; // skip empty groups (e.g. Comparators)
+        if (group.strategies.length === 0) return;
         presetHtml += `<optgroup label="${group.name}">`;
-        // Sort provider strategies alphabetically; leave non-provider in original order
         const stratList = group.isProvider
             ? [...group.strategies.map((s, i) => ({...s, idx: i}))].sort((a, b) => a.name.localeCompare(b.name))
             : group.strategies.map((s, i) => ({...s, idx: i}));
@@ -481,21 +490,14 @@ function refreshStrategyDropdowns() {
         presetHtml += `</optgroup>`;
     });
 
-    let customHtml = '';
-    if(customStrats.length > 0) {
-        customHtml = '<optgroup label="My Strategies">';
-        customStrats.forEach(s => customHtml += `<option value="${s.id}">${s.name}</option>`);
-        customHtml += '</optgroup>';
-    }
-
     const editorSel = document.getElementById('strategy-preset-select');
     if(editorSel) {
         const currEd = editorSel.value;
-        editorSel.innerHTML = '<option value="">Load Preset...</option>' + presetHtml + customHtml;
+        editorSel.innerHTML = '<option value="">Load Preset...</option>' + customHtml + presetHtml;
         if(currEd) editorSel.value = currEd;
     }
 
-    const runHtml = '<option value="custom">Active Strategy Builder</option>' + presetHtml + customHtml;
+    const runHtml = '<option value="custom">Active Strategy Builder</option>' + customHtml + presetHtml;
     ['run-strat-1', 'run-strat-2', 'run-strat-3'].forEach((id, i) => {
         const sel = document.getElementById(id);
         if(sel) {
@@ -1145,7 +1147,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=57.4'); 
+    state.worker = new Worker('./js/worker.js?v=57.5'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1813,10 +1815,10 @@ function renderVFMTable(results) {
     state.vfm.lastResults = results; // cache for re-sort
     renderVFMRows(results, state.vfm.sortField || 'pot', state.vfm.sortDir || 'desc');
     const _simCount  = Math.min(parseInt(document.getElementById('setting-sim-count-vfm')?.value) || 2000, 5000);
-    const _nStrats   = results.filter(r => r.isProvider).length;
+    const _nProvider = results.filter(r => r.isProvider).length;
     const _nCustom   = results.filter(r => r.isCustom).length;
-    const _customStr = _nCustom > 0 ? ` · ${_nCustom} custom` : '';
-    vfmShowDone(`${_simCount.toLocaleString()} simulations · ${_nStrats} strategies${_customStr}`);
+    const _customStr = _nCustom > 0 ? ` and ${_nCustom} custom` : '';
+    vfmShowDone(`${_simCount.toLocaleString()} simulations · ${_nProvider} provider${_customStr} strategies`);
 
     // Wire sort header clicks (once per render)
     ['vfm-sort-pot','vfm-sort-ret'].forEach(id => {
