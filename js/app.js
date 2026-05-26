@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.2';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.3';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -186,6 +186,7 @@ function setupEventListeners() {
 
             if (target === 'strategy') {
                 refreshPortfolioDropdowns();
+                refreshStrategyPortfolioSelects();
                 setTimeout(renderStrategyChart, 50); 
             }
             if (target === 'portfolio') {
@@ -1144,7 +1145,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=57.2'); 
+    state.worker = new Worker('./js/worker.js?v=57.3'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -2073,14 +2074,15 @@ function refreshPortfolioDropdowns() {
     const leftSel = document.getElementById('port-select-left');
     const rightSel = document.getElementById('port-select-right');
     
-    let presetHtml = '';
-    // Sort provider groups alphabetically; keep Core Building Blocks first
-    const coreGroup = PRESET_PORTFOLIOS.find(g => g.name === 'Core Building Blocks');
+    // Separate Custom preset group from provider groups
+    const customPresetGroup = PRESET_PORTFOLIOS.find(g => g.name === 'Custom');
     const providerGroups = PRESET_PORTFOLIOS
-        .filter(g => g.name !== 'Core Building Blocks')
+        .filter(g => g.name !== 'Custom')
         .sort((a, b) => a.name.localeCompare(b.name));
-    const sortedPortfolioGroups = coreGroup ? [coreGroup, ...providerGroups] : providerGroups;
-    sortedPortfolioGroups.forEach(group => {
+
+    // Build provider options
+    let presetHtml = '';
+    providerGroups.forEach(group => {
         presetHtml += `<optgroup label="${group.name}">`;
         group.portfolios.forEach(p => {
             presetHtml += `<option value="${p.id}">${p.name}</option>`;
@@ -2088,11 +2090,18 @@ function refreshPortfolioDropdowns() {
         presetHtml += `</optgroup>`;
     });
 
+    // Build custom options: preset custom group + user-created portfolios together
     let customHtml = '';
-    const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
-    if(customs.length > 0) {
-        customHtml += `<optgroup label="My Portfolios">`;
-        customs.forEach(p => { customHtml += `<option value="${p.id}">${p.name}</option>`; });
+    const userCustoms = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    const hasCustomPreset = customPresetGroup && customPresetGroup.portfolios.length > 0;
+    if(hasCustomPreset || userCustoms.length > 0) {
+        customHtml += `<optgroup label="Custom">`;
+        if(hasCustomPreset) {
+            customPresetGroup.portfolios.forEach(p => {
+                customHtml += `<option value="${p.id}">${p.name}</option>`;
+            });
+        }
+        userCustoms.forEach(p => { customHtml += `<option value="${p.id}">${p.name}</option>`; });
         customHtml += `</optgroup>`;
     }
     
@@ -2110,6 +2119,7 @@ function createNewPortfolio(side) {
     UserDataEngine.saveItem('portfolios', newPort);
     state.portfolios.push(newPort);
     refreshPortfolioDropdowns();
+    refreshStrategyPortfolioSelects();
     document.getElementById(`port-select-${side}`).value = newPort.id;
     
     state[`portInputsCollapsed_${side}`] = false; // Auto-expand when a new portfolio is created
@@ -2489,6 +2499,43 @@ function bindStrategyTableEvents() {
     });
 }
 
+
+function refreshStrategyPortfolioSelects() {
+    // Rebuild strategy builder portfolio dropdowns in place, preserving selections.
+    // Needed when custom portfolios are added after the strategy table was rendered.
+    const selects = document.querySelectorAll('.strat-port-select');
+    if(!selects.length) return;
+
+    // Build the options HTML once
+    let optsHtml = `<option value="none">-- Select Portfolio --</option>`;
+    PRESET_PORTFOLIOS.filter(g => g.name !== 'Custom')
+        .sort((a,b) => a.name.localeCompare(b.name))
+        .forEach(group => {
+            optsHtml += `<optgroup label="${group.name}">`;
+            group.portfolios.forEach(p => { optsHtml += `<option value="${p.id}">${p.name}</option>`; });
+            optsHtml += `</optgroup>`;
+        });
+    const customPresetGrp = PRESET_PORTFOLIOS.find(g => g.name === 'Custom');
+    const userCustomPorts = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    if((customPresetGrp && customPresetGrp.portfolios.length > 0) || userCustomPorts.length > 0) {
+        optsHtml += `<optgroup label="Custom">`;
+        if(customPresetGrp) customPresetGrp.portfolios.forEach(p => {
+            optsHtml += `<option value="${p.id}">${p.name}</option>`;
+        });
+        userCustomPorts.forEach(p => { optsHtml += `<option value="${p.id}">${p.name}</option>`; });
+        optsHtml += `</optgroup>`;
+    }
+
+    selects.forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = optsHtml;
+        // Restore previous selection if it still exists
+        if(current && sel.querySelector(`option[value="${current}"]`)) {
+            sel.value = current;
+        }
+    });
+}
+
 function appendStrategyRow(tbody, r) {
     const tr = document.createElement('tr');
     const selCell = document.createElement('td');
@@ -2496,18 +2543,25 @@ function appendStrategyRow(tbody, r) {
     
     let selHTML = `<select class="form-select form-select-sm strat-port-select bg-transparent text-primary fw-bold border-0 shadow-none"><option value="none">-- Select Portfolio --</option>`;
     
-    PRESET_PORTFOLIOS.forEach(group => {
-        selHTML += `<optgroup label="${group.name}">`;
-        group.portfolios.forEach(p => {
+    // Provider groups (excluding Custom preset group)
+    PRESET_PORTFOLIOS.filter(g => g.name !== 'Custom')
+        .sort((a,b) => a.name.localeCompare(b.name))
+        .forEach(group => {
+            selHTML += `<optgroup label="${group.name}">`;
+            group.portfolios.forEach(p => {
+                selHTML += `<option value="${p.id}">${p.name}</option>`;
+            });
+            selHTML += `</optgroup>`;
+        });
+    // Custom group: preset custom portfolios + user-created
+    const customPresetGrp = PRESET_PORTFOLIOS.find(g => g.name === 'Custom');
+    const userCustomPorts = state.portfolios.filter(p => p.id.startsWith('custom_'));
+    if((customPresetGrp && customPresetGrp.portfolios.length > 0) || userCustomPorts.length > 0) {
+        selHTML += `<optgroup label="Custom">`;
+        if(customPresetGrp) customPresetGrp.portfolios.forEach(p => {
             selHTML += `<option value="${p.id}">${p.name}</option>`;
         });
-        selHTML += `</optgroup>`;
-    });
-    
-    const customs = state.portfolios.filter(p => p.id.startsWith('custom_'));
-    if(customs.length > 0) {
-        selHTML += `<optgroup label="My Portfolios">`;
-        customs.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
+        userCustomPorts.forEach(p => { selHTML += `<option value="${p.id}">${p.name}</option>`; });
         selHTML += `</optgroup>`;
     }
     
@@ -3654,6 +3708,7 @@ window.optSendToPortfolio = function(side){
     state.portfolios.push(newPort);
   }
   refreshPortfolioDropdowns();
+  if(typeof refreshStrategyPortfolioSelects === 'function') refreshStrategyPortfolioSelects();
 
   // Switch the relevant slot to this portfolio
   const sel = document.getElementById(`port-select-${side}`);

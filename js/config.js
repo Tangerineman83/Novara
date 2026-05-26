@@ -211,20 +211,9 @@ export const PRESET_PERSONAS = [
 ];
 
 export const PRESET_PORTFOLIOS = [
-    {
-        name: "Core Building Blocks",
-        portfolios: [
-            { id: "p_std_growth", name: "Standard Growth", weights: { usEq: 0.585, devEq: 0.140, emEq: 0.095, jpnEq: 0.055, ukEq: 0.035, apacEq: 0.020, globalReits: 0.05, realEstateDirect: 0.02 }, alphas: {}, tes: {} },
-            { id: "p_enh_growth", name: "Enhanced Growth", weights: { usEq: 0.43875, devEq: 0.105, emEq: 0.07125, jpnEq: 0.04125, ukEq: 0.02625, apacEq: 0.015, globalReits: 0.0375, realEstateDirect: 0.015, privEq: 0.0875, infrastructure: 0.075, privCredit: 0.075, sdCredit: 0.0125 }, alphas: {}, tes: {} },
-            { id: "p_resilient_growth", name: "Resilient Growth", weights: { usEq: 0.25, emEq: 0.10, infrastructure: 0.15, privEq: 0.10, privCredit: 0.10, globalSov: 0.10, sdCredit: 0.10, moneyMkt: 0.05, listedAlts: 0.05 }, alphas: {}, tes: {} },
-            { id: "p_ltaf", name: "LTAF", weights: { privEq: 0.35, infrastructure: 0.30, privCredit: 0.30, sdCredit: 0.05 }, alphas: {}, tes: {} },
-            { id: "p_retire", name: "Retirement", weights: { sdCredit: 0.248, usEq: 0.2142, igCredit: 0.150, emDebt: 0.092, globalSov: 0.057, devEq: 0.051, moneyMkt: 0.040, emEq: 0.034, globalReits: 0.025, inflLinked: 0.025, jpnEq: 0.0204, ukEq: 0.0136, privEq: 0.0077, infrastructure: 0.0077, privCredit: 0.0076, apacEq: 0.0068 }, alphas: {}, tes: {} }
-        ]
-    },
-
     // ─── OPTIMAL DC STRATEGY (COMPARATOR) ────────────────────────────────────
     {
-        name: "Optimal DC Strategy",
+        name: "Custom",
         // Reference strategies illustrating theoretically optimal DC default designs.
         // Based on CMA 2026-05 geometric return analysis and specified fund construction.
         //
