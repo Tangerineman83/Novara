@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.1';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=57.2';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1144,7 +1144,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=57.1'); 
+    state.worker = new Worker('./js/worker.js?v=57.2'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3549,13 +3549,23 @@ function drawWeightsPanel(w,stats,nameLabel){
   const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
   document.getElementById('opt-selectedLabel').textContent=nameLabel||`σ=${pct(stats.vol,2)} · μ_g=${pct(stats.muG,2)}`;
   const pills=document.getElementById('opt-summaryPills');
-  pills.classList.remove('d-none');pills.style.display='flex';
+  pills.classList.remove('d-none');pills.style.display='flex';pills.style.alignItems='center';pills.style.flexWrap='wrap';
+  // Store current weights so the load buttons can access them
+  pills._currentW = w;
   pills.innerHTML=`
     <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">μ_g ${pct(stats.muG,2)}</span>
     <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">μ_a ${pct(stats.muA,2)}</span>
     <span class="badge rounded-pill" style="background:#EBF3FF;color:#1B5EBE;font-weight:500">σ ${pct(stats.vol,2)}</span>
     <span class="badge rounded-pill" style="background:#F3F0FF;color:#7E22CE;font-weight:500">Private ${pct(priv,1)}</span>
-    <span class="badge rounded-pill" style="background:#F0FDF4;color:#166534;font-weight:500">Liquid ${pct(liq,1)}</span>`;
+    <span class="badge rounded-pill" style="background:#F0FDF4;color:#166534;font-weight:500">Liquid ${pct(liq,1)}</span>
+    <span style="margin-left:auto;display:flex;gap:6px;">
+      <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.7rem;" onclick="optSendToPortfolio('left')" title="Load into left portfolio slot">
+        <i class="fas fa-arrow-left me-1"></i>Load left
+      </button>
+      <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.7rem;" onclick="optSendToPortfolio('right')" title="Load into right portfolio slot">
+        Load right<i class="fas fa-arrow-right ms-1"></i>
+      </button>
+    </span>`;
   const sorted=OA.map((a,i)=>({...a,w:w[i]})).sort((a,b)=>b.w-a.w);
   const maxW=Math.max(...w,0.001);
   document.getElementById('opt-weightsBody').innerHTML=`
@@ -3609,5 +3619,54 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 let _rT;
 window.addEventListener('resize',()=>{clearTimeout(_rT);_rT=setTimeout(()=>{if(cloud.length)renderOptChart();},150);});
+
+/* ── 15. SEND TO PORTFOLIO ─────────────────────────────────────────────── */
+window.optSendToPortfolio = function(side){
+  // Get the weights currently displayed in the panel
+  const pills = document.getElementById('opt-summaryPills');
+  const w = pills._currentW;
+  if(!w || !w.length) return;
+
+  // Build weights object keyed by asset key, dropping near-zero positions
+  const weights = {};
+  OA.forEach((a,i)=>{ if(w[i] > 0.001) weights[a.key] = parseFloat(w[i].toFixed(4)); });
+
+  // Compute a descriptive name from dominant exposures
+  const privTot = OA.reduce((s,a,i)=>s+(a.priv?w[i]:0), 0);
+  const eqTot   = OA.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0), 0);
+  const muG     = pGeom(w);
+  const label   = `Optimised (μ_g ${(muG*100).toFixed(1)}%, eq ${(eqTot*100).toFixed(0)}%, priv ${(privTot*100).toFixed(0)}%)`;
+
+  // Create a new custom portfolio using the existing mechanism
+  // This saves to localStorage, pushes to state.portfolios, refreshes dropdowns
+  if(typeof createNewPortfolio !== 'function' || typeof UserDataEngine === 'undefined'){
+    alert('Could not access portfolio builder — please navigate to the Portfolios tab first.');
+    return;
+  }
+
+  const id = `custom_port_${Date.now()}`;
+  const newPort = { id, name: label, weights, alphas: {}, tes: {} };
+  UserDataEngine.saveItem('portfolios', newPort);
+  // Push into in-memory state so the dropdown picks it up immediately
+  if(window._appState && window._appState.portfolios){
+    window._appState.portfolios.push(newPort);
+  } else if(typeof state !== 'undefined'){
+    state.portfolios.push(newPort);
+  }
+  refreshPortfolioDropdowns();
+
+  // Switch the relevant slot to this portfolio
+  const sel = document.getElementById(`port-select-${side}`);
+  if(sel){ sel.value = id; }
+
+  // Navigate to the Portfolios tab
+  const portTab = document.querySelector('.list-group-item[data-tab="portfolio"]');
+  if(portTab) portTab.click();
+
+  // Trigger render on that side after the tab switch settles
+  setTimeout(()=>{
+    if(typeof renderPortfolioPane === 'function') renderPortfolioPane(side, id);
+  }, 80);
+};
 
 })(); // end IIFE
