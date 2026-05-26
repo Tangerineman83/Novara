@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=58.0">
+    <link rel="stylesheet" href="css/style.css?v=58.1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
 </head>
 <body>
@@ -21,7 +21,7 @@
             <a href="#" class="list-group-item" data-tab="strategy"><i class="fas fa-route me-3"></i>Strategies</a>
             <a href="#" class="list-group-item" data-tab="persona"><i class="fas fa-user me-3"></i>Personas</a>
             <a href="#" class="list-group-item" data-tab="vfm"><i class="fas fa-trophy me-3"></i>League Table</a>
-            <a href="#" class="list-group-item" data-tab="decum"><i class="fas fa-chart-area me-3"></i>Decumulation</a>
+            <a href="#" class="list-group-item" data-tab="decum"><i class="fas fa-chart-area me-3"></i>Decumulation<i class="fas fa-tools ms-2 text-warning" title="In development" style="font-size:.75rem;opacity:.8;"></i></a>
             <a href="#" class="list-group-item" data-tab="model"><i class="fas fa-play-circle me-3"></i>Projections</a>
             <a href="#" class="list-group-item" data-tab="settings"><i class="fas fa-sliders-h me-3"></i>Settings</a>
         </div>
@@ -537,6 +537,15 @@
                     </div>
                 </div>
 
+                <!-- In Development Banner -->
+                <div class="alert d-flex align-items-center gap-3 mb-4 border-0" style="background:#FEF3C7;border-left:4px solid #F59E0B !important;border-radius:8px;" role="alert">
+                    <div style="font-size:1.5rem;flex-shrink:0;">🔧</div>
+                    <div>
+                        <div class="fw-bold" style="color:#92400E;font-size:.9rem;">In Development</div>
+                        <div style="color:#92400E;font-size:.78rem;line-height:1.5;">This section is under active development and uses deterministic central-scenario projections. Results are indicative only and should not be relied upon for financial planning purposes. Engine architecture follows the Dual-Engine Decumulation brief; mortality uses S4PMA Male Annuitant (IFoA).</div>
+                    </div>
+                </div>
+
                 <div class="row g-3">
                     <!-- LEFT: Controls -->
                     <div class="col-12 col-lg-4">
@@ -808,7 +817,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
 <script src="js/decum-engine.js"></script>
 <script src="js/decum-ui.js"></script>
-<script type="module" src="js/app.js?v=58.0"></script>    <!-- Asset Detail Panel -->
+<script type="module" src="js/app.js?v=58.1"></script>    <!-- Asset Detail Panel -->
     <div id="asset-detail-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:1040;opacity:0;transition:opacity 0.22s ease;" class="d-none"></div>
     <div id="asset-detail-panel" style="position:fixed;top:0;right:0;height:100%;width:min(480px,95vw);background:var(--bg-surface);z-index:1050;box-shadow:-8px 0 40px rgba(15,23,42,0.18);overflow-y:auto;padding:1.5rem;transform:translateX(24px);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease;" class="d-none"></div>
 
