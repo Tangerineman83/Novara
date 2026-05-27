@@ -146,7 +146,7 @@ function engineFields(prefix, eng, orchType) {
         `${prefix}_engineRealReturn`,
         ((eng.engineRealReturn ?? 0.035) * 100).toFixed(1), null,
         isCollective
-            ? 'Expected real return on the scheme's investment portfolio. Should reflect the asset allocation strategy — lower for cautious/bond-heavy schemes, higher for growth-oriented.'
+            ? 'Expected real return on the scheme\u2019s investment portfolio. Should reflect the asset allocation strategy \u2014 lower for cautious/bond-heavy, higher for growth-oriented.'
             : 'Expected real return on the invested pot. Reflects the asset allocation strategy.',
         { step:'0.1' }));
 
@@ -255,8 +255,6 @@ function updateEngineFromForm(prefix, eng) {
 
     const rr = parseFloat(val(`${prefix}_engineRealReturn`));
     if (!isNaN(rr)) eng.engineRealReturn = rr / 100;
-    const rr = parseFloat(val(`${prefix}_engineRealReturn`));
-    if (!isNaN(rr)) eng.engineRealReturn = rr / 100;
     if (val(`${prefix}_inflationLinkage`))      eng.inflationLinkage      = val(`${prefix}_inflationLinkage`);
     if (num(`${prefix}_pricingDiscountRate`,100) !== null) eng.pricingDiscountRate = num(`${prefix}_pricingDiscountRate`,100);
     if (num(`${prefix}_realPricingRate`,100) !== null)     eng.realPricingRate     = num(`${prefix}_realPricingRate`,100);
@@ -277,6 +275,7 @@ function updateEngineFromForm(prefix, eng) {
 function buildStrategySelector() {
     const sel = document.getElementById('dc-strategy-select');
     if (!sel) return;
+    if (!window.DecumEngine) { console.warn('DecumEngine not ready'); return; }
     const allSpecs = DE.getAllSpecs();
     const presets  = allSpecs.filter(s => s.isPreset);
     const customs  = allSpecs.filter(s => !s.isPreset);
@@ -310,6 +309,7 @@ window.decumLoadStrategy = function(id) {
    RUN ANALYSIS
    ══════════════════════════════════════════════════════════════════ */
 window.decumRunAnalysis = function() {
+    if (!window.DecumEngine) { console.error('DecumEngine not loaded'); return; }
     const pot        = parseFloat(document.getElementById('dc-pot').value)        || 250000;
     const startAge   = parseInt(document.getElementById('dc-start-age').value)    || 65;
     const targetAge  = parseInt(document.getElementById('dc-target-age').value)   || 90;
@@ -498,27 +498,53 @@ function showToast(msg) {
    ══════════════════════════════════════════════════════════════════ */
 function initDecumTab() {
     buildStrategySelector();
-    document.getElementById('dc-run-btn')?.addEventListener('click', () => {
-        document.getElementById('dc-placeholder')?.classList.add('d-none');
-        decumRunAnalysis();
-    });
+
+    // Guard individual elements so repeated calls are safe
+    const runBtn = document.getElementById('dc-run-btn');
+    if (runBtn && !runBtn._dcWired) {
+        runBtn._dcWired = true;
+        runBtn.addEventListener('click', () => {
+            document.getElementById('dc-placeholder')?.classList.add('d-none');
+            decumRunAnalysis();
+        });
+    }
+
     document.querySelectorAll('input[name="dc-chart-mode"]').forEach(inp => {
-        inp.addEventListener('change', decumSetChartMode);
+        if (!inp._dcWired) {
+            inp._dcWired = true;
+            inp.addEventListener('change', decumSetChartMode);
+        }
     });
-    document.getElementById('dc-strategy-select')?.addEventListener('change', function() {
-        decumLoadStrategy(this.value);
-    });
-    initDecumTab._done = true;
+
+    const sel = document.getElementById('dc-strategy-select');
+    if (sel && !sel._dcWired) {
+        sel._dcWired = true;
+        sel.addEventListener('change', function() {
+            decumLoadStrategy(this.value);
+        });
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Wire decum tab initialisation robustly.
+// Handles both "DOMContentLoaded already fired" (scripts at bottom) and "not yet fired".
+function _wireDecumTabClick() {
     document.querySelectorAll('.list-group-item[data-tab]').forEach(el => {
+        if (el._decumWired) return;
+        el._decumWired = true;
         el.addEventListener('click', function() {
-            if (this.dataset.tab === 'decum' && !initDecumTab._done) {
-                setTimeout(initDecumTab, 50);
+            if (this.dataset.tab === 'decum') {
+                // Small delay ensures the tab panel is visible before we query its elements
+                setTimeout(initDecumTab, 30);
             }
         });
     });
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _wireDecumTabClick);
+} else {
+    // DOMContentLoaded already fired — wire immediately
+    _wireDecumTabClick();
+}
 
 })();

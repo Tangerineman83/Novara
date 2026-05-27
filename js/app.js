@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.5';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.6';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -200,6 +200,10 @@ function setupEventListeners() {
                 if (state.vfm.activePersonaId && !state.vfm.running) {
                     setTimeout(runVFM, 100);
                 }
+            }
+            if (target === 'decum') {
+                // Initialise decumulation tab UI (safe to call multiple times)
+                if (typeof initDecumTab === 'function') setTimeout(initDecumTab, 30);
             }
             if (target === 'model') {
                 // Always re-run when Projections tab opens.
@@ -1147,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.5'); 
+    state.worker = new Worker('./js/worker.js?v=58.6'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
