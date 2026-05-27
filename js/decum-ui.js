@@ -141,6 +141,15 @@ function engineFields(prefix, eng, orchType) {
                 ? 'Guaranteed: income escalates with CPI every year. Priced using real discount rate. None: level nominal income throughout.'
                 : 'Guaranteed: withdrawals increase with CPI each year. None: level nominal withdrawals.'));
 
+    // Strategy-specific investment return assumption
+    fields.push(field('Investment return assumption (% real p.a.)', 'number',
+        `${prefix}_engineRealReturn`,
+        ((eng.engineRealReturn ?? 0.035) * 100).toFixed(1), null,
+        isCollective
+            ? 'Expected real return on the scheme's investment portfolio. Should reflect the asset allocation strategy — lower for cautious/bond-heavy schemes, higher for growth-oriented.'
+            : 'Expected real return on the invested pot. Reflects the asset allocation strategy.',
+        { step:'0.1' }));
+
     if (isCollective) {
         fields.push(field(
             eng.productType === 'cdc'
@@ -244,6 +253,10 @@ function updateEngineFromForm(prefix, eng) {
     const num = (id, div) => { const v = parseFloat(val(id)); return isNaN(v) ? null : div ? v/div : v; };
     const checked = id => get(id)?.checked;
 
+    const rr = parseFloat(val(`${prefix}_engineRealReturn`));
+    if (!isNaN(rr)) eng.engineRealReturn = rr / 100;
+    const rr = parseFloat(val(`${prefix}_engineRealReturn`));
+    if (!isNaN(rr)) eng.engineRealReturn = rr / 100;
     if (val(`${prefix}_inflationLinkage`))      eng.inflationLinkage      = val(`${prefix}_inflationLinkage`);
     if (num(`${prefix}_pricingDiscountRate`,100) !== null) eng.pricingDiscountRate = num(`${prefix}_pricingDiscountRate`,100);
     if (num(`${prefix}_realPricingRate`,100) !== null)     eng.realPricingRate     = num(`${prefix}_realPricingRate`,100);
@@ -379,6 +392,7 @@ function renderDecumTable() {
 
     tbody.innerHTML = allSpecs
         .filter(s => decumResults[s.id])
+        .sort((a, b) => (decumResults[b.id]?.apv?.totalNormalized??0) - (decumResults[a.id]?.apv?.totalNormalized??0))
         .map(s => {
             const { apvIncome, apvBequest, totalNormalized } = decumResults[s.id].apv;
             const active = selectedIds.has(s.id);
