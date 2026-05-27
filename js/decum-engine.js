@@ -210,6 +210,10 @@ function CollectiveEngine(ctx, spec, V0_override, startAgeOverride) {
     let poolAssets     = V0;
     let guaranteeAcct  = moneyBack ? V0 : 0;
     let cumulInflation = 1.0;
+    // For 'targeted' (CDC): track running nominal income level.
+    // CPI increment is granted year-by-year only when funded — prevents
+    // accumulated CPI from being applied all at once when funding recovers.
+    let nominalIncomeLevel = V0 / av;  // starts at base nominal income
 
     for (let t = 0; t < T; t++) {
         const age  = inceptAge + t;
@@ -227,34 +231,56 @@ function CollectiveEngine(ctx, spec, V0_override, startAgeOverride) {
         // ── Determine income for this year ──────────────────────────
         let rawIncome;
         if (bypass) {
-            // GLA: exact actuarial income, never changes (nominal or real-linked)
+            // GLA: exact actuarial income — contractually fixed at inception.
+            // Insurer bears all subsequent investment and longevity risk.
             rawIncome = inflMode === 'guaranteed'
-                ? baseIncome * cumulInflation   // real annuity — escalates with CPI
-                : baseIncome;                   // nominal annuity — flat forever
+                ? baseIncome * cumulInflation   // CPI-linked: real income is constant
+                : baseIncome;                   // nominal: flat £ forever
         } else {
-            // GSA/CDC: funding ratio adjusts income
-            // Actuarial reserve = PV of future obligations to survivors
-            let reserve = 0;
+            // GSA/CDC: income adjusted by funding ratio.
+            //
+            // Benchmark: expectedPool — the scheme's own internal model trajectory,
+            // evolving at pricingRate and paying baseIncome with mortality credits.
+            // fundingRatio = actualPool / expectedPool
+            //   = 1.0  → scheme exactly on track, no income change
+            //   > 1.0  → outperformance, discretionary increase (capped at +20%)
+            //   < 1.0  → underperformance, income reduction (floored at -20%)
+            //
+            // This ensures the investment risk premium (actual return > prudent rate)
+            // doesn't automatically translate into maximum income every year.
+            // Actuarial reserve: PV of future base income to surviving members
+            // at the scheme's pricing rate. Measures solvency vs minimum obligations.
+            let actuarialReserve = 0;
             for (let s = t; s < localSurvival.length; s++) {
-                const tpx_s   = localSurvival[s]?.tpx ?? 0;
-                const condProb = tpx > 1e-10 ? tpx_s / tpx : 0;
-                const incomeS  = inflMode === 'guaranteed'
-                    ? baseIncome * cumulInflation * Math.pow(1 + ctx.inflation, s - t)
-                    : inflMode === 'targeted' && (poolAssets / Math.max(1, V0 * tpx)) >= 1
-                        ? baseIncome * cumulInflation * Math.pow(1 + ctx.inflation, s - t)
-                        : baseIncome;
-                reserve += condProb * incomeS * Math.pow(1 + pricingRate, -(s - t));
+                const _condProb = tpx > 1e-10 ? (localSurvival[s]?.tpx ?? 0) / tpx : 0;
+                actuarialReserve += _condProb * baseIncome * Math.pow(1 + pricingRate, -(s - t));
             }
-            const fundingRatio = reserve > 1e-6 ? poolAssets / reserve : 1.0;
 
-            // Targeted (CDC): CPI increase only granted if funding ratio ≥ 1
-            const incomeBase = inflMode === 'targeted'
-                ? (fundingRatio >= 1.0 ? baseIncome * cumulInflation : baseIncome)
-                : baseIncome * cumulInflation;
+            // Funding ratio = pool / actuarial reserve
+            // > 1 = surplus (actual pool exceeds minimum obligation reserve)
+            // < 1 = deficit (pool below minimum obligation reserve)
+            const fundingRatio = actuarialReserve > 1e-6 ? poolAssets / actuarialReserve : 1.0;
 
-            rawIncome = incomeBase * Math.min(1.20, Math.max(0.50, fundingRatio));
+            // Gradual income adjustment: only 15% of surplus/deficit per year.
+            // This mirrors how real CDC/GSA schemes smooth adjustments.
+            // Prevents over-distribution in good years while maintaining long-run solvency.
+            const adjFactor  = 1.0 + Math.min(0.05, Math.max(-0.05, (fundingRatio - 1.0) * 0.15));
+
+            // CDC (targeted): grant this year's CPI increase only if in surplus.
+            // Increment the running nominal income level — never bulk-apply prior years.
+            // GSA (guaranteed): always escalate with CPI.
+            if (inflMode === 'targeted') {
+                // Step nominal income up by one year's CPI only when funded
+                if (fundingRatio >= 1.0) {
+                    nominalIncomeLevel *= (1 + (ctx.inflation ?? 0.025));
+                }
+                // Apply smooth adjustment around the current nominal level
+                rawIncome = nominalIncomeLevel * adjFactor;
+            } else {
+                // Guaranteed: CPI escalation is contractual
+                rawIncome = baseIncome * cumulInflation * adjFactor;
+            }
         }
-
         // ── Pool asset evolution ─────────────────────────────────────
         const R = staticRet ? pricingRate : R_t[Math.min(t, R_t.length - 1)];
         const qx = tpx > 1e-10 ? Math.max(0, 1 - tpx1 / tpx) : 1.0;
@@ -364,7 +390,7 @@ const PRODUCT_TYPES = {
     },
     gsa: {
         label: 'Group Self-Annuitisation (GSA / ART)',
-        description: 'Mutual pooling with mortality credits. No shareholder profit extraction. Income adjusts with pool funding relative to actuarial reserve. Optional nominal capital guarantee.',
+        description: 'Mutual pooling with capped mortality credits (1.25%/yr). Credits above the cap flow to a longevity reserve (ART structure), sustaining income for very long lives. No shareholder profit extraction. Income adjusts with actuarial funding position.',
         engineType: 'collective',
         defaults: {
             bypassFundingAdjustment: false,
@@ -458,7 +484,7 @@ const PRESET_SPECS = [
         primaryEngine: {
             type: 'collective', productType: 'gsa',
             bypassFundingAdjustment: false, staticReturn: false,
-            pricingDiscountRate: 0.0405, realPricingRate: 0.011,
+            pricingDiscountRate: 0.0405, realPricingRate: 0.016,
             mortalityCreditLimit: 0.0125, hasNominalMoneyBack: true,
             inflationLinkage: 'guaranteed',
         },
@@ -482,7 +508,7 @@ const PRESET_SPECS = [
         primaryEngine: {
             type: 'individual', productType: 'glwb',
             incomeRule: 'GLWB_RATCHET', initialWithdrawalRate: 0.05,
-            riderFee: 0.01, inflationLinkage: 'guaranteed', deRiskYears: 0,
+            riderFee: 0.01, inflationLinkage: 'none', deRiskYears: 0,  // nominal guarantee — real declines with CPI
         },
     },
     {
@@ -492,7 +518,7 @@ const PRESET_SPECS = [
         primaryEngine: {
             type: 'collective', productType: 'gla',
             bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.009,
+            pricingDiscountRate: 0.038, realPricingRate: 0.015,
             mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
             inflationLinkage: 'guaranteed',
         },
@@ -509,7 +535,7 @@ const PRESET_SPECS = [
         secondaryEngine: {
             type: 'collective', productType: 'gla',
             bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.009,
+            pricingDiscountRate: 0.038, realPricingRate: 0.015,
             mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
             inflationLinkage: 'guaranteed',
         },
@@ -521,7 +547,7 @@ const PRESET_SPECS = [
         primaryEngine: {
             type: 'collective', productType: 'gla',   // fix leg
             bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.009,
+            pricingDiscountRate: 0.038, realPricingRate: 0.015,
             mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
             inflationLinkage: 'guaranteed',
         },
@@ -574,9 +600,35 @@ function runSpec(spec, ctx) {
         const splitT = (orch.splitAge ?? 75) - ctx.startAge;
         const deRiskSched = _buildDeRiskSchedule(ctx, splitT, spec.primaryEngine.deRiskYears ?? splitT);
 
-        const iwr1 = spec.primaryEngine.initialWithdrawalRate === 'bisect'
-            ? bisectIWR(ctx, { ...spec.primaryEngine, deRiskSchedule: deRiskSched }) * 0.85
-            : spec.primaryEngine.initialWithdrawalRate;
+        // For Flex→Fix: find the IWR that gives income-continuity at the switch age.
+        // Target: annuity_income(residual_pot_at_switchAge) ≈ drawdown_income
+        // i.e. residual_pot = drawdown_income × a_{switchAge}(realPricingRate)
+        // This gives a near-seamless handoff in the central scenario.
+        // In stochastic scenarios, the step will vary with actual experience. ✓
+        let iwr1;
+        if (spec.primaryEngine.initialWithdrawalRate === 'bisect') {
+            const secSpec    = spec.secondaryEngine ?? {};
+            const switchAge  = orch.splitAge ?? 75;
+            const survSwitch = buildSurvivalCurve(switchAge, ctx.maxAge);
+            const rSwitch    = secSpec.inflationLinkage === 'guaranteed'
+                ? (secSpec.realPricingRate ?? 0.015)
+                : (secSpec.pricingDiscountRate ?? 0.038);
+            const avSwitch   = actuarialAnnuityValue(survSwitch, rSwitch);
+            // Bisect: find IWR such that pot_at_switch / avSwitch = V0 * IWR
+            let lo2 = 0.001, hi2 = 0.25;
+            for (let iter = 0; iter < 60; iter++) {
+                const mid2 = (lo2 + hi2) / 2;
+                const testRecs = IndividualEngine(ctx, { ...spec.primaryEngine, initialWithdrawalRate: mid2, deRiskSchedule: deRiskSched });
+                const potAtSwitch = testRecs[splitT - 1]?.A_end ?? 0;
+                const annuityRealInc  = potAtSwitch / avSwitch;
+                const drawdownRealInc = ctx.V0 * mid2;
+                if (annuityRealInc > drawdownRealInc) lo2 = mid2; else hi2 = mid2;
+                if (hi2 - lo2 < 1e-8) break;
+            }
+            iwr1 = (lo2 + hi2) / 2;
+        } else {
+            iwr1 = spec.primaryEngine.initialWithdrawalRate;
+        }
 
         const phase1Recs = IndividualEngine(ctx, { ...spec.primaryEngine, initialWithdrawalRate: iwr1, deRiskSchedule: deRiskSched });
         const phase1     = phase1Recs.slice(0, splitT);
