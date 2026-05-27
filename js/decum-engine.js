@@ -154,8 +154,24 @@ function IndividualEngine(ctx, spec) {
         A = A_end;
 
         if (A <= 0) {
-            for (let tt = t + 1; tt < T; tt++) {
-                records.push({ t:tt, age:startAge+tt, A_start:0, withdrawal:0, fee:0, A_end:0, income_real:0, bequest:0, tpx: survival[tt]?.tpx ?? 0 });
+            if (rule === 'GLWB_RATCHET') {
+                // Insurance guarantee: pay the locked floor for life even after pot = £0.
+                // This is what the rider fee purchases — lifetime income certainty.
+                for (let tt = t + 1; tt < T; tt++) {
+                    const age_tt = startAge + tt;
+                    const tpx_tt = survival[tt]?.tpx ?? 0;
+                    if (tpx_tt < 1e-8) {
+                        records.push({ t:tt, age:age_tt, A_start:0, withdrawal:0, fee:0, A_end:0, income_real:0, bequest:0, tpx:tpx_tt });
+                        continue;
+                    }
+                    cumulInflation *= (1 + pi_t[Math.min(tt, pi_t.length - 1)]);
+                    records.push({ t:tt, age:age_tt, A_start:0, withdrawal:glwbFloor,
+                        fee:0, A_end:0, income_real: glwbFloor / cumulInflation, bequest:0, tpx:tpx_tt });
+                }
+            } else {
+                for (let tt = t + 1; tt < T; tt++) {
+                    records.push({ t:tt, age:startAge+tt, A_start:0, withdrawal:0, fee:0, A_end:0, income_real:0, bequest:0, tpx: survival[tt]?.tpx ?? 0 });
+                }
             }
             break;
         }
@@ -522,7 +538,8 @@ const PRESET_SPECS = [
             type: 'individual', productType: 'drawdown',
             incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
             riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
-            engineRealReturn: 0.035,  // 60:40 equity/bond
+            engineRealReturn: 0.0345,  // 60% equity at 65 (CPI+3.45%)
+            useGlidepath: true,           // de-risks age 80→90 to 100% bonds
         },
     },
     {
@@ -535,7 +552,7 @@ const PRESET_SPECS = [
             pricingDiscountRate: 0.0405, realPricingRate: 0.016,
             mortalityCreditLimit: 0.0125, hasNominalMoneyBack: true,
             inflationLinkage: 'guaranteed',
-            engineRealReturn: 0.020,  // 40:60 lower risk pooled fund
+            engineRealReturn: 0.0340,  // 60% equity pooled (matches ART Balanced Risk-Adjusted)
         },
     },
     {
@@ -554,8 +571,9 @@ const PRESET_SPECS = [
             inflationLinkage: 'targeted',
             // CPI granted year-by-year only when FR>=1. In central case: consistently
             // granted → stable real income. In adverse scenarios: withheld → real declines.
-            engineRealReturn: 0.030,
-            // ~55:45 growth/bonds — enough above 4% prudent rate to sustain near-CPI — consistent surplus over 4% prudent rate supports CPI grants.
+            engineRealReturn: 0.0345,  // 60% equity at 65 (same as drawdown)
+            useGlidepath: true,           // de-risks age 80→90, consistent with drawdown
+            // ~CPI+3.45% at 65, transitioning to CPI+0.75% at 90 — consistent surplus over 4% prudent rate supports CPI grants.
         },
     },
     {
@@ -566,7 +584,7 @@ const PRESET_SPECS = [
             type: 'individual', productType: 'glwb',
             incomeRule: 'GLWB_RATCHET', initialWithdrawalRate: 0.05,
             riderFee: 0.01, inflationLinkage: 'none', deRiskYears: 0,  // nominal guarantee — real declines with CPI
-            engineRealReturn: 0.030,  // 60:40 with slight de-risk vs pure drawdown
+            engineRealReturn: 0.0245,  // 60% equity less 1% rider fee = CPI+2.45%
         },
     },
     {
@@ -590,7 +608,8 @@ const PRESET_SPECS = [
             type: 'individual', productType: 'drawdown',
             incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
             riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 10,
-            engineRealReturn: 0.035,  // 60:40 start, glidepath de-risks
+            engineRealReturn: 0.0345,  // 60% equity at 65
+            useGlidepath: true,            // glidepath toward switchAge
         },
         secondaryEngine: {
             type: 'collective', productType: 'gla',
@@ -615,7 +634,7 @@ const PRESET_SPECS = [
             type: 'individual', productType: 'drawdown',   // flex leg
             incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
             riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
-            engineRealReturn: 0.040,  // more growth: annuity floor permits higher risk
+            engineRealReturn: 0.0390,  // 70% equity (CPI+3.90%): annuity floor permits higher risk
         },
     },
 ];
@@ -655,7 +674,7 @@ function runSpec(spec, ctx) {
     let records;
 
     if (orch.type === 'single') {
-        records = _runEngine(spec.primaryEngine, ctx);
+        records = _runEngine(spec.primaryEngine, ctx, null);
 
     } else if (orch.type === 'pipeline') {
         const splitT = (orch.splitAge ?? 75) - ctx.startAge;
@@ -666,7 +685,14 @@ function runSpec(spec, ctx) {
         // i.e. residual_pot = drawdown_income × a_{switchAge}(realPricingRate)
         // This gives a near-seamless handoff in the central scenario.
         // In stochastic scenarios, the step will vary with actual experience. ✓
-        const ctxP1 = _ctxWithReturn(ctx, spec.primaryEngine);
+        // Build per-leg context with glidepath R_t (splitT limits glidepath to phase 1 only)
+        const ctxP1 = _ctxWithReturn(ctx, spec.primaryEngine, splitT);
+        // The glidepath schedule is now in ctxP1.R_t; pass it as deRiskSchedule so
+        // IndividualEngine (which reads spec.deRiskSchedule) uses the right returns.
+        const deRiskSchedFinal = spec.primaryEngine.useGlidepath
+            ? ctxP1.R_t
+            : deRiskSched;
+
         let iwr1;
         if (spec.primaryEngine.initialWithdrawalRate === 'bisect') {
             const secSpec    = spec.secondaryEngine ?? {};
@@ -679,7 +705,7 @@ function runSpec(spec, ctx) {
             let lo2 = 0.001, hi2 = 0.25;
             for (let iter = 0; iter < 60; iter++) {
                 const mid2 = (lo2 + hi2) / 2;
-                const testRecs = IndividualEngine(ctxP1, { ...spec.primaryEngine, initialWithdrawalRate: mid2, deRiskSchedule: deRiskSched });
+                const testRecs = IndividualEngine(ctxP1, { ...spec.primaryEngine, initialWithdrawalRate: mid2, deRiskSchedule: deRiskSchedFinal });
                 const potAtSwitch = testRecs[splitT - 1]?.A_end ?? 0;
                 const annuityRealInc  = potAtSwitch / avSwitch;
                 const drawdownRealInc = ctxP1.V0 * mid2;
@@ -691,7 +717,7 @@ function runSpec(spec, ctx) {
             iwr1 = spec.primaryEngine.initialWithdrawalRate;
         }
 
-        const phase1Recs = IndividualEngine(ctxP1, { ...spec.primaryEngine, initialWithdrawalRate: iwr1, deRiskSchedule: deRiskSched });
+        const phase1Recs = IndividualEngine(ctxP1, { ...spec.primaryEngine, initialWithdrawalRate: iwr1, deRiskSchedule: deRiskSchedFinal });
         const phase1     = phase1Recs.slice(0, splitT);
         const A10        = phase1Recs[splitT - 1]?.A_end ?? 0;
 
@@ -703,8 +729,8 @@ function runSpec(spec, ctx) {
 
     } else if (orch.type === 'parallel') {
         const split    = orch.splitRatio ?? 0.40;
-        const ctxFix   = _ctxWithReturn({ ...ctx, V0: ctx.V0 * split },         spec.primaryEngine);
-        const ctxFlex  = _ctxWithReturn({ ...ctx, V0: ctx.V0 * (1 - split) },   spec.secondaryEngine);
+        const ctxFix   = _ctxWithReturn({ ...ctx, V0: ctx.V0 * split },         spec.primaryEngine,   null);
+        const ctxFlex  = _ctxWithReturn({ ...ctx, V0: ctx.V0 * (1 - split) },   spec.secondaryEngine, null);
 
         const iwr = spec.secondaryEngine.initialWithdrawalRate === 'bisect'
             ? bisectIWR(ctxFlex, spec.secondaryEngine)
@@ -739,10 +765,22 @@ function runSpec(spec, ctx) {
     return { spec, records, apv, ctx };
 }
 
-// Build a context with engine-specific real return override
-function _ctxWithReturn(ctx, engineSpec) {
+// Build a context with engine-specific real return override.
+// If useGlidepath=true: builds R_t using the standard age 80→90 de-risk schedule.
+// Otherwise: uses engineRealReturn as a flat scalar.
+function _ctxWithReturn(ctx, engineSpec, splitT) {
+    if (engineSpec.useGlidepath) {
+        // Glidepath: age 65-79 = 60% equity, age 80-90 linear, age 90+ = 0% equity
+        const R_t = _buildDeRiskSchedule(ctx, splitT ?? null, null);
+        return {
+            ...ctx,
+            R_t,
+            nominalReturn: R_t[0],   // age-65 return for display/bisection seed
+            realReturn:    engineSpec.engineRealReturn ?? 0.0345,
+        };
+    }
     const r = engineSpec.engineRealReturn;
-    if (r === undefined || r === null) return ctx;  // no override
+    if (r === undefined || r === null) return ctx;
     const nom = (1 + r) * (1 + ctx.inflation) - 1;
     return {
         ...ctx,
@@ -752,8 +790,8 @@ function _ctxWithReturn(ctx, engineSpec) {
     };
 }
 
-function _runEngine(engineSpec, ctx) {
-    const eCtx = _ctxWithReturn(ctx, engineSpec);
+function _runEngine(engineSpec, ctx, splitT) {
+    const eCtx = _ctxWithReturn(ctx, engineSpec, splitT);
     const iwr = engineSpec.initialWithdrawalRate === 'bisect'
         ? bisectIWR(eCtx, engineSpec)
         : engineSpec.initialWithdrawalRate;
@@ -763,12 +801,49 @@ function _runEngine(engineSpec, ctx) {
     return CollectiveEngine(eCtx, engineSpec);
 }
 
-function _buildDeRiskSchedule(ctx, splitT, deRiskYears) {
-    const riskFree = (1 + 0.012) * (1 + ctx.inflation) - 1;  // ~1.2% real gilt
+// Capital market building blocks (consistent with CMAs)
+const _CMA = {
+    equityReal:  0.055,   // global equity net real return
+    bondReal:    0.010,   // bonds / lower-risk net real return
+    charges:     0.0025,  // typical retail charges
+    glwbFee:     0.0100,  // GLWB rider fee (on top of charges)
+};
+
+/**
+ * _nomReturnForAllocation(equityPct, inflation, extraFee)
+ * Returns nominal return for a given equity allocation.
+ */
+function _nomReturnForAllocation(equityPct, inflation, extraFee = 0) {
+    const real = _CMA.equityReal * equityPct
+               + _CMA.bondReal   * (1 - equityPct)
+               - _CMA.charges
+               - extraFee;
+    return (1 + real) * (1 + inflation) - 1;
+}
+
+/**
+ * _buildDeRiskSchedule(ctx, splitT, startAge)
+ * Returns a per-year nominal return array implementing the standard glidepath:
+ *   age < 80:  60% equity  (CPI + 3.45%)
+ *   age 80-90: linear de-risk from 60% → 0% equity
+ *   age >= 90: 0% equity   (CPI + 0.75%)
+ * Used by Drawdown and CDC (and the flex phase of Flex→Fix up to splitT).
+ * splitT: if set, only fills t=0..splitT-1, rest filled with ctx.nominalReturn.
+ */
+function _buildDeRiskSchedule(ctx, splitT, _unused) {
+    const pi = ctx.inflation;
+    const rHigh = _nomReturnForAllocation(0.60, pi);  // full growth
+    const rLow  = _nomReturnForAllocation(0.00, pi);  // all bonds
+    const inceptAge = ctx.startAge;
+
     return Array.from({ length: ctx.T }, (_, t) => {
-        if (t >= splitT || deRiskYears <= 0) return ctx.nominalReturn;
-        const frac = Math.min(1, t / deRiskYears);
-        return ctx.nominalReturn * (1 - frac) + riskFree * frac;
+        if (splitT !== null && t >= splitT) return ctx.nominalReturn;
+        const age = inceptAge + t;
+        if (age < 80) return rHigh;
+        if (age >= 90) return rLow;
+        // Linear de-risk age 80→90
+        const frac = (age - 80) / 10;
+        return rHigh * (1 - frac) + rLow * frac;
     });
 }
 
