@@ -6,7 +6,7 @@
     <title>NOVARA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=58.1">
+    <link rel="stylesheet" href="css/style.css?v=58.2">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
 </head>
 <body>
@@ -530,157 +530,142 @@
 
                         <!-- ── Decumulation Tab ── -->
             <div id="tab-decum" class="view-section d-none">
-                <div class="d-flex align-items-start justify-content-between mb-4">
+                <div class="d-flex align-items-start justify-content-between mb-3">
                     <div>
                         <h4 class="fw-bold mb-1 text-dark">Decumulation Analysis</h4>
-                        <p class="text-muted small mb-0">Compare seven retirement income strategies across two core engines (Individual Account and Collective Pool). Outputs: actuarial present value of lifetime income, bequest value, and total normalised value.</p>
+                        <p class="text-muted small mb-0">Compare retirement income strategies across two engines (Individual Account and Collective Pool). Select a strategy, inspect and adjust its parameters, then run to compare all strategies side-by-side.</p>
                     </div>
                 </div>
 
                 <!-- In Development Banner -->
-                <div class="alert d-flex align-items-center gap-3 mb-4 border-0" style="background:#FEF3C7;border-left:4px solid #F59E0B !important;border-radius:8px;" role="alert">
-                    <div style="font-size:1.5rem;flex-shrink:0;">🔧</div>
+                <div class="alert d-flex align-items-center gap-3 mb-4 border-0" style="background:#FEF3C7;border-left:4px solid #F59E0B !important;border-radius:8px;">
+                    <div style="font-size:1.4rem;flex-shrink:0;">🔧</div>
                     <div>
-                        <div class="fw-bold" style="color:#92400E;font-size:.9rem;">In Development</div>
-                        <div style="color:#92400E;font-size:.78rem;line-height:1.5;">This section is under active development and uses deterministic central-scenario projections. Results are indicative only and should not be relied upon for financial planning purposes. Engine architecture follows the Dual-Engine Decumulation brief; mortality uses S4PMA Male Annuitant (IFoA).</div>
+                        <div class="fw-bold" style="color:#92400E;font-size:.88rem;">In Development</div>
+                        <div style="color:#92400E;font-size:.75rem;line-height:1.5;">Deterministic central-scenario projections only. Indicative only — not for financial planning. Mortality: S4PMA Male Annuitant (IFoA). Engine: Dual-Engine Decumulation brief.</div>
                     </div>
                 </div>
 
-                <div class="row g-3">
-                    <!-- LEFT: Controls -->
-                    <div class="col-12 col-lg-4">
+                <div class="row g-3 align-items-start">
+                    <!-- LEFT: Controls + inspector -->
+                    <div class="col-12 col-lg-4 d-flex flex-column gap-3">
 
-                        <!-- Member parameters -->
-                        <div class="card border-0 shadow-sm mb-3">
+                        <!-- Strategy selector + inspector -->
+                        <div class="card border-0 shadow-sm">
                             <div class="card-body p-3">
-                                <h6 class="text-uppercase fw-semibold text-muted mb-3" style="font-size:.68rem;letter-spacing:.08em;">Member & Pot</h6>
-                                <div class="mb-2">
-                                    <label class="form-label small text-secondary mb-1">Initial pot value (£)</label>
-                                    <input type="number" class="form-control form-control-sm" id="dc-pot" value="250000" min="1000" step="5000">
+                                <h6 class="text-uppercase fw-semibold text-muted mb-2" style="font-size:.68rem;letter-spacing:.08em;">Strategy</h6>
+                                <select class="form-select form-select-sm mb-2" id="dc-strategy-select">
+                                    <option value="">— Select a strategy —</option>
+                                </select>
+                                <!-- Inspector (hidden until a strategy is selected) -->
+                                <div id="dc-inspector-wrap" class="d-none">
+                                    <div class="d-flex justify-content-between align-items-center mb-2" style="border-top:1px solid #F1F5F9;padding-top:8px;">
+                                        <span class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;">Parameters</span>
+                                        <div class="d-flex gap-1">
+                                            <button id="dc-saveas-btn" class="btn btn-sm btn-outline-secondary py-0 px-2 d-none" onclick="decumSaveAs()" style="font-size:.7rem;">Save as…</button>
+                                            <button id="dc-save-btn" class="btn btn-sm btn-outline-primary py-0 px-2 d-none" onclick="decumSaveSpec()" style="font-size:.7rem;">Save</button>
+                                            <button id="dc-delete-btn" class="btn btn-sm btn-outline-danger py-0 px-2 d-none" onclick="decumDeleteSpec()" style="font-size:.7rem;">Delete</button>
+                                        </div>
+                                    </div>
+                                    <div id="dc-inspector-body" style="max-height:380px;overflow-y:auto;padding-right:4px;"></div>
+                                    <div id="dc-toast" class="d-none text-center text-success mt-2" style="font-size:.75rem;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analysis context -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body p-3">
+                                <h6 class="text-uppercase fw-semibold text-muted mb-2" style="font-size:.68rem;letter-spacing:.08em;">Member &amp; Assumptions</h6>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-12">
+                                        <label class="form-label small text-secondary mb-1">Initial pot (£)</label>
+                                        <input type="number" class="form-control form-control-sm" id="dc-pot" value="250000" step="5000" min="1000">
+                                    </div>
                                 </div>
                                 <div class="row g-2 mb-2">
-                                    <div class="col">
-                                        <label class="form-label small text-secondary mb-1">Retirement age</label>
+                                    <div class="col-4">
+                                        <label class="form-label small text-secondary mb-1">Ret. age</label>
                                         <input type="number" class="form-control form-control-sm" id="dc-start-age" value="65" min="55" max="80">
                                     </div>
-                                    <div class="col">
-                                        <label class="form-label small text-secondary mb-1">Planning horizon</label>
-                                        <input type="number" class="form-control form-control-sm" id="dc-target-age" value="90" min="70" max="100">
+                                    <div class="col-4">
+                                        <label class="form-label small text-secondary mb-1">Plan to</label>
+                                        <input type="number" class="form-control form-control-sm" id="dc-target-age" value="90" min="70" max="110">
                                     </div>
-                                    <div class="col">
+                                    <div class="col-4">
                                         <label class="form-label small text-secondary mb-1">Max age</label>
-                                        <input type="number" class="form-control form-control-sm" id="dc-max-age" value="100" min="85" max="110">
+                                        <input type="number" class="form-control form-control-sm" id="dc-max-age" value="110" min="85" max="110">
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Economic assumptions -->
-                        <div class="card border-0 shadow-sm mb-3">
-                            <div class="card-body p-3">
-                                <h6 class="text-uppercase fw-semibold text-muted mb-3" style="font-size:.68rem;letter-spacing:.08em;">Economic Assumptions</h6>
-                                <div class="mb-2">
-                                    <label class="form-label small text-secondary mb-1">Real investment return (% p.a.)</label>
-                                    <input type="number" class="form-control form-control-sm" id="dc-real-return" value="3.5" min="0" max="12" step="0.1">
-                                </div>
-                                <div class="mb-0">
-                                    <label class="form-label small text-secondary mb-1">Inflation assumption (% p.a.)</label>
-                                    <input type="number" class="form-control form-control-sm" id="dc-inflation" value="2.5" min="0" max="10" step="0.1">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Preset 7 split -->
-                        <div class="card border-0 shadow-sm mb-3">
-                            <div class="card-body p-3">
-                                <h6 class="text-uppercase fw-semibold text-muted mb-3" style="font-size:.68rem;letter-spacing:.08em;">Flex+Fix Split (Preset 7)</h6>
-                                <label class="form-label small text-secondary mb-1">% of pot to annuity (Fix)</label>
-                                <div class="d-flex align-items-center gap-2">
-                                    <input type="range" class="form-range" id="dc-split" min="10" max="90" step="5" value="40"
-                                        oninput="document.getElementById('dc-split-val').textContent=this.value+'%'">
-                                    <span class="badge bg-light text-primary fw-bold font-monospace" id="dc-split-val">40%</span>
-                                </div>
-                                <p class="text-muted mb-0 mt-1" style="font-size:.68rem;">Remaining allocated to invested drawdown (Flex).</p>
-                            </div>
-                        </div>
-
-                        <!-- Strategy visibility -->
-                        <div class="card border-0 shadow-sm mb-3">
-                            <div class="card-body p-3">
-                                <h6 class="text-uppercase fw-semibold text-muted mb-3" style="font-size:.68rem;letter-spacing:.08em;">Strategies</h6>
-                                <div id="dc-preset-toggles" class="d-flex flex-column gap-2">
-                                    <!-- Populated by JS -->
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small text-secondary mb-1">Real return % p.a.</label>
+                                        <input type="number" class="form-control form-control-sm" id="dc-real-return" value="3.5" step="0.1" min="0" max="12">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-secondary mb-1">Inflation % p.a.</label>
+                                        <input type="number" class="form-control form-control-sm" id="dc-inflation" value="2.5" step="0.1" min="0" max="10">
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <button class="btn btn-primary w-100" id="dc-run-btn">
-                            <i class="fas fa-play me-2"></i>Run Analysis
+                            <i class="fas fa-play me-2"></i>Run All Strategies
                         </button>
+                        <p class="text-muted text-center mb-0" style="font-size:.7rem;">Runs all built-in presets and any saved custom strategies simultaneously.</p>
                     </div>
 
                     <!-- RIGHT: Results -->
-                    <div class="col-12 col-lg-8">
+                    <div class="col-12 col-lg-8 d-flex flex-column gap-3">
+                        <div id="dc-placeholder" class="text-center text-muted p-5">
+                            <div style="font-size:2.5rem;opacity:.2;margin-bottom:12px;">⚖</div>
+                            <p class="small mb-1">Select a strategy to inspect its parameters, then click <strong>Run All Strategies</strong> to compare.</p>
+                            <p class="small mb-0 text-muted" style="font-size:.72rem;">Engines: Individual Account (drawdown, GLWB) · Collective Pool (GLA, GSA, CDC) · Hybrid pipelines.</p>
+                        </div>
 
-                        <!-- Summary cards (hidden until run) -->
                         <div id="dc-results-wrap" class="d-none d-flex flex-column gap-3">
-
                             <div id="dc-summary-cards"></div>
 
-                            <!-- Chart -->
                             <div class="card border-0 shadow-sm" style="overflow:hidden;">
                                 <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-2 px-3">
                                     <span class="fw-semibold text-secondary" style="font-size:.78rem;">Income &amp; Value Over Time</span>
-                                    <div class="btn-group btn-group-sm" role="group">
+                                    <div class="btn-group btn-group-sm">
                                         <input type="radio" class="btn-check" name="dc-chart-mode" id="dc-mode-income"  value="income"  checked>
                                         <label class="btn btn-outline-secondary py-0 px-2" for="dc-mode-income"  style="font-size:.72rem;">Real Income</label>
                                         <input type="radio" class="btn-check" name="dc-chart-mode" id="dc-mode-pot"     value="pot">
-                                        <label class="btn btn-outline-secondary py-0 px-2" for="dc-mode-pot"     style="font-size:.72rem;">Pot Value</label>
+                                        <label class="btn btn-outline-secondary py-0 px-2" for="dc-mode-pot"     style="font-size:.72rem;">Pot</label>
                                         <input type="radio" class="btn-check" name="dc-chart-mode" id="dc-mode-bequest" value="bequest">
                                         <label class="btn btn-outline-secondary py-0 px-2" for="dc-mode-bequest" style="font-size:.72rem;">Bequest</label>
                                     </div>
                                 </div>
-                                <div style="height:320px;padding:12px;">
-                                    <canvas id="dc-chart"></canvas>
-                                </div>
-                                <div class="px-3 pb-2" style="font-size:.68rem;color:#8896A8;border-top:1px solid #F1F5F9;padding-top:8px;">
-                                    Mortality: S4PMA Male Annuitant (IFoA). Real income deflated to retirement-date £. Click rows in table below to show/hide strategies.
+                                <div style="height:320px;padding:12px;"><canvas id="dc-chart"></canvas></div>
+                                <div class="px-3 py-2 text-muted" style="font-size:.67rem;border-top:1px solid #F1F5F9;">
+                                    Real income = today's purchasing power. Click rows in table to show/hide on chart.
                                 </div>
                             </div>
 
-                            <!-- APV Table -->
                             <div class="card border-0 shadow-sm" style="overflow:hidden;">
-                                <div class="card-header bg-white border-bottom py-2 px-3">
+                                <div class="card-header bg-white border-bottom py-2 px-3 d-flex align-items-baseline gap-2">
                                     <span class="fw-semibold text-secondary" style="font-size:.78rem;">Actuarial Present Values</span>
-                                    <span class="text-muted ms-2" style="font-size:.68rem;">Click a row to toggle on chart</span>
+                                    <span class="text-muted" style="font-size:.68rem;">Discounted at 4.5% nominal · Click row to toggle chart</span>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-sm mb-0" style="font-size:.8rem;">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th class="ps-3 border-0 text-muted fw-medium" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">Strategy</th>
-                                                <th class="text-end border-0 text-muted fw-medium" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">APV Income</th>
-                                                <th class="text-end border-0 text-muted fw-medium" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">APV Bequest</th>
-                                                <th class="text-end pe-3 border-0 text-muted fw-medium" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">Total / Pot</th>
-                                            </tr>
-                                        </thead>
+                                        <thead class="table-light"><tr>
+                                            <th class="ps-3 border-0 text-muted fw-medium" style="font-size:.67rem;text-transform:uppercase;letter-spacing:.04em;">Strategy</th>
+                                            <th class="text-end border-0 text-muted fw-medium" style="font-size:.67rem;text-transform:uppercase;letter-spacing:.04em;">APV Income</th>
+                                            <th class="text-end border-0 text-muted fw-medium" style="font-size:.67rem;text-transform:uppercase;letter-spacing:.04em;">APV Bequest</th>
+                                            <th class="text-end pe-3 border-0 text-muted fw-medium" style="font-size:.67rem;text-transform:uppercase;letter-spacing:.04em;">Total / Pot</th>
+                                        </tr></thead>
                                         <tbody id="dc-apv-tbody"></tbody>
                                     </table>
                                 </div>
-                                <div class="px-3 py-2" style="font-size:.67rem;color:#8896A8;border-top:1px solid #F1F5F9;">
-                                    APV = Actuarial Present Value discounted at 4.5% nominal. Total/Pot = (APV Income + APV Bequest) ÷ initial pot. Deterministic central scenario.
+                                <div class="px-3 py-2 text-muted" style="font-size:.67rem;border-top:1px solid #F1F5F9;">
+                                    Total/Pot = (APV Income + APV Bequest) ÷ pot. Green badge = CPI-linked income. Amber = targeted (CDC-style). Deterministic central scenario.
                                 </div>
                             </div>
-
-                        </div><!-- /dc-results-wrap -->
-
-                        <!-- Pre-run placeholder -->
-                        <div id="dc-placeholder" class="text-center text-muted p-5 mt-4">
-                            <div style="font-size:2.5rem;opacity:.2;margin-bottom:12px;">⚖</div>
-                            <p class="small">Set parameters and click <strong>Run Analysis</strong> to compare all seven decumulation strategies side by side.</p>
-                            <p class="small mb-0">Engines: Individual Account (drawdown, GLWB) · Collective Pool (GSA, CDC, GLA) · Hybrid pipelines.</p>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -817,7 +802,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
 <script src="js/decum-engine.js"></script>
 <script src="js/decum-ui.js"></script>
-<script type="module" src="js/app.js?v=58.1"></script>    <!-- Asset Detail Panel -->
+<script type="module" src="js/app.js?v=58.2"></script>    <!-- Asset Detail Panel -->
     <div id="asset-detail-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.35);z-index:1040;opacity:0;transition:opacity 0.22s ease;" class="d-none"></div>
     <div id="asset-detail-panel" style="position:fixed;top:0;right:0;height:100%;width:min(480px,95vw);background:var(--bg-surface);z-index:1050;box-shadow:-8px 0 40px rgba(15,23,42,0.18);overflow-y:auto;padding:1.5rem;transform:translateX(24px);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease;" class="d-none"></div>
 
