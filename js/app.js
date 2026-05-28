@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.15';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.16';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.15'); 
+    state.worker = new Worker('./js/worker.js?v=58.16'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3600,7 +3600,13 @@ function buildFrontier(cloud) {
     if (tot < 1e-8) return;
     const normW = avgW.map(v => v / tot);
 
-    const rounded = lrRound(normW);
+    // Trim immaterial allocations (respects equity pin rule)
+    const trimmed = trimPortfolio(normW);
+    // Re-normalise after trimming (pro-rating keeps sum near 1 but clean up float drift)
+    const trimTot = trimmed.reduce((s, v) => s + v, 0);
+    const normTrimmed = trimmed.map(v => v / trimTot);
+
+    const rounded = lrRound(normTrimmed);
     const vol  = pVol(rounded);
     const muG  = pGeom(rounded);
     const muA  = pArith(rounded);
@@ -3613,6 +3619,79 @@ function buildFrontier(cloud) {
 
   return frontier;
 }
+
+/**
+ * trimPortfolio(w) → trimmed weights array
+ *
+ * Iteratively removes the smallest allocation whose removal does not
+ * materially change the portfolio's risk/return profile.
+ *
+ * Stopping conditions (any = stop):
+ *   - Δ geometric return  > MAX_DELTA_RETURN (2bp)
+ *   - Δ volatility        > MAX_DELTA_VOL    (5bp)
+ *   - Portfolio would fall below MIN_ASSETS   (3 holdings)
+ *
+ * Equity pin: if total listed equity >= EQ_PIN_THRESHOLD (5%), all six
+ * regional equity assets are protected from removal regardless of weight.
+ * This ensures a diversified equity sleeve is maintained when equity is
+ * a meaningful part of the portfolio.
+ */
+const MAX_DELTA_RETURN  = 0.0002;   // 2bp
+const MAX_DELTA_VOL     = 0.0005;   // 5bp
+const MIN_ASSETS        = 3;
+const EQ_PIN_THRESHOLD  = 0.05;     // 5% total equity triggers pin
+
+function trimPortfolio(w) {
+  let current = [...w];
+
+  // Identify equity indices (eqIdx >= 0 in OA)
+  const eqIndices = OA.reduce((acc, a, i) => { if (a.eqIdx >= 0) acc.push(i); return acc; }, []);
+
+  // Determine whether equity pin is active
+  const totalEq = eqIndices.reduce((s, i) => s + current[i], 0);
+  const pinEquity = totalEq >= EQ_PIN_THRESHOLD;
+
+  // Count starting holdings
+  const isHeld = w => w > 0.005;   // same MIN_ALLOC as buildFrontier
+
+  // Baseline stats
+  const baseReturn = pGeom(current);
+  const baseVol    = pVol(current);
+
+  // Single forward pass: sort candidates by weight ascending, stop on first failure
+  // Candidates: all held assets except pinned equity (when pin is active)
+  while (true) {
+    const held = current
+      .map((wi, i) => ({ i, wi }))
+      .filter(a => isHeld(a.wi))
+      .filter(a => !(pinEquity && eqIndices.includes(a.i)));
+
+    if (held.length <= MIN_ASSETS) break;
+
+    // Find the smallest candidate
+    const smallest = held.reduce((b, a) => a.wi < b.wi ? a : b);
+
+    // Pro-rate: remove smallest, redistribute proportionally to remaining assets
+    const remaining = current.map((wi, i) => i === smallest.i ? 0 : wi);
+    const remTot    = remaining.reduce((s, v) => s + v, 0);
+    if (remTot < 1e-8) break;
+    const candidate = remaining.map(v => v / remTot);
+
+    // Check materiality
+    const candReturn = pGeom(candidate);
+    const candVol    = pVol(candidate);
+    const dReturn    = Math.abs(candReturn - baseReturn);
+    const dVol       = Math.abs(candVol    - baseVol);
+
+    if (dReturn > MAX_DELTA_RETURN || dVol > MAX_DELTA_VOL) break;
+
+    // Accept removal
+    current = candidate;
+  }
+
+  return current;
+}
+
 
 function lrRound(weights) {
   // Largest-remainder method: round each weight to nearest 1%, ensure sum=100%
