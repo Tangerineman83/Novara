@@ -406,8 +406,12 @@ function renderDecumTable() {
             const ceBg    = cePct >= 95 ? '#DCFCE7' : cePct >= 75 ? '#FEF3C7' : '#F1F5F9';
             const isGLWB     = s.id === 'preset_glwb';
             const isPrudent  = s.id === 'preset_drawdown_prudent';
-            const glwbBadge  = isGLWB    ? `<span class="badge ms-1" style="background:#FEF3C7;color:#92400E;font-size:.58rem;" title="GLWB value is understated in deterministic projections. The rider fee buys sequence-of-returns protection only visible in stochastic scenarios.">det. understated</span>` : '';
-            const prudentBadge = isPrudent ? `<span class="badge ms-1" style="background:#EDE9FE;color:#5B21B6;font-size:.58rem;" title="Targets age 105 to self-insure longevity. Income gap vs standard Drawdown shows the cost of not pooling longevity risk.">self-insured</span>` : '';
+            const glwbBadge  = isGLWB
+                ? '<span class="badge ms-1" style="background:#FEF3C7;color:#92400E;font-size:.58rem;" title="GLWB understated in deterministic mode — rider benefit only shows in stochastic scenarios.">det. understated</span>'
+                : '';
+            const prudentBadge = isPrudent
+                ? '<span class="badge ms-1" style="background:#EDE9FE;color:#5B21B6;font-size:.58rem;" title="Plans to age 105: shows cost of self-insuring longevity without pooling.">self-insured</span>'
+                : '';
             return `<tr style="opacity:${active?1:0.38};cursor:pointer;" onclick="decumToggle('${s.id}')">
                 <td class="ps-3 align-middle" style="font-size:.82rem;">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color};margin-right:6px;vertical-align:middle;"></span>
@@ -436,7 +440,7 @@ function renderSummaryCards() {
     const allSpecs = DE.getAllSpecs().filter(s => decumResults[s.id]);
     const card = (label, val, sub, color, tooltip='') => `
         <div class="col-6 col-lg-4">
-            <div class="card border-0 shadow-sm h-100" ${tooltip?`title="${tooltip}"`:''}><div class="card-body p-3">
+            <div class="card border-0 shadow-sm h-100" ${tooltip?('title="'+tooltip+'"'):''}><div class="card-body p-3">
                 <div class="text-muted mb-1" style="font-size:.67rem;text-transform:uppercase;letter-spacing:.07em;">${label}</div>
                 <div style="font-size:1.25rem;font-weight:700;color:${color};">${val}</div>
                 <div class="text-muted" style="font-size:.71rem;">${sub}</div>
@@ -454,8 +458,8 @@ function renderSummaryCards() {
         ${card('Highest LIPV / Pot', mult(decumResults[bestLIPV?.id]?.apv.lipvNormalized||0), bestLIPV?.shortName||'—', '#166534', 'Living Income PV — pure consumption efficiency')}
         ${card('Highest APV Bequest', fmtPound(decumResults[bestBq?.id]?.apv.apvBequest||0), bestBq?.shortName||'—', '#1D4ED8', '')}
         ${card('Best Total / Pot', mult(decumResults[bestTot?.id]?.apv.totalNormalized||0), bestTot?.shortName||'—', '#7E22CE', '')}
-        ${card('Pot at Retirement', fmtPound(decumCtx?.V0||0), `Age ${decumCtx?.startAge||65}`, '#374151', '')}
-        ${longevityCost !== null ? card('Pooling Value', fmtPound(longevityCost)+'/yr', 'Income gained by pooling vs self-insuring to 105', '#6D28D9', '') : card('Planning Horizon', `${(decumCtx?.targetAge||90)-(decumCtx?.startAge||65)} yrs`, `Age ${decumCtx?.startAge||65}–${decumCtx?.targetAge||90}`, '#374151', '')}
+        ${card('Pot at Retirement', fmtPound(decumCtx?.V0||0), 'Age '+(decumCtx?.startAge||65), '#374151', '')}
+        ${longevityCost !== null ? card('Pooling Value', fmtPound(longevityCost)+'/yr', 'Income gained by pooling vs self-insuring to 105', '#6D28D9', '') : card('Planning Horizon', ((decumCtx?.targetAge||90)-(decumCtx?.startAge||65))+' yrs', 'Age '+(decumCtx?.startAge||65)+'–'+(decumCtx?.targetAge||90), '#374151', '')}
         ${card('Real Return', pct(decumCtx?.realReturn||0), 'p.a. context assumption', '#374151', '')}
     </div>`;
 }
