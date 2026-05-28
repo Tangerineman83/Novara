@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.10';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.11';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.10'); 
+    state.worker = new Worker('./js/worker.js?v=58.11'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3525,6 +3525,53 @@ window.optRunOptimizer=async function(){
 };
 
 /* ── 10. CHART ─────────────────────────────────────────────────────────── */
+function buildFrontier(cloud) {
+  // Construct 10 investable frontier portfolios.
+  // 1. Sort cloud by vol, split into 10 equal-width vol bands
+  // 2. In each band take the top-5 by muG, average their weights
+  // 3. Round to nearest 1% using largest-remainder method
+  // 4. Re-compute risk/return on the rounded portfolio
+  if (!cloud.length) return [];
+  const vols = cloud.map(p => p.vol);
+  const vMin = Math.min(...vols), vMax = Math.max(...vols);
+  const bandW = (vMax - vMin) / 10;
+  const MIN_PER_BAND = 5, TOP_K = 5, N_BANDS = 10;
+  const frontier = [];
+
+  for (let b = 0; b < N_BANDS; b++) {
+    const lo = vMin + b * bandW, hi = lo + bandW;
+    const inBand = cloud.filter(p => p.vol >= lo && (b === N_BANDS-1 ? p.vol <= hi : p.vol < hi));
+    if (inBand.length < MIN_PER_BAND) continue;
+    // Top-K by muG
+    const topK = inBand.sort((a, z) => z.muG - a.muG).slice(0, TOP_K);
+    // Average weights
+    const avgW = new Array(N).fill(0);
+    topK.forEach(p => { p.w.forEach((wi, i) => { avgW[i] += wi / topK.length; }); });
+    // Largest-remainder rounding to nearest 1%
+    const rounded = lrRound(avgW);
+    const vol = pVol(rounded), muG = pGeom(rounded), muA = pArith(rounded);
+    const gSort = muG / (0.707 * vol + 1e-10);
+    frontier.push({
+      w: rounded, vol, muG, muA, gSort,
+      bandMid: (lo + hi) / 2,
+      label: `F${b+1}`,
+    });
+  }
+  return frontier;
+}
+
+function lrRound(weights) {
+  // Largest-remainder method: round each weight to nearest 1%, ensure sum=100%
+  const pcts  = weights.map(w => w * 100);
+  const floors = pcts.map(p => Math.floor(p));
+  const rems   = pcts.map((p, i) => p - floors[i]);
+  let deficit  = 100 - floors.reduce((a, b) => a + b, 0);
+  // Distribute remainder to assets with largest fractional parts
+  const order  = rems.map((r, i) => [r, i]).sort((a, b) => b[0] - a[0]);
+  order.forEach(([, i]) => { if (deficit > 0) { floors[i]++; deficit--; } });
+  return floors.map(p => p / 100);
+}
+
 function renderOptChart(){
   if(!cloud.length)return;
   const canvas=document.getElementById('opt-canvas');
@@ -3536,7 +3583,20 @@ function renderOptChart(){
   const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
   const PAD={top:36,right:40,bottom:52,left:62};
   const cw=W-PAD.left-PAD.right,ch=H-PAD.top-PAD.bottom;
-  const all=[...cloud,...overlay.providers,...overlay.comparators];
+
+  // Build frontier portfolios
+  const frontier = buildFrontier(cloud);
+
+  // Asset class standalone points
+  const assetPts = OA.map(a => {
+    const wArr = new Array(N).fill(0);
+    wArr[OA.indexOf(a)] = 1.0;
+    const muA = a.r, v = a.v;
+    const muG = muA - 0.5 * v * v;
+    return { name: a.name, key: a.key, vol: v, muG, muA, isAsset: true };
+  });
+
+  const all=[...cloud,...overlay.providers,...overlay.comparators,...frontier,...assetPts];
   const xMin=Math.max(0,Math.min(...all.map(p=>p.vol))-0.015);
   const xMax=Math.max(...all.map(p=>p.vol))+0.025;
   const yMin=Math.min(...all.map(p=>p.muG))-0.008;
@@ -3560,28 +3620,45 @@ function renderOptChart(){
   ctx.textAlign='center';ctx.fillStyle='#8896A8';ctx.font='400 10px DM Mono,monospace';
   ctx.fillText('GEOMETRIC RETURN  μg',0,0);ctx.restore();
 
-  ctx.globalAlpha=0.22;
-  cloud.forEach((p,i)=>{
-    if(i===selectedIdx)return;
-    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),2.5,0,Math.PI*2);
-    ctx.fillStyle='#3B82F6';ctx.fill();
+  // ── Cloud dots (visual only, not clickable) ──────────────────────────────
+  ctx.globalAlpha=0.18;
+  cloud.forEach(p=>{
+    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),2,0,Math.PI*2);
+    ctx.fillStyle='#93C5FD';ctx.fill();
   });
   ctx.globalAlpha=1;
 
-  const maxG=cloud.reduce((b,p)=>p.muG>b.muG?p:b,cloud[0]);
-  const xMG=tx(maxG.vol),yMG=ty(maxG.muG);
-  ctx.beginPath();ctx.arc(xMG,yMG,7,0,Math.PI*2);
-  ctx.fillStyle='#166534';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.fill();ctx.stroke();
-  ctx.fillStyle='#166534';ctx.font='600 10px DM Mono,monospace';
-  ctx.textAlign='left';ctx.fillText('Max μ_g',xMG+10,yMG-10);
-
+  // ── Frontier portfolios (large solid clickable dots) ─────────────────────
   const hitPts=[];
+  frontier.forEach((p,i)=>{
+    const x=tx(p.vol),y=ty(p.muG);
+    ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);
+    ctx.fillStyle='#1D4ED8';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.fill();ctx.stroke();
+    // Label
+    ctx.fillStyle='#1D4ED8';ctx.font='600 9px DM Mono,monospace';ctx.textAlign='center';
+    ctx.fillText(p.label,x,y-11);
+    hitPts.push({x,y,type:'frontier',data:p});
+  });
+
+  // ── Max μg marker (from frontier, highlight separately) ──────────────────
+  if(frontier.length){
+    const maxG=frontier.reduce((b,p)=>p.muG>b.muG?p:b,frontier[0]);
+    const xMG=tx(maxG.vol),yMG=ty(maxG.muG);
+    ctx.beginPath();ctx.arc(xMG,yMG,9,0,Math.PI*2);
+    ctx.fillStyle='#166534';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.fill();ctx.stroke();
+    ctx.fillStyle='#166534';ctx.font='600 10px DM Mono,monospace';
+    ctx.textAlign='left';ctx.fillText('Max μ_g',xMG+12,yMG-10);
+  }
+
+  // ── Provider dots (orange circles) ──────────────────────────────────────
   overlay.providers.forEach(p=>{
     const x=tx(p.vol),y=ty(p.muG);
     ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);
     ctx.fillStyle='#F97316';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.fill();ctx.stroke();
     hitPts.push({x,y,type:'provider',data:p});
   });
+
+  // ── Comparator dots (red diamonds) ──────────────────────────────────────
   overlay.comparators.forEach(p=>{
     const x=tx(p.vol),y=ty(p.muG);
     ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
@@ -3589,23 +3666,39 @@ function renderOptChart(){
     ctx.fillRect(-5,-5,10,10);ctx.strokeRect(-5,-5,10,10);ctx.restore();
     hitPts.push({x,y,type:'comparator',data:p});
   });
-  if(selectedIdx!==null&&cloud[selectedIdx]){
-    const p=cloud[selectedIdx];
-    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),7,0,Math.PI*2);
+
+  // ── Asset class diamonds (amber ◆, clickable) ───────────────────────────
+  assetPts.forEach(a=>{
+    const x=tx(a.vol),y=ty(a.muG);
+    const s=5;
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+    ctx.fillStyle='#D97706';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.fillRect(-s,-s,s*2,s*2);ctx.strokeRect(-s,-s,s*2,s*2);
+    ctx.restore();
+    hitPts.push({x,y,type:'asset',data:a});
+  });
+
+  // ── Selected frontier dot highlight ─────────────────────────────────────
+  if(selectedIdx!==null&&frontier[selectedIdx]){
+    const p=frontier[selectedIdx];
+    ctx.beginPath();ctx.arc(tx(p.vol),ty(p.muG),9,0,Math.PI*2);
     ctx.fillStyle='#1B5EBE';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.fill();ctx.stroke();
   }
-  cloud.forEach((_,i)=>{const p=cloud[i];hitPts.push({x:tx(p.vol),y:ty(p.muG),type:'cloud',data:p,idx:i});});
-  chartMeta={tx,ty,hitPts};
+
+  chartMeta={tx,ty,hitPts,frontier};
 }
+
 
 /* ── 11. INTERACTION ───────────────────────────────────────────────────── */
 (function(){const t=document.createElement('div');t.id='opt-tooltip';document.body.appendChild(t);})();
 
 function nearest(mx,my){
   if(!chartMeta)return null;
-  let best=null,bestD=22;
-  chartMeta.hitPts.filter(p=>p.type!=='cloud').forEach(p=>{const d=Math.hypot(p.x-mx,p.y-my);if(d<bestD+6){bestD=d-6;best=p;}});
-  chartMeta.hitPts.filter(p=>p.type==='cloud').forEach(p=>{const d=Math.hypot(p.x-mx,p.y-my);if(d<bestD){bestD=d;best=p;}});
+  let best=null,bestD=20;  // 20px hit radius
+  chartMeta.hitPts.forEach(p=>{
+    const d=Math.hypot(p.x-mx,p.y-my);
+    if(d<bestD){bestD=d;best=p;}
+  });
   return best;
 }
 function setupCanvas(){
@@ -3618,12 +3711,21 @@ function setupCanvas(){
     const pt=nearest(e.clientX-r.left,e.clientY-r.top);
     if(pt){
       const d=pt.data;
-      tt.innerHTML=`<div class="tt-title">${pt.type==='cloud'?'Portfolio #'+(pt.idx+1):pt.type==='provider'?'📊 Provider':'⭐ Comparator'}</div>
-        ${pt.type!=='cloud'?`<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:150px;text-align:right;white-space:normal;font-size:.68rem">${d.name}</span></div>`:''}
+      const ttTitle = pt.type==='frontier' ? '🔵 Frontier Portfolio '+d.label
+              : pt.type==='asset'    ? '◆ '+d.name+' (standalone)'
+              : pt.type==='provider' ? '📊 Provider'
+              : '⭐ Comparator';
+      const ttNameRow = (pt.type==='provider'||pt.type==='comparator')
+              ? `<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:150px;text-align:right;white-space:normal;font-size:.68rem">${d.name}</span></div>` : '';
+      const ttGSort = d.gSort !== undefined ? `<div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>` : '';
+      const ttAssetNote = pt.type==='asset'
+              ? `<div class="tt-row"><span class="tt-key">Type</span><span class="tt-val" style="color:#D97706">100% concentration</span></div>` : '';
+      tt.innerHTML=`<div class="tt-title">${ttTitle}</div>
+        ${ttNameRow}
         <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
         <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
         <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
-        <div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>`;
+        ${ttGSort}${ttAssetNote}`;
       tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
       tt.classList.add('visible');this.style.cursor='pointer';
     }else{tt.classList.remove('visible');this.style.cursor='default';}
@@ -3634,8 +3736,16 @@ function setupCanvas(){
     const r=this.getBoundingClientRect();
     const pt=nearest(e.clientX-r.left,e.clientY-r.top);
     if(!pt)return;
-    if(pt.type==='cloud'){selectedIdx=pt.idx;renderOptChart();renderOptWeights(pt.data);}
-    else{selectedIdx=null;renderOptChart();renderOptOverlay(pt.data);}
+    if(pt.type==='frontier'){
+      // Find index in frontier array
+      const fi=chartMeta.frontier.findIndex(f=>f.label===pt.data.label);
+      selectedIdx=fi;
+      renderOptChart();
+      renderOptWeights(pt.data.w);
+    }else if(pt.type==='asset'){
+      selectedIdx=null;renderOptChart();
+      renderOptAsset(pt.data);
+    }else{selectedIdx=null;renderOptChart();renderOptOverlay(pt.data);}
   });
 }
 
@@ -3644,7 +3754,7 @@ function pct(v,dp=1){return(v*100).toFixed(dp)+'%';}
 
 function renderOptWeights(pt){
   if(!pt){
-    document.getElementById('opt-weightsBody').innerHTML=`<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3;">◦</div><p class="small mt-2 mb-0">Click any point in the simulation cloud to inspect its allocation.</p></div>`;
+    document.getElementById('opt-weightsBody').innerHTML=`<div class="text-center text-muted p-5"><div style="font-size:1.4rem;opacity:.3;">◦</div><p class="small mt-2 mb-0">Click a frontier portfolio (●), provider (●), comparator (◆) or standalone asset (◆) to inspect its allocation.</p></div>`;
     const ph=document.getElementById('opt-summaryPills');ph.classList.add('d-none');ph.style.display='';
     document.getElementById('opt-selectedLabel').textContent='— click a point to inspect —';
     return;
@@ -3654,6 +3764,13 @@ function renderOptWeights(pt){
 function renderOptOverlay(pt){
   const w=OA.map(a=>pt.wObj?pt.wObj[a.key]||0:0);
   drawWeightsPanel(w,{w,vol:pt.vol,muG:pt.muG,muA:pt.muA,gSort:pt.gSort},pt.name);
+}
+function renderOptAsset(asset){
+  // Show a standalone asset class in the weights panel
+  const w=OA.map(a=>a.key===asset.key?1.0:0);
+  const gSort = asset.muA / (0.707 * asset.vol + 1e-10);
+  drawWeightsPanel(w,{w,vol:asset.vol,muG:asset.muG,muA:asset.muA,gSort},
+    '◆ '+asset.name+' (standalone asset class)');
 }
 function drawWeightsPanel(w,stats,nameLabel){
   const priv=OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
