@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.13';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.15';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.13'); 
+    state.worker = new Worker('./js/worker.js?v=58.15'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3527,37 +3527,90 @@ window.optRunOptimizer=async function(){
 
 /* ── 10. CHART ─────────────────────────────────────────────────────────── */
 function buildFrontier(cloud) {
-  // Construct 10 investable frontier portfolios.
-  // 1. Sort cloud by vol, split into 10 equal-width vol bands
-  // 2. In each band take the top-5 by muG, average their weights
-  // 3. Round to nearest 1% using largest-remainder method
-  // 4. Re-compute risk/return on the rounded portfolio
+  // Constructs 7 investable frontier portfolios from the simulation cloud.
+  //
+  // Pipeline:
+  //   1. Split vol range into N_BANDS equal-width bands
+  //   2. Per band: take top-TOP_K portfolios by muG, average their weights
+  //   3. Smooth each asset's weight profile across bands (triangular kernel)
+  //      — only assets appearing >= MIN_ALLOC in at least one band are smoothed
+  //   4. Re-normalise each band to sum=1, apply lrRound
+  //   5. Re-compute vol/muG/muA/gSort on the final rounded weights
+
   if (!cloud.length) return [];
   const vols = cloud.map(p => p.vol);
   const vMin = Math.min(...vols), vMax = Math.max(...vols);
-  const bandW = (vMax - vMin) / 10;
-  const MIN_PER_BAND = 5, TOP_K = 5, N_BANDS = 10;
-  const frontier = [];
+  const N_BANDS = 7, TOP_K = 5, MIN_PER_BAND = 5;
+  const MIN_ALLOC = 0.005;   // 0.5% — assets below this in all bands are not smoothed
+  const bandW = (vMax - vMin) / N_BANDS;
 
+  // ── Step 1 & 2: per-band top-K average ────────────────────────────────
+  const rawBands = [];   // rawBands[b] = avgW array or null if sparse
   for (let b = 0; b < N_BANDS; b++) {
-    const lo = vMin + b * bandW, hi = lo + bandW;
-    const inBand = cloud.filter(p => p.vol >= lo && (b === N_BANDS-1 ? p.vol <= hi : p.vol < hi));
-    if (inBand.length < MIN_PER_BAND) continue;
-    // Top-K by muG
+    const lo = vMin + b * bandW;
+    const hi = lo + bandW;
+    const inBand = cloud.filter(p =>
+      p.vol >= lo && (b === N_BANDS - 1 ? p.vol <= hi : p.vol < hi)
+    );
+    if (inBand.length < MIN_PER_BAND) { rawBands.push(null); continue; }
     const topK = inBand.sort((a, z) => z.muG - a.muG).slice(0, TOP_K);
-    // Average weights
     const avgW = new Array(N).fill(0);
     topK.forEach(p => { p.w.forEach((wi, i) => { avgW[i] += wi / topK.length; }); });
-    // Largest-remainder rounding to nearest 1%
-    const rounded = lrRound(avgW);
-    const vol = pVol(rounded), muG = pGeom(rounded), muA = pArith(rounded);
+    rawBands.push(avgW);
+  }
+
+  // ── Step 3: fill any null bands by interpolating neighbours ──────────
+  // (handles sparse bands at extremes — rare at 5k+ sims but defensive)
+  const filled = rawBands.map((b, i, arr) => {
+    if (b) return b;
+    // find nearest non-null neighbours
+    let lo = null, hi = null;
+    for (let j = i-1; j >= 0; j--)        { if (arr[j]) { lo = arr[j]; break; } }
+    for (let j = i+1; j < arr.length; j++) { if (arr[j]) { hi = arr[j]; break; } }
+    if (lo && hi)  return lo.map((v, k) => (v + hi[k]) / 2);
+    if (lo)        return [...lo];
+    if (hi)        return [...hi];
+    return null;
+  }).filter(Boolean);   // drop any remaining nulls
+
+  if (!filled.length) return [];
+  const nB = filled.length;
+
+  // ── Step 4: smooth each asset's weight profile across bands ───────────
+  // Triangular 1-neighbour kernel: w_s[b] = (prev + 2*cur + next) / 4
+  // Only applied to assets with at least one band >= MIN_ALLOC
+  const smoothed = filled.map(band => [...band]);   // deep copy
+  for (let i = 0; i < N; i++) {
+    // Check if this asset is meaningful in any band
+    const active = filled.some(band => band[i] >= MIN_ALLOC);
+    if (!active) continue;
+    for (let b = 0; b < nB; b++) {
+      const prev = b > 0       ? filled[b-1][i] : filled[b][i];
+      const cur  = filled[b][i];
+      const next = b < nB-1    ? filled[b+1][i] : filled[b][i];
+      smoothed[b][i] = (prev + 2 * cur + next) / 4;
+    }
+  }
+
+  // ── Step 5: re-normalise each band and round ──────────────────────────
+  const frontier = [];
+  smoothed.forEach((avgW, bi) => {
+    // Normalise to sum=1 (smoothing can shift the total slightly)
+    const tot = avgW.reduce((s, v) => s + v, 0);
+    if (tot < 1e-8) return;
+    const normW = avgW.map(v => v / tot);
+
+    const rounded = lrRound(normW);
+    const vol  = pVol(rounded);
+    const muG  = pGeom(rounded);
+    const muA  = pArith(rounded);
     const gSort = muG / (0.707 * vol + 1e-10);
     frontier.push({
       w: rounded, vol, muG, muA, gSort,
-      bandMid: (lo + hi) / 2,
-      label: `F${b+1}`,
+      label: `F${bi + 1}`,
     });
-  }
+  });
+
   return frontier;
 }
 
