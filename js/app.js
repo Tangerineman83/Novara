@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.11';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.12';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.11'); 
+    state.worker = new Worker('./js/worker.js?v=58.12'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3596,11 +3596,24 @@ function renderOptChart(){
     return { name: a.name, key: a.key, vol: v, muG, muA, isAsset: true };
   });
 
-  const all=[...cloud,...overlay.providers,...overlay.comparators,...frontier,...assetPts];
-  const xMin=Math.max(0,Math.min(...all.map(p=>p.vol))-0.015);
-  const xMax=Math.max(...all.map(p=>p.vol))+0.025;
-  const yMin=Math.min(...all.map(p=>p.muG))-0.008;
-  const yMax=Math.max(...all.map(p=>p.muG))+0.015;
+  // Axis scaling: use cloud + frontier + overlay to set range.
+  // Asset class standalone points (some may be extreme outliers like digital assets)
+  // are filtered for scaling purposes — extreme vol outliers use vol > 3× cloud median.
+  const cloudVols = cloud.map(p=>p.vol).sort((a,b)=>a-b);
+  const medianVol = cloudVols[Math.floor(cloudVols.length/2)] || 0.15;
+  const volCap    = medianVol * 3.5;   // e.g. ~0.35 if median=0.10 — excludes Digital Assets (0.48)
+  const scalingPts = [
+    ...cloud,
+    ...overlay.providers,
+    ...overlay.comparators,
+    ...frontier,
+    ...assetPts.filter(a => a.vol <= volCap),   // outlier assets excluded from axis scaling
+  ];
+  const all=[...scalingPts,...assetPts];   // all still plotted, just not axis-scaling
+  const xMin=Math.max(0,Math.min(...scalingPts.map(p=>p.vol))-0.015);
+  const xMax=Math.max(...scalingPts.map(p=>p.vol))+0.025;
+  const yMin=Math.min(...scalingPts.map(p=>p.muG))-0.008;
+  const yMax=Math.max(...scalingPts.map(p=>p.muG))+0.015;
   const tx=v=>PAD.left+(v-xMin)/(xMax-xMin)*cw;
   const ty=r=>PAD.top+(1-(r-yMin)/(yMax-yMin))*ch;
 
@@ -3669,12 +3682,23 @@ function renderOptChart(){
 
   // ── Asset class diamonds (amber ◆, clickable) ───────────────────────────
   assetPts.forEach(a=>{
-    const x=tx(a.vol),y=ty(a.muG);
-    const s=5;
+    const isOutlier = a.vol > volCap;
+    // Clamp outlier coords to chart edge with a small offset
+    const rawX = tx(a.vol), rawY = ty(a.muG);
+    const chartR = PAD.left + cw;
+    const x = isOutlier ? chartR - 8 : rawX;
+    const y = isOutlier ? Math.max(PAD.top+8, Math.min(PAD.top+ch-8, rawY)) : rawY;
+    const s = isOutlier ? 4 : 5;
     ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
-    ctx.fillStyle='#D97706';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.fillStyle = isOutlier ? '#F59E0B' : '#D97706';
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
     ctx.fillRect(-s,-s,s*2,s*2);ctx.strokeRect(-s,-s,s*2,s*2);
     ctx.restore();
+    // Draw a right-arrow indicator for outliers
+    if(isOutlier){
+      ctx.fillStyle='#F59E0B';ctx.font='bold 9px DM Mono,monospace';
+      ctx.textAlign='left';ctx.fillText('→'+a.name.split(' ')[0], x+8, y+3);
+    }
     hitPts.push({x,y,type:'asset',data:a});
   });
 
@@ -3741,7 +3765,7 @@ function setupCanvas(){
       const fi=chartMeta.frontier.findIndex(f=>f.label===pt.data.label);
       selectedIdx=fi;
       renderOptChart();
-      renderOptWeights(pt.data.w);
+      renderOptWeights(pt.data);  // pass full frontier object with .w, .vol, .muG, .muA
     }else if(pt.type==='asset'){
       selectedIdx=null;renderOptChart();
       renderOptAsset(pt.data);
