@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.17';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.18';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.17'); 
+    state.worker = new Worker('./js/worker.js?v=58.18'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3195,10 +3195,56 @@ const RHO=[
 ];
 const COV=Array.from({length:N},(_,i)=>Array.from({length:N},(_,j)=>RHO[i][j]*OA[i].v*OA[j].v));
 
+/* ── 1b. EQUITY IMPLEMENTATION ─────────────────────────────────────────── */
+// Alpha and tracking error applied to all six listed equity assets (eqIdx >= 0).
+// Creates effective OA and COV used by all portfolio math functions.
+// Default: Hybrid 50:50 (alpha 0.375%, TE 1.05%).
+
+const EQ_MODES = {
+    climate: { alpha: 0.0025, te: 0.0075,
+        note: '<strong>Climate Transition:</strong> Low-turnover, ESG/Paris-aligned tilt close to MSCI benchmark. Alpha ~0.25% p.a., TE ~0.75%. Suitable as a near-passive equity core.' },
+    factor:  { alpha: 0.0050, te: 0.0150,
+        note: '<strong>Factor-Based:</strong> Systematic exposure to value, quality, momentum and low-volatility premia. Alpha ~0.50% p.a., TE ~1.50%. Higher active risk vs benchmark.' },
+    hybrid:  { alpha: 0.00375, te: 0.01050,
+        note: '<strong>Hybrid (50:50):</strong> Equal blend of Climate Transition and Factor strategies. Alpha ~0.375% p.a., blended TE ~1.05% (assumes ~0.35 correlation between approaches).' },
+    custom:  { alpha: 0.00375, te: 0.01050, note: '<strong>Custom:</strong> User-defined alpha and tracking error.' },
+};
+
+let _eqAlpha = EQ_MODES.hybrid.alpha;
+let _eqTE    = EQ_MODES.hybrid.te;
+
+// Rebuild effective OA and COV with equity implementation adjustments
+function rebuildEffectiveOA() {
+    for (let i = 0; i < N; i++) {
+        if (OA[i].eqIdx < 0) {
+            // Non-equity: effective = base
+            OA[i]._r = OA[i].r;
+            OA[i]._v = OA[i].v;
+        } else {
+            // Equity: add alpha to return, add TE in quadrature to vol
+            OA[i]._r = OA[i].r + _eqAlpha;
+            OA[i]._v = Math.sqrt(OA[i].v * OA[i].v + _eqTE * _eqTE);
+        }
+    }
+    // Rebuild COV using effective vols
+    for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+            COV[i][j] = RHO[i][j] * OA[i]._v * OA[j]._v;
+        }
+    }
+}
+
+// Patch pArith to use effective returns
+// (pVar/pVol already use COV which is rebuilt by rebuildEffectiveOA)
+// We override pArith inline — it reads OA[i].r, we switch to OA[i]._r
+
+// Initialise with hybrid defaults
+rebuildEffectiveOA();
+
 /* ── 2. MATH ───────────────────────────────────────────────────────────── */
 function pVar(w){let s=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++)s+=w[i]*w[j]*COV[i][j];return s;}
 function pVol(w){return Math.sqrt(pVar(w));}
-function pArith(w){return w.reduce((s,wi,i)=>s+wi*OA[i].r,0);}
+function pArith(w){return w.reduce((s,wi,i)=>s+wi*(OA[i]._r??OA[i].r),0);}
 function pGeom(w){return pArith(w)-0.5*pVar(w);}
 function pEqTot(w){return OA.reduce((s,a,i)=>s+(a.eqIdx>=0?w[i]:0),0);}
 function ix(key){return OA.findIndex(a=>a.key===key);}
@@ -3474,6 +3520,41 @@ function buildOverlay(){
   });
   return{providers,comparators};
 }
+
+/* ── 7b. EQUITY IMPLEMENTATION UI ─────────────────────────────────────── */
+window.optApplyEqMode = function(mode) {
+    const alphaEl = document.getElementById('opt-eq-alpha');
+    const teEl    = document.getElementById('opt-eq-te');
+    const noteEl  = document.getElementById('opt-eq-note');
+    const sel     = document.getElementById('opt-eq-mode');
+
+    if (mode !== 'custom') {
+        const m = EQ_MODES[mode];
+        if (m) {
+            _eqAlpha = m.alpha;
+            _eqTE    = m.te;
+            if (alphaEl) alphaEl.value = (m.alpha * 100).toFixed(3);
+            if (teEl)    teEl.value    = (m.te    * 100).toFixed(3);
+            if (noteEl)  noteEl.innerHTML = m.note;
+            if (sel && sel.value !== mode) sel.value = mode;
+        }
+    } else {
+        // Custom: read values from inputs
+        const alpha = parseFloat(alphaEl?.value) / 100 || 0;
+        const te    = parseFloat(teEl?.value)    / 100 || 0;
+        _eqAlpha = alpha;
+        _eqTE    = te;
+        if (noteEl) noteEl.innerHTML = EQ_MODES.custom.note;
+        if (sel && sel.value !== 'custom') sel.value = 'custom';
+    }
+    rebuildEffectiveOA();
+    // Show re-run notice if cloud already exists
+    const statusEl = document.getElementById('opt-statusMsg');
+    if (statusEl && cloud.length) {
+        statusEl.textContent = 'Equity implementation changed — re-run to apply.';
+        statusEl.style.color = '#B45309';
+    }
+};
 
 /* ── 8. STATE ──────────────────────────────────────────────────────────── */
 let cloud=[],overlay={providers:[],comparators:[]};
