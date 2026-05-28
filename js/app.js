@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.16';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.17';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.16'); 
+    state.worker = new Worker('./js/worker.js?v=58.17'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3478,6 +3478,7 @@ function buildOverlay(){
 /* ── 8. STATE ──────────────────────────────────────────────────────────── */
 let cloud=[],overlay={providers:[],comparators:[]};
 let selectedIdx=null,chartMeta=null,running=false;
+let zoomWindow=null;  // {x0,x1,y0,y1} in data-space; null = natural extents
 
 /* ── 9. RUN ────────────────────────────────────────────────────────────── */
 window.optRunOptimizer=async function(){
@@ -3489,7 +3490,7 @@ window.optRunOptimizer=async function(){
   const pw=document.getElementById('opt-progressWrap'),pb=document.getElementById('opt-progressBar');
   pw.style.opacity='1';pb.style.width='0%';
   const nTarget=+document.getElementById('opt-nPoints').value;
-  cloud=[];selectedIdx=null;
+  cloud=[];selectedIdx=null;zoomWindow=null;  // reset zoom on new run
   let attempts=0,feasible=0;
   const maxAttempts=nTarget*20;
 
@@ -3740,10 +3741,17 @@ function renderOptChart(){
     ...assetPts.filter(a => a.vol <= volCap),   // outlier assets excluded from axis scaling
   ];
   const all=[...scalingPts,...assetPts];   // all still plotted, just not axis-scaling
-  const xMin=Math.max(0,Math.min(...scalingPts.map(p=>p.vol))-0.015);
-  const xMax=Math.max(...scalingPts.map(p=>p.vol))+0.025;
-  const yMin=Math.min(...scalingPts.map(p=>p.muG))-0.008;
-  const yMax=Math.max(...scalingPts.map(p=>p.muG))+0.015;
+  // Natural extents (full data range)
+  const _xMinNat=Math.max(0,Math.min(...scalingPts.map(p=>p.vol))-0.015);
+  const _xMaxNat=Math.max(...scalingPts.map(p=>p.vol))+0.025;
+  const _yMinNat=Math.min(...scalingPts.map(p=>p.muG))-0.008;
+  const _yMaxNat=Math.max(...scalingPts.map(p=>p.muG))+0.015;
+  // Use zoom window if set, otherwise natural extents
+  const xMin = zoomWindow ? zoomWindow.x0 : _xMinNat;
+  const xMax = zoomWindow ? zoomWindow.x1 : _xMaxNat;
+  const yMin = zoomWindow ? zoomWindow.y0 : _yMinNat;
+  const yMax = zoomWindow ? zoomWindow.y1 : _yMaxNat;
+  // (natural extents stored in chartMeta._nat at end of function)
   const tx=v=>PAD.left+(v-xMin)/(xMax-xMin)*cw;
   const ty=r=>PAD.top+(1-(r-yMin)/(yMax-yMin))*ch;
 
@@ -3839,7 +3847,7 @@ function renderOptChart(){
     ctx.fillStyle='#1B5EBE';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.fill();ctx.stroke();
   }
 
-  chartMeta={tx,ty,hitPts,frontier};
+  chartMeta={tx,ty,hitPts,frontier,_nat:{x0:_xMinNat,x1:_xMaxNat,y0:_yMinNat,y1:_yMaxNat}};
 }
 
 
@@ -3859,49 +3867,266 @@ function setupCanvas(){
   const cv=document.getElementById('opt-canvas');
   if(!cv||cv._ol)return;cv._ol=true;
   const tt=document.getElementById('opt-tooltip');
-  cv.addEventListener('mousemove',function(e){
-    if(!cloud.length||!chartMeta)return;
-    const r=this.getBoundingClientRect();
-    const pt=nearest(e.clientX-r.left,e.clientY-r.top);
-    if(pt){
-      const d=pt.data;
-      const ttTitle = pt.type==='frontier' ? '🔵 Frontier Portfolio '+d.label
-              : pt.type==='asset'    ? '◆ '+d.name+' (standalone)'
-              : pt.type==='provider' ? '📊 Provider'
-              : '⭐ Comparator';
-      const ttNameRow = (pt.type==='provider'||pt.type==='comparator')
-              ? `<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:150px;text-align:right;white-space:normal;font-size:.68rem">${d.name}</span></div>` : '';
-      const ttGSort = d.gSort !== undefined ? `<div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>` : '';
-      const ttAssetNote = pt.type==='asset'
-              ? `<div class="tt-row"><span class="tt-key">Type</span><span class="tt-val" style="color:#D97706">100% concentration</span></div>` : '';
-      tt.innerHTML=`<div class="tt-title">${ttTitle}</div>
-        ${ttNameRow}
-        <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
-        <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
-        <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
-        ${ttGSort}${ttAssetNote}`;
-      tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
-      tt.classList.add('visible');this.style.cursor='pointer';
-    }else{tt.classList.remove('visible');this.style.cursor='default';}
-  });
-  cv.addEventListener('mouseleave',()=>document.getElementById('opt-tooltip').classList.remove('visible'));
-  cv.addEventListener('click',function(e){
-    if(!cloud.length||!chartMeta)return;
-    const r=this.getBoundingClientRect();
-    const pt=nearest(e.clientX-r.left,e.clientY-r.top);
-    if(!pt)return;
-    if(pt.type==='frontier'){
-      // Find index in frontier array
-      const fi=chartMeta.frontier.findIndex(f=>f.label===pt.data.label);
-      selectedIdx=fi;
+
+  // ── Tooltip content helper ──────────────────────────────────────────────
+  function showTooltip(e,pt){
+    const d=pt.data;
+    const ttTitle = pt.type==='frontier' ? '🔵 Frontier Portfolio '+d.label
+            : pt.type==='asset'    ? '◆ '+d.name+' (standalone)'
+            : pt.type==='provider' ? '📊 Provider'
+            : '⭐ Comparator';
+    const ttNameRow = (pt.type==='provider'||pt.type==='comparator')
+            ? `<div class="tt-row"><span class="tt-key">Name</span><span class="tt-val" style="max-width:150px;text-align:right;white-space:normal;font-size:.68rem">${d.name}</span></div>` : '';
+    const ttGSort = d.gSort !== undefined ? `<div class="tt-row"><span class="tt-key">Geom Sortino</span><span class="tt-val">${d.gSort.toFixed(3)}</span></div>` : '';
+    const ttAssetNote = pt.type==='asset'
+            ? `<div class="tt-row"><span class="tt-key">Type</span><span class="tt-val" style="color:#D97706">100% concentration</span></div>` : '';
+    tt.innerHTML=`<div class="tt-title">${ttTitle}</div>
+      ${ttNameRow}
+      <div class="tt-row"><span class="tt-key">μ geometric</span><span class="tt-val">${(d.muG*100).toFixed(2)}%</span></div>
+      <div class="tt-row"><span class="tt-key">μ arithmetic</span><span class="tt-val">${(d.muA*100).toFixed(2)}%</span></div>
+      <div class="tt-row"><span class="tt-key">Volatility σ</span><span class="tt-val">${(d.vol*100).toFixed(2)}%</span></div>
+      ${ttGSort}${ttAssetNote}`;
+    tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
+    tt.classList.add('visible');
+  }
+
+  // ── Zoom helper: scale current window around a data-space pivot ──────────
+  function zoomAround(pivotX, pivotY, factor) {
+    const nat = chartMeta?._nat;
+    if (!nat) return;
+    const cur = zoomWindow || nat;
+    let x0 = pivotX - (pivotX - cur.x0) * factor;
+    let x1 = pivotX + (cur.x1 - pivotX) * factor;
+    let y0 = pivotY - (pivotY - cur.y0) * factor;
+    let y1 = pivotY + (cur.y1 - pivotY) * factor;
+    // Clamp: don't zoom out beyond natural extents
+    const xRange = nat.x1 - nat.x0, yRange = nat.y1 - nat.y0;
+    if (x1 - x0 >= xRange && y1 - y0 >= yRange) { zoomWindow = null; renderOptChart(); return; }
+    // Clamp: don't zoom in so far that range < 0.5% vol or 0.1% return
+    if (x1 - x0 < 0.005) { const mid=(x0+x1)/2; x0=mid-0.0025; x1=mid+0.0025; }
+    if (y1 - y0 < 0.001) { const mid=(y0+y1)/2; y0=mid-0.0005; y1=mid+0.0005; }
+    zoomWindow = {x0, x1, y0, y1};
+    renderOptChart();
+  }
+
+  // ── Canvas pixel → data-space coords ─────────────────────────────────────
+  function canvasToData(cx, cy) {
+    if (!chartMeta) return null;
+    const {tx, ty} = chartMeta;
+    // Invert tx: data_x = xMin + (cx - PAD.left) / cw * (xMax - xMin)
+    // We stored tx/ty as functions; invert via the natural extents stored in _nat
+    const nat = chartMeta._nat;
+    const cur  = zoomWindow || nat;
+    const W    = cv.clientWidth, H = cv.clientHeight;
+    const PAD  = {top:36,right:40,bottom:52,left:62};
+    const cw   = W - PAD.left - PAD.right;
+    const ch   = H - PAD.top  - PAD.bottom;
+    const dataX = cur.x0 + (cx - PAD.left)  / cw * (cur.x1 - cur.x0);
+    const dataY = cur.y1 - (cy - PAD.top)   / ch * (cur.y1 - cur.y0);
+    return {x: dataX, y: dataY};
+  }
+
+  // ── Mouse wheel zoom ──────────────────────────────────────────────────────
+  cv.addEventListener('wheel', function(e) {
+    if (!cloud.length || !chartMeta) return;
+    e.preventDefault();
+    const r  = this.getBoundingClientRect();
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    const dp = canvasToData(cx, cy);
+    if (!dp) return;
+    const factor = Math.pow(0.85, e.deltaY / 80);
+    zoomAround(dp.x, dp.y, factor);
+  }, {passive: false});
+
+  // ── Touch: pinch-to-zoom + one-finger pan ─────────────────────────────────
+  let _touches = {};   // active touches by identifier
+  let _lastPinchDist = null;
+  let _lastPinchMid  = null;
+  let _panStart      = null;   // {dataX, dataY, win}
+  let _touchMoved    = false;
+  let _lastTap       = 0;
+
+  function touchCenter(t1, t2, rect) {
+    return {
+      cx: ((t1.clientX + t2.clientX) / 2) - rect.left,
+      cy: ((t1.clientY + t2.clientY) / 2) - rect.top,
+    };
+  }
+  function touchDist(t1, t2) {
+    return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+  }
+
+  cv.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    const r = this.getBoundingClientRect();
+    _touchMoved = false;
+    Array.from(e.changedTouches).forEach(t => { _touches[t.identifier] = t; });
+    const ids = Object.keys(_touches);
+    if (ids.length === 2) {
+      const t1 = _touches[ids[0]], t2 = _touches[ids[1]];
+      _lastPinchDist = touchDist(t1, t2);
+      const {cx, cy} = touchCenter(t1, t2, r);
+      _lastPinchMid  = canvasToData(cx, cy);
+      _panStart      = null;
+    } else if (ids.length === 1) {
+      const t = _touches[ids[0]];
+      _panStart = { cx: t.clientX - r.left, cy: t.clientY - r.top,
+                    win: zoomWindow ? {...zoomWindow} : {...(chartMeta?._nat || {})} };
+      _lastPinchDist = null;
+      // Double-tap detection
+      const now = Date.now();
+      if (now - _lastTap < 300) { zoomWindow = null; renderOptChart(); }
+      _lastTap = now;
+    }
+  }, {passive: false});
+
+  cv.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (!cloud.length || !chartMeta) return;
+    const r = this.getBoundingClientRect();
+    Array.from(e.changedTouches).forEach(t => { _touches[t.identifier] = t; });
+    const ids = Object.keys(_touches);
+
+    if (ids.length >= 2 && _lastPinchDist !== null) {
+      // Pinch zoom
+      const t1 = _touches[ids[0]], t2 = _touches[ids[1]];
+      const newDist = touchDist(t1, t2);
+      const factor  = _lastPinchDist / newDist;   // < 1 = pinch out (zoom in)
+      const {cx, cy} = touchCenter(t1, t2, r);
+      const mid = canvasToData(cx, cy) || _lastPinchMid;
+      if (mid) zoomAround(mid.x, mid.y, factor);
+      _lastPinchDist = newDist;
+      _lastPinchMid  = mid;
+      _touchMoved = true;
+    } else if (ids.length === 1 && _panStart) {
+      // One-finger pan
+      const t   = _touches[ids[0]];
+      const cx  = t.clientX - r.left, cy = t.clientY - r.top;
+      const dx  = cx - _panStart.cx, dy = cy - _panStart.cy;
+      if (Math.hypot(dx, dy) > 4) _touchMoved = true;
+      const nat = chartMeta._nat;
+      const win = _panStart.win;
+      const W   = cv.clientWidth, H = cv.clientHeight;
+      const PAD = {top:36,right:40,bottom:52,left:62};
+      const cw  = W - PAD.left - PAD.right;
+      const ch  = H - PAD.top  - PAD.bottom;
+      const xRange = win.x1 - win.x0, yRange = win.y1 - win.y0;
+      const dataX  = dx / cw * xRange;
+      const dataY  = dy / ch * yRange;
+      let x0 = win.x0 - dataX, x1 = win.x1 - dataX;
+      let y0 = win.y0 + dataY, y1 = win.y1 + dataY;
+      // Clamp pan to natural extents
+      if (x0 < nat.x0 - 0.01) { x1 += nat.x0 - 0.01 - x0; x0 = nat.x0 - 0.01; }
+      if (x1 > nat.x1 + 0.01) { x0 -= x1 - nat.x1 - 0.01; x1 = nat.x1 + 0.01; }
+      if (y0 < nat.y0 - 0.005) { y1 += nat.y0 - 0.005 - y0; y0 = nat.y0 - 0.005; }
+      if (y1 > nat.y1 + 0.005) { y0 -= y1 - nat.y1 - 0.005; y1 = nat.y1 + 0.005; }
+      zoomWindow = {x0, x1, y0, y1};
       renderOptChart();
-      renderOptWeights(pt.data);  // pass full frontier object with .w, .vol, .muG, .muA
-    }else if(pt.type==='asset'){
-      selectedIdx=null;renderOptChart();
-      renderOptAsset(pt.data);
-    }else{selectedIdx=null;renderOptChart();renderOptOverlay(pt.data);}
+    }
+  }, {passive: false});
+
+  cv.addEventListener('touchend', function(e) {
+    const r = this.getBoundingClientRect();
+    Array.from(e.changedTouches).forEach(t => { delete _touches[t.identifier]; });
+    const ids = Object.keys(_touches);
+    if (ids.length < 2) { _lastPinchDist = null; _lastPinchMid = null; }
+    if (ids.length < 1) {
+      if (!_touchMoved && !cloud.length) return;
+      if (!_touchMoved && chartMeta) {
+        // Treat as tap → select nearest point
+        const lt = e.changedTouches[0];
+        const cx = lt.clientX - r.left, cy = lt.clientY - r.top;
+        const pt = nearest(cx, cy);
+        if (pt) _handleSelect(pt);
+      }
+      _panStart = null;
+    }
+  }, {passive: false});
+
+  // ── Mouse pan (drag) ─────────────────────────────────────────────────────
+  let _mouseDown = false, _mouseMoved = false, _mouseStart = null;
+  cv.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    _mouseDown = true; _mouseMoved = false;
+    const r = this.getBoundingClientRect();
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    _mouseStart = {
+      cx, cy,
+      win: zoomWindow ? {...zoomWindow} : {...(chartMeta?._nat || {})},
+    };
   });
+  cv.addEventListener('mousemove', function(e) {
+    const r = this.getBoundingClientRect();
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    if (_mouseDown && _mouseStart) {
+      const dx = cx - _mouseStart.cx, dy = cy - _mouseStart.cy;
+      if (Math.hypot(dx, dy) > 4) {
+        _mouseMoved = true;
+        tt.classList.remove('visible');
+        if (!cloud.length || !chartMeta) return;
+        const nat = chartMeta._nat;
+        const win = _mouseStart.win;
+        const W   = cv.clientWidth, H = cv.clientHeight;
+        const PAD = {top:36,right:40,bottom:52,left:62};
+        const cw  = W - PAD.left - PAD.right;
+        const ch  = H - PAD.top  - PAD.bottom;
+        const xRange = win.x1 - win.x0, yRange = win.y1 - win.y0;
+        let x0 = win.x0 - dx/cw*xRange, x1 = win.x1 - dx/cw*xRange;
+        let y0 = win.y0 + dy/ch*yRange, y1 = win.y1 + dy/ch*yRange;
+        if (x0 < nat.x0-0.01){x1+=nat.x0-0.01-x0;x0=nat.x0-0.01;}
+        if (x1 > nat.x1+0.01){x0-=x1-nat.x1-0.01;x1=nat.x1+0.01;}
+        if (y0 < nat.y0-0.005){y1+=nat.y0-0.005-y0;y0=nat.y0-0.005;}
+        if (y1 > nat.y1+0.005){y0-=y1-nat.y1-0.005;y1=nat.y1+0.005;}
+        zoomWindow = {x0,x1,y0,y1};
+        renderOptChart();
+        this.style.cursor='grabbing';
+        return;
+      }
+    }
+    // Hover tooltip (only when not dragging)
+    if (!_mouseDown || !_mouseMoved) {
+      if (!cloud.length||!chartMeta)return;
+      const pt=nearest(cx,cy);
+      if(pt){showTooltip(e,pt);this.style.cursor='pointer';}
+      else{tt.classList.remove('visible');this.style.cursor=zoomWindow?'grab':'default';}
+    }
+  });
+  cv.addEventListener('mouseup', function(e) {
+    const wasDrag = _mouseMoved;
+    _mouseDown = false; _mouseMoved = false; _mouseStart = null;
+    const r = this.getBoundingClientRect();
+    this.style.cursor = zoomWindow ? 'grab' : 'default';
+    if (wasDrag || !cloud.length || !chartMeta) return;
+    // Click (no drag) → select
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    const pt = nearest(cx, cy);
+    if (pt) _handleSelect(pt);
+  });
+  cv.addEventListener('mouseleave', ()=>{
+    tt.classList.remove('visible');
+    _mouseDown=false;_mouseMoved=false;_mouseStart=null;
+  });
+
+  // ── Double-click reset ───────────────────────────────────────────────────
+  cv.addEventListener('dblclick', function() {
+    zoomWindow = null;
+    renderOptChart();
+    this.style.cursor = 'default';
+  });
+
+  // ── Shared select handler ────────────────────────────────────────────────
+  function _handleSelect(pt) {
+    if(pt.type==='frontier'){
+      const fi=chartMeta.frontier.findIndex(f=>f.label===pt.data.label);
+      selectedIdx=fi; renderOptChart(); renderOptWeights(pt.data);
+    }else if(pt.type==='asset'){
+      selectedIdx=null; renderOptChart(); renderOptAsset(pt.data);
+    }else{
+      selectedIdx=null; renderOptChart(); renderOptOverlay(pt.data);
+    }
+  }
 }
+
 
 /* ── 12. WEIGHTS TABLE ─────────────────────────────────────────────────── */
 function pct(v,dp=1){return(v*100).toFixed(dp)+'%';}
