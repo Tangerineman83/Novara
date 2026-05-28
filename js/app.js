@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.18';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.19';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.18'); 
+    state.worker = new Worker('./js/worker.js?v=58.19'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -4461,8 +4461,28 @@ window.optSendToPortfolio = function(side){
     return;
   }
 
+  // Carry equity implementation assumptions into the portfolio's alpha/TE fields.
+  // This ensures the main app's return calculations reflect the same uplift
+  // that was applied in the optimiser when the frontier portfolio was constructed.
+  const alphas = {};
+  const tes    = {};
+  const eqImpl = document.getElementById('opt-eq-mode')?.value || 'hybrid';
+  OA.forEach((a, i) => {
+    if (a.eqIdx >= 0 && w[i] > 0.001) {
+      alphas[a.key] = parseFloat((_eqAlpha * 100).toFixed(4)) / 100;
+      tes[a.key]    = parseFloat((_eqTE    * 100).toFixed(4)) / 100;
+    }
+  });
+
+  // Append implementation label to portfolio name for clarity
+  const implLabel = eqImpl === 'custom'
+    ? `α${(_eqAlpha*100).toFixed(2)}% TE${(_eqTE*100).toFixed(2)}%`
+    : eqImpl === 'hybrid' ? 'Hybrid impl.'
+    : eqImpl === 'climate' ? 'Climate impl.'
+    : 'Factor impl.';
+
   const id = `custom_port_${Date.now()}`;
-  const newPort = { id, name: label, weights, alphas: {}, tes: {} };
+  const newPort = { id, name: `${label} · ${implLabel}`, weights, alphas, tes };
   UserDataEngine.saveItem('portfolios', newPort);
   // Push into in-memory state so the dropdown picks it up immediately
   if(window._appState && window._appState.portfolios){
