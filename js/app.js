@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.19';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.20';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.19'); 
+    state.worker = new Worker('./js/worker.js?v=58.20'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3622,7 +3622,9 @@ function buildFrontier(cloud) {
   if (!cloud.length) return [];
   const vols = cloud.map(p => p.vol);
   const vMin = Math.min(...vols), vMax = Math.max(...vols);
-  const N_BANDS = 7, TOP_K = 5, MIN_PER_BAND = 5;
+  const N_BANDS    = Math.max(3, Math.min(15, parseInt(document.getElementById('opt-frontier-n')?.value) || 7));
+  const TOP_K      = Math.max(1, Math.min(20, parseInt(document.getElementById('opt-frontier-k')?.value) || 3));
+  const MIN_PER_BAND = Math.max(1, Math.min(TOP_K, 5));  // need at least TOP_K portfolios per band
   const MIN_ALLOC = 0.005;   // 0.5% — assets below this in all bands are not smoothed
   const bandW = (vMax - vMin) / N_BANDS;
 
