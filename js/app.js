@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.12';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.13';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.12'); 
+    state.worker = new Worker('./js/worker.js?v=58.13'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -3161,6 +3161,7 @@ const OA = [
   {key:'moneyMkt',        name:'Money Markets',        r:0.035,v:0.010,liq:true, priv:false,subig:false,eqIdx:-1},
 ];
 const N = OA.length;
+const ASSET_VOL_CAP = 0.20;   // standalone asset dots with vol > this are clamped to chart edge
 // MSCI ACWI March 2026
 const EQ_CAP = [0.663, 0.125, 0.115, 0.051, 0.034, 0.012];
 const OA_COLORS = {
@@ -3596,12 +3597,9 @@ function renderOptChart(){
     return { name: a.name, key: a.key, vol: v, muG, muA, isAsset: true };
   });
 
-  // Axis scaling: use cloud + frontier + overlay to set range.
-  // Asset class standalone points (some may be extreme outliers like digital assets)
-  // are filtered for scaling purposes — extreme vol outliers use vol > 3× cloud median.
-  const cloudVols = cloud.map(p=>p.vol).sort((a,b)=>a-b);
-  const medianVol = cloudVols[Math.floor(cloudVols.length/2)] || 0.15;
-  const volCap    = medianVol * 3.5;   // e.g. ~0.35 if median=0.10 — excludes Digital Assets (0.48)
+  // Axis scaling: standalone asset classes with vol > ASSET_VOL_CAP are excluded
+  // from axis range computation (still plotted at chart edge with arrow indicator).
+  const volCap = ASSET_VOL_CAP;
   const scalingPts = [
     ...cloud,
     ...overlay.providers,
@@ -3796,6 +3794,135 @@ function renderOptAsset(asset){
   drawWeightsPanel(w,{w,vol:asset.vol,muG:asset.muG,muA:asset.muA,gSort},
     '◆ '+asset.name+' (standalone asset class)');
 }
+/* ── 12b. FRONTIER MATRIX ─────────────────────────────────────────────── */
+function buildFrontierMatrix(frontier) {
+    // Returns HTML for the 10-column frontier allocation matrix.
+    // Rows = asset classes (zero-across-all hidden), pinned stats rows at bottom.
+    if (!frontier || !frontier.length) return '<p class="text-muted small p-3">Run the optimiser first.</p>';
+
+    // Sort columns by vol (should already be ordered low→high)
+    const cols = [...frontier].sort((a, b) => a.vol - b.vol);
+    const nCols = cols.length;
+
+    // Which asset rows have at least one non-zero allocation?
+    const activeAssets = OA.filter((_, i) => cols.some(c => c.w[i] > 0.005));
+
+    // Heat-map: per-row max for background intensity
+    const rowMax = activeAssets.map((_, ri) => {
+        const i = OA.indexOf(activeAssets[ri]);
+        return Math.max(...cols.map(c => c.w[i]), 0.001);
+    });
+
+    // Column header — clickable to load that frontier portfolio
+    const thCols = cols.map((c, ci) =>
+        `<th class="text-center border-0 fw-semibold" style="font-size:.72rem;cursor:pointer;min-width:52px;"
+            onclick="optLoadFrontierCol(${ci})" title="Click to inspect ${c.label}"
+            onmouseover="this.style.background='#EBF3FF'" onmouseout="this.style.background=''">
+            ${c.label}
+        </th>`
+    ).join('');
+
+    // Asset rows
+    const assetRows = activeAssets.map((a, ri) => {
+        const i = OA.indexOf(a);
+        const cells = cols.map(c => {
+            const w = c.w[i];
+            const pct = Math.round(w * 100);
+            const intensity = w / rowMax[ri];
+            const alpha = (0.08 + intensity * 0.55).toFixed(2);
+            const bg = w > 0.005 ? `rgba(59,130,246,${alpha})` : 'transparent';
+            const color = intensity > 0.6 ? '#1e3a5f' : '#374151';
+            return `<td class="text-center border-0 fw-medium font-monospace"
+                style="font-size:.75rem;background:${bg};color:${color};padding:3px 4px;">
+                ${pct > 0 ? pct + '%' : '<span style="color:#CBD5E1">—</span>'}
+            </td>`;
+        }).join('');
+        return `<tr>
+            <td class="border-0 align-middle" style="white-space:nowrap;padding:3px 8px;">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+                    background:${OA_COLORS[a.key]};margin-right:6px;vertical-align:middle;"></span>
+                <span class="text-secondary" style="font-size:.76rem;">${a.name}</span>
+            </td>
+            ${cells}
+        </tr>`;
+    }).join('');
+
+    // Stats rows
+    const statDefs = [
+        { label: 'μ geometric', key: 'muG', fmt: v => (v*100).toFixed(2)+'%' },
+        { label: 'μ arithmetic', key: 'muA', fmt: v => (v*100).toFixed(2)+'%' },
+        { label: 'Volatility σ',  key: 'vol', fmt: v => (v*100).toFixed(2)+'%' },
+    ];
+    const statsRows = statDefs.map(s => {
+        const vals = cols.map(c => s.fmt(c[s.key]));
+        const cells = vals.map(v =>
+            `<td class="text-center border-0 font-monospace fw-semibold"
+                style="font-size:.74rem;color:#1D4ED8;padding:3px 4px;">${v}</td>`
+        ).join('');
+        return `<tr style="border-top:${s.key==='muG'?'2px solid #E2E8F0':'none'}">
+            <td class="border-0 text-muted fw-medium" style="font-size:.72rem;padding:3px 8px;
+                white-space:nowrap;">${s.label}</td>
+            ${cells}
+        </tr>`;
+    }).join('');
+
+    return `
+    <div class="table-responsive" style="font-size:.75rem;">
+      <table class="table table-sm mb-0" style="border-collapse:separate;border-spacing:0;">
+        <thead class="table-light">
+          <tr>
+            <th class="border-0 text-muted fw-medium" style="font-size:.7rem;letter-spacing:.04em;
+                text-transform:uppercase;white-space:nowrap;padding:5px 8px;">Asset Class</th>
+            ${thCols}
+          </tr>
+          <tr style="border-bottom:1px solid #E2E8F0;">
+            <td class="border-0 text-muted" style="font-size:.67rem;padding:1px 8px 4px;">
+                ← lower risk · higher risk →
+            </td>
+            ${cols.map(c=>`<td class="text-center border-0 text-muted" style="font-size:.67rem;padding:1px 4px 4px;">${(c.vol*100).toFixed(0)}%σ</td>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${assetRows}</tbody>
+        <tfoot>${statsRows}</tfoot>
+      </table>
+    </div>`;
+}
+
+window.optLoadFrontierCol = function(colIdx) {
+    // Load a specific frontier column into the detail panel and highlight on chart
+    if (!chartMeta || !chartMeta.frontier) return;
+    const frontier = chartMeta.frontier;
+    const sorted = [...frontier].sort((a, b) => a.vol - b.vol);
+    const fp = sorted[colIdx];
+    if (!fp) return;
+    selectedIdx = frontier.findIndex(f => f.label === fp.label);
+    renderOptChart();
+    renderOptWeights(fp);
+    // Switch to detail view
+    optToggleView('detail');
+};
+
+window.optToggleView = function(mode) {
+    const det = document.getElementById('opt-detail-view');
+    const mat = document.getElementById('opt-matrix-view');
+    const btnDet = document.getElementById('opt-btn-detail');
+    const btnMat = document.getElementById('opt-btn-matrix');
+    if (!det || !mat) return;
+    if (mode === 'matrix') {
+        det.classList.add('d-none');
+        mat.classList.remove('d-none');
+        btnDet?.classList.remove('active');
+        btnMat?.classList.add('active');
+        // Populate matrix
+        mat.innerHTML = buildFrontierMatrix(chartMeta?.frontier || []);
+    } else {
+        mat.classList.add('d-none');
+        det.classList.remove('d-none');
+        btnDet?.classList.add('active');
+        btnMat?.classList.remove('active');
+    }
+};
+
 function drawWeightsPanel(w,stats,nameLabel){
   const priv=OA.reduce((s,a,i)=>s+(a.priv?w[i]:0),0);
   const liq=OA.reduce((s,a,i)=>s+(a.liq?w[i]:0),0);
