@@ -424,7 +424,14 @@ function computeAPV(records, ctx) {
         const pDie  = Math.max(0, tpx - tpx1);
         apvBequest += pDie * df * (r.bequest ?? 0);
     });
-    return { apvIncome, apvBequest, totalNormalized: (apvIncome + apvBequest) / Math.max(V0, 1) };
+    const totalNormalized = (apvIncome + apvBequest) / Math.max(V0, 1);
+    // Living Income PV (LIPV): pure consumption value — income received while alive.
+    // Excludes bequests entirely. Measures raw lifestyle-funding efficiency.
+    // consumptionEfficiency: fraction of total value accruing as income vs estate.
+    const lipvNormalized = apvIncome / Math.max(V0, 1);
+    const consumptionEfficiency = (apvIncome + apvBequest) > 0
+        ? apvIncome / (apvIncome + apvBequest) : 1;
+    return { apvIncome, apvBequest, totalNormalized, lipvNormalized, consumptionEfficiency };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -549,7 +556,7 @@ const PRESET_SPECS = [
         primaryEngine: {
             type: 'collective', productType: 'gsa',
             bypassFundingAdjustment: false, staticReturn: false,
-            pricingDiscountRate: 0.0405, realPricingRate: 0.016,
+            pricingDiscountRate: 0.0405, realPricingRate: 0.013,  // lower than GLA (1.5%) — money-back guarantee adds cost
             mortalityCreditLimit: 0.0125, hasNominalMoneyBack: true,
             inflationLinkage: 'guaranteed',
             engineRealReturn: 0.0340,  // 60% equity pooled (matches ART Balanced Risk-Adjusted)
@@ -571,9 +578,9 @@ const PRESET_SPECS = [
             inflationLinkage: 'targeted',
             // CPI granted year-by-year only when FR>=1. In central case: consistently
             // granted → stable real income. In adverse scenarios: withheld → real declines.
-            engineRealReturn: 0.0345,  // 60% equity at 65 (same as drawdown)
+            engineRealReturn: 0.0320,  // 60% equity less 0.38% charges (actuarial governance overhead vs drawdown's 0.25%)
             useGlidepath: true,           // de-risks age 80→90, consistent with drawdown
-            // ~CPI+3.45% at 65, transitioning to CPI+0.75% at 90 — consistent surplus over 4% prudent rate supports CPI grants.
+            // ~CPI+3.20% at 65, transitioning to ~CPI+0.52% at 90 — consistent surplus over 4% prudent rate supports CPI grants.
         },
     },
     {
@@ -617,6 +624,23 @@ const PRESET_SPECS = [
             pricingDiscountRate: 0.038, realPricingRate: 0.015,
             mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
             inflationLinkage: 'guaranteed',
+        },
+    },
+    {
+        id: 'preset_drawdown_prudent', name: 'Invested Portfolio (Prudent Drawdown)',
+        shortName: 'Drawdown*', color: '#93C5FD', isPreset: true,
+        // "Prudent Drawdown": same as Drawdown but bisects IWR to zero at age 105, not
+        // the planning horizon. Illustrates the real cost of longevity uncertainty for
+        // an unconstrained individual who must self-insure their longevity tail.
+        // The income gap vs standard Drawdown quantifies what pooling is worth.
+        orchestration: { type: 'single' },
+        primaryEngine: {
+            type: 'individual', productType: 'drawdown',
+            incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
+            riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
+            engineRealReturn: 0.0345,
+            useGlidepath: true,
+            prudentTargetAge: 105,   // bisect to zero at 105, not ctx.targetAge
         },
     },
     {
@@ -792,8 +816,12 @@ function _ctxWithReturn(ctx, engineSpec, splitT) {
 
 function _runEngine(engineSpec, ctx, splitT) {
     const eCtx = _ctxWithReturn(ctx, engineSpec, splitT);
+    // Override targetAge for Prudent Drawdown (bisect to longer horizon)
+    const bisectCtx = engineSpec.prudentTargetAge
+        ? { ...eCtx, targetAge: Math.min(engineSpec.prudentTargetAge, eCtx.maxAge) }
+        : eCtx;
     const iwr = engineSpec.initialWithdrawalRate === 'bisect'
-        ? bisectIWR(eCtx, engineSpec)
+        ? bisectIWR(bisectCtx, engineSpec)
         : engineSpec.initialWithdrawalRate;
     if (engineSpec.type === 'individual') {
         return IndividualEngine(eCtx, { ...engineSpec, initialWithdrawalRate: iwr });
