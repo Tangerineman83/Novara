@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.22';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.23';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.22'); 
+    state.worker = new Worker('./js/worker.js?v=58.23'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -2135,6 +2135,13 @@ function setupAutoRun() {
 }
 
 let _confidenceFilter = 'ALL'; // 'ALL' | 'HIGH_MED' | 'HIGH'
+
+function _passesConfFilter(p) {
+    if (_confidenceFilter === 'ALL')      return true;
+    if (_confidenceFilter === 'HIGH_MED') return !p.confidence || p.confidence === 'HIGH' || p.confidence === 'MED';
+    if (_confidenceFilter === 'HIGH')     return !p.confidence || p.confidence === 'HIGH';
+    return true;
+}
 
 window.applyConfidenceFilter = function(level) {
     _confidenceFilter = level;
