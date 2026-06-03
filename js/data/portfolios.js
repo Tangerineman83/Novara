@@ -124,7 +124,10 @@ export const PRESET_PORTFOLIOS = [
                     privCredit: 0.25
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'HIGH',
+                confidenceNote: 'Novara internal comparator — exactly defined allocation.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_opt2_pm_income',
@@ -135,7 +138,10 @@ export const PRESET_PORTFOLIOS = [
                     realEstateDirect: 0.2
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'HIGH',
+                confidenceNote: 'Novara internal comparator — exactly defined allocation.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_opt2_growth',
@@ -167,7 +173,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.01125,
                     ukEq: 0.01125,
                     apacEq: 0.01125
-                  }
+                  },
+                confidence: 'HIGH',
+                confidenceNote: 'Novara internal comparator — exactly defined allocation.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_opt2_retire',
@@ -204,7 +213,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.01125,
                     ukEq: 0.01125,
                     apacEq: 0.01125
-                  }
+                  },
+                confidence: 'HIGH',
+                confidenceNote: 'Novara internal comparator — exactly defined allocation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -245,7 +257,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aegon Universal Balanced Collection growth. Category allocations from Aegon factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_aegon_ubc_retire',
@@ -276,7 +291,10 @@ export const PRESET_PORTFOLIOS = [
                     devEq: 0.0075,
                     emEq: 0.0075,
                     ukEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aegon Universal Balanced Collection at-retirement. Category-level from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_aegon_lp_growth',
@@ -306,7 +324,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aegon Lifestyle Passive growth. Category allocations from Aegon factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_aegon_lp_retire',
@@ -334,7 +355,10 @@ export const PRESET_PORTFOLIOS = [
                     devEq: 0.0075,
                     emEq: 0.0075,
                     jpnEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aegon Lifestyle Passive at-retirement. Category-level from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -372,7 +396,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Aon Master Trust. Limited granular public disclosure; estimated from Aon published investment approach.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_aon_retire',
@@ -410,7 +437,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Aon Master Trust at-retirement. Limited public data; estimated from available documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -446,7 +476,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Focus long-term growth phase. Category allocations from SP992767.pdf; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_mff_growth',
@@ -479,7 +512,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Focus growth phase. Category allocations from SP992767.pdf; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_mff_consolidation',
@@ -513,7 +549,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Focus consolidation phase. Category allocations from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_vision_ltg',
@@ -545,7 +584,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Vision long-term growth phase. Category allocations from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_vision_growth',
@@ -581,7 +623,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Vision growth phase. Category allocations from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_vision_consolidation',
@@ -617,7 +662,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Aviva My Future Vision consolidation phase. Category allocations from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -658,7 +706,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Cushon. Newer provider with limited granular public disclosure; allocation estimated from Cushon sustainable growth strategy.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_cushon_retire',
@@ -696,7 +747,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Cushon at-retirement. Limited public data; estimated from available Cushon documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -736,7 +790,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Fidelity Workplace Investing growth fund. Category allocations confirmed from Fidelity factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_fidelity_fw_retire',
@@ -762,7 +819,10 @@ export const PRESET_PORTFOLIOS = [
                     devEq: 0.0075,
                     emEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Fidelity Workplace Investing at-retirement. Category-level from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -789,7 +849,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.005
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'MED',
+                confidenceNote: 'HL Workplace pension default. Published SAA bands from HL fund information; midpoint estimates used.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_hl_mymap4',
@@ -809,7 +872,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.002
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'MED',
+                confidenceNote: 'HL MyMap 4 ESG fund. Category allocations from HL fund information; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -849,7 +915,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Broad category breakdown from L&G Target Date Fund factsheet. Sub-asset splits inferred from L&G published methodology.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_lg_tdf_retire',
@@ -887,7 +956,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Diversified landing fund allocation inferred from L&G Target Date Fund documentation and TCFD report.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_lg_laf_growth',
@@ -920,7 +992,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'L&G Lifetime Advantage Fund factsheet categories; UK equity tilt confirmed but exact sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -955,7 +1030,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'LifeSight (WTW). Limited granular public disclosure; allocation estimated from WTW investment approach and LifeSight factsheet categories.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_lifesight_dgf',
@@ -992,7 +1070,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'LifeSight DGF. Limited public disclosure; estimated from WTW published investment methodology.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_lifesight_landing',
@@ -1030,7 +1111,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'LifeSight landing portfolio. Limited public data; estimated from LifeSight at-retirement approach documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1070,7 +1154,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Mercer Master Trust. Limited granular public disclosure; allocation estimated from Mercer OCIO published approach.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_mercer_target_drawdown',
@@ -1105,7 +1192,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Mercer Target Drawdown. Limited granular public disclosure; estimated from Mercer OCIO approach.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1150,7 +1240,9 @@ export const PRESET_PORTFOLIOS = [
                     emEq: 0.0075
                   },
                 notes: 'Regional equity derived from MSCI World cap weights (May 2026): US 73.9%, Dev Europe 15.0%, Japan 5.4%, UK 3.4%, Dev APAC 2.3%. Canada and other minor DMs excluded (not in schema, weight distributed proportionally). Source: nestpensions.org.uk asset allocation table per image Jun 2026. ukEq present at MSCI World weight (~1-1.4%) but excluded from alpha/TE keys (NEST runs single pooled global fund, not regionally separated active mandates).',
-                asOf: '2026-06'
+                asOf: '2026-06',
+                confidence: 'HIGH',
+                confidenceNote: 'Exact % from nestpensions.org.uk asset allocation table (Jun 2026). Weights read directly from tabular data.'
               },
             {
                 id: 'p_nest_growth',
@@ -1189,7 +1281,9 @@ export const PRESET_PORTFOLIOS = [
                     emEq: 0.0075
                   },
                 notes: 'Regional equity derived from MSCI World cap weights (May 2026): US 73.9%, Dev Europe 15.0%, Japan 5.4%, UK 3.4%, Dev APAC 2.3%. Canada and other minor DMs excluded (not in schema, weight distributed proportionally). Source: nestpensions.org.uk asset allocation table per image Jun 2026. ukEq present at MSCI World weight (~1-1.4%) but excluded from alpha/TE keys (NEST runs single pooled global fund, not regionally separated active mandates).',
-                asOf: '2026-06'
+                asOf: '2026-06',
+                confidence: 'HIGH',
+                confidenceNote: 'Exact % from nestpensions.org.uk asset allocation table (Jun 2026). Weights read directly from tabular data.'
               },
             {
                 id: 'p_nest_consolidation',
@@ -1228,7 +1322,9 @@ export const PRESET_PORTFOLIOS = [
                     emEq: 0.0075
                   },
                 notes: 'Regional equity derived from MSCI World cap weights (May 2026): US 73.9%, Dev Europe 15.0%, Japan 5.4%, UK 3.4%, Dev APAC 2.3%. Canada and other minor DMs excluded (not in schema, weight distributed proportionally). Source: nestpensions.org.uk asset allocation table per image Jun 2026. ukEq present at MSCI World weight (~1-1.4%) but excluded from alpha/TE keys (NEST runs single pooled global fund, not regionally separated active mandates).',
-                asOf: '2026-06'
+                asOf: '2026-06',
+                confidence: 'HIGH',
+                confidenceNote: 'Exact % from nestpensions.org.uk asset allocation table (Jun 2026). Weights read directly from tabular data.'
               },
             {
                 id: 'p_nest_retire',
@@ -1267,7 +1363,9 @@ export const PRESET_PORTFOLIOS = [
                     emEq: 0.0075
                   },
                 notes: 'Regional equity derived from MSCI World cap weights (May 2026): US 73.9%, Dev Europe 15.0%, Japan 5.4%, UK 3.4%, Dev APAC 2.3%. Canada and other minor DMs excluded (not in schema, weight distributed proportionally). Source: nestpensions.org.uk asset allocation table per image Jun 2026. ukEq present at MSCI World weight (~1-1.4%) but excluded from alpha/TE keys (NEST runs single pooled global fund, not regionally separated active mandates).',
-                asOf: '2026-06'
+                asOf: '2026-06',
+                confidence: 'HIGH',
+                confidenceNote: 'Exact % from nestpensions.org.uk asset allocation table (Jun 2026). Weights read directly from tabular data.'
               }
         ]
       },
@@ -1307,7 +1405,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'NOW:Pensions factsheet. Sparse public disclosure; broad category allocations estimated from scheme description.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_now_rcf',
@@ -1318,7 +1419,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.19
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'LOW',
+                confidenceNote: 'NOW:Pensions Retirement Countdown Fund. Sparse public disclosure; allocation estimated from scheme documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1341,7 +1445,10 @@ export const PRESET_PORTFOLIOS = [
                     infrastructure: 0.05
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'LOW',
+                confidenceNote: 'National Pension Trust. Smaller provider; limited public disclosure; allocation estimated from scheme documentation.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_npt_retire',
@@ -1356,7 +1463,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.1
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'LOW',
+                confidenceNote: 'National Pension Trust at-retirement. Limited public data; estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1381,7 +1491,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.033
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'MED',
+                confidenceNote: 'Royal London Governed Portfolio Drawdown. Category allocations from RL factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_rl_grip3',
@@ -1403,7 +1516,10 @@ export const PRESET_PORTFOLIOS = [
                     moneyMkt: 0.051
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'MED',
+                confidenceNote: 'Royal London Governed Retirement Income Portfolio 3. Category allocations from RL factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1440,7 +1556,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Lifetime Investment Strategy TCFD report. Category-level allocation confirmed; sub-splits estimated from MSCI cap weights.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_sw_lifetime_retire',
@@ -1475,7 +1594,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Lifetime Investment Strategy at-retirement. Category-level from TCFD; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1518,7 +1640,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.015,
                     ukEq: 0.015,
                     apacEq: 0.015
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'SEI Master Trust factsheet. Category allocations confirmed from seimastertrust.co.uk; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_sei_retire',
@@ -1555,7 +1680,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.015,
                     ukEq: 0.015,
                     apacEq: 0.015
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'SEI Master Trust at-retirement. Category-level from SEI published data; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1593,7 +1721,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Smart Pension. Factsheet light on detail; allocation estimated from Smart default strategy description.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_smart_retire',
@@ -1622,7 +1753,10 @@ export const PRESET_PORTFOLIOS = [
                     emEq: 0.0075,
                     jpnEq: 0.0075,
                     ukEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'Smart Pension at-retirement. Limited public data; estimated from available documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1658,7 +1792,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'MyFolio SMA factsheet. Broad category allocations confirmed; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_sl_sma_preretire',
@@ -1694,7 +1831,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Standard Life MyFolio SMA pre-retirement phase. Category allocations from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_sl_sma_retire',
@@ -1730,7 +1870,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'MyFolio SMA at-retirement. Category-level from factsheet; sub-splits estimated.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_sl_future_growth',
@@ -1763,7 +1906,10 @@ export const PRESET_PORTFOLIOS = [
                     ukEq: 0.0075,
                     jpnEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'MED',
+                confidenceNote: 'Standard Life Future Opportunities growth phase. Category allocations from SL published data; sub-splits estimated.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1789,7 +1935,10 @@ export const PRESET_PORTFOLIOS = [
                     infrastructure: 0.0299
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'LOW',
+                confidenceNote: 'The People\'s Pension. Limited granular public disclosure; allocation estimated from scheme description.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_tpp_retire',
@@ -1810,7 +1959,10 @@ export const PRESET_PORTFOLIOS = [
                     infrastructure: 0.0078
                   },
                 alphas: {},
-                tes: {}
+                tes: {},
+                confidence: 'LOW',
+                confidenceNote: 'The People\'s Pension at-retirement. Limited public data; estimated from available documentation.',
+                asOf: '2026-06'
               }
         ]
       },
@@ -1848,7 +2000,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'TPT Retirement Solutions. Sustainable Future Fund; broad ESG approach described but granular allocation not publicly disclosed.',
+                asOf: '2026-06'
               },
             {
                 id: 'p_tpt_retire',
@@ -1884,7 +2039,10 @@ export const PRESET_PORTFOLIOS = [
                     jpnEq: 0.0075,
                     ukEq: 0.0075,
                     apacEq: 0.0075
-                  }
+                  },
+                confidence: 'LOW',
+                confidenceNote: 'TPT at-retirement. Limited public data; estimated from Sustainable Future Fund documentation.',
+                asOf: '2026-06'
               }
         ]
       }
