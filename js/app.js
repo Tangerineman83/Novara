@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.23';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.24';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.23'); 
+    state.worker = new Worker('./js/worker.js?v=58.24'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -2164,12 +2164,9 @@ function refreshPortfolioDropdowns() {
     // Build provider options
     let presetHtml = '';
     providerGroups.forEach(group => {
-        const visiblePorts = group.portfolios.filter(p => _passesConfFilter(p));
-        if (!visiblePorts.length) return;
         presetHtml += `<optgroup label="${group.name}">`;
-        visiblePorts.forEach(p => {
-            const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
-            presetHtml += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
+        group.portfolios.forEach(p => {
+            presetHtml += `<option value="${p.id}">${p.name}</option>`;
         });
         presetHtml += `</optgroup>`;
     });
@@ -2209,6 +2206,27 @@ function createNewPortfolio(side) {
     state[`portInputsCollapsed_${side}`] = false; // Auto-expand when a new portfolio is created
     
     renderPortfolioPane(side, newPort.id);
+}
+
+/**
+ * confidenceBadge(level, note, opts)
+ * Returns a styled confidence badge string.
+ * level = 'HIGH' | 'MED' | 'LOW'
+ */
+function confidenceBadge(level, note, opts) {
+    opts = opts || {};
+    var cfgMap = {
+        HIGH: { bg:'#D1FAE5', color:'#065F46', dot:'#10B981' },
+        MED:  { bg:'#FEF3C7', color:'#92400E', dot:'#F59E0B' },
+        LOW:  { bg:'#FEE2E2', color:'#991B1B', dot:'#EF4444' },
+    };
+    var cfg   = cfgMap[level] || { bg:'#F1F5F9', color:'#64748B', dot:'#94A3B8' };
+    var size  = opts.size || '.68rem';
+    var title = (note || level + ' confidence').replace(/'/g,"&#39;");
+    return '<span class="badge rounded-pill" style="background:' + cfg.bg + ';color:' + cfg.color +
+        ';font-size:' + size + ';font-weight:500;letter-spacing:.01em;cursor:default;vertical-align:middle;" title="' + title + '">' +
+        '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + cfg.dot +
+        ';margin-right:4px;vertical-align:middle;position:relative;top:-1px;"></span>' + level + '</span>';
 }
 
 function renderPortfolioPane(side, portId) {
@@ -2399,10 +2417,86 @@ function updatePortfolioVisuals(side) {
     state[`pie_${side}`] = new Chart(ctx, {
         type: 'doughnut',
         data: { labels, datasets: [{ data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: '65%',
+        }
     });
 
+    // Confidence ring overlay
+    renderConfidenceRing(side, portfolio.confidence, portfolio.asOf);
+
     renderStressTests();
+}
+
+/**
+ * renderConfidenceRing(side, level, asOf)
+ * Overlays a three-segment confidence ring on the portfolio donut chart.
+ * HIGH = 3 green arcs, MED = 2 amber arcs, LOW = 1 red arc.
+ * Centre shows the data date (asOf).
+ */
+function renderConfidenceRing(side, level, asOf) {
+    const container = document.querySelector(`#port-visuals-${side} .pie-container`);
+    if (!container) return;
+
+    // Remove previous ring
+    const old = container.querySelector('.conf-ring-svg');
+    if (old) old.remove();
+
+    if (!level) return;
+
+    const cfg = {
+        HIGH: { arcs: ['#10B981','#10B981','#10B981'], label:'High' },
+        MED:  { arcs: ['#F59E0B','#F59E0B','#D1D5DB'], label:'Med'  },
+        LOW:  { arcs: ['#EF4444','#D1D5DB','#D1D5DB'], label:'Low'  },
+    }[level];
+    if (!cfg) return;
+
+    const dateLabel = asOf || '';
+
+    // SVG: 3 arcs of 110° each with 5° gaps, positioned as an outer ring
+    // Viewbox 100x100, ring from radius 46 to 50 (4px wide band)
+    const R = 47, r = 43;  // outer and inner radius of ring
+    const cx = 50, cy = 50;
+    const GAP_DEG = 5;
+    const ARC_DEG = (360 - 3 * GAP_DEG) / 3;  // 115°
+
+    function polarToXY(angleDeg, radius) {
+        const rad = (angleDeg - 90) * Math.PI / 180;
+        return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)];
+    }
+
+    function arcPath(startDeg, endDeg, ro, ri) {
+        const [x1, y1] = polarToXY(startDeg, ro);
+        const [x2, y2] = polarToXY(endDeg,   ro);
+        const [x3, y3] = polarToXY(endDeg,   ri);
+        const [x4, y4] = polarToXY(startDeg, ri);
+        const large = (endDeg - startDeg) > 180 ? 1 : 0;
+        return `M${x1.toFixed(2)},${y1.toFixed(2)} A${ro},${ro},0,${large},1,${x2.toFixed(2)},${y2.toFixed(2)}` +
+               ` L${x3.toFixed(2)},${y3.toFixed(2)} A${ri},${ri},0,${large},0,${x4.toFixed(2)},${y4.toFixed(2)} Z`;
+    }
+
+    const arcs = cfg.arcs.map((color, i) => {
+        const startDeg = i * (ARC_DEG + GAP_DEG);
+        const endDeg   = startDeg + ARC_DEG;
+        return `<path d="${arcPath(startDeg, endDeg, R, r)}" fill="${color}" opacity="0.9"/>`;
+    }).join('');
+
+    // Centre label: date or level
+    const centreText = dateLabel
+        ? `<text x="50" y="49" text-anchor="middle" font-size="7" fill="#6B7280" font-family="DM Mono,monospace" font-weight="400">${dateLabel}</text>`
+        : '';
+    const levelText = `<text x="50" y="57" text-anchor="middle" font-size="6.5" fill="${cfg.arcs[0]}" font-family="DM Mono,monospace" font-weight="600">${cfg.label}</text>`;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'conf-ring-svg');
+    svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+    svg.innerHTML = arcs + centreText + levelText;
+
+    container.style.position = 'relative';
+    container.appendChild(svg);
 }
 
 function renderStressTests() {
@@ -2604,10 +2698,7 @@ function refreshStrategyPortfolioSelects() {
         .sort((a,b) => a.name.localeCompare(b.name))
         .forEach(group => {
             optsHtml += `<optgroup label="${group.name}">`;
-            group.portfolios.filter(p => _passesConfFilter(p)).forEach(p => {
-                const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
-                optsHtml += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
-            });
+            group.portfolios.forEach(p => { optsHtml += `<option value="${p.id}">${p.name}</option>`; });
             optsHtml += `</optgroup>`;
         });
     const customPresetGrp = PRESET_PORTFOLIOS.find(g => g.name === 'Custom');
@@ -2643,9 +2734,8 @@ function appendStrategyRow(tbody, r) {
         .sort((a,b) => a.name.localeCompare(b.name))
         .forEach(group => {
             selHTML += `<optgroup label="${group.name}">`;
-            group.portfolios.filter(p => _passesConfFilter(p)).forEach(p => {
-                const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
-                selHTML += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
+            group.portfolios.forEach(p => {
+                selHTML += `<option value="${p.id}">${p.name}</option>`;
             });
             selHTML += `</optgroup>`;
         });
