@@ -111,8 +111,7 @@
 
 export const PRESET_PORTFOLIOS = [
     {
-        groupId: 'grp_custom',
-        groupName: 'Custom',
+        name: 'Custom',
         isProvider: false,
         portfolios: [
             {
@@ -210,8 +209,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_aegon',
-        groupName: 'Aegon',
+        name: 'Aegon',
         isProvider: true,
         portfolios: [
             {
@@ -341,8 +339,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_aon',
-        groupName: 'Aon',
+        name: 'Aon',
         isProvider: true,
         portfolios: [
             {
@@ -418,8 +415,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_aviva',
-        groupName: 'Aviva',
+        name: 'Aviva',
         isProvider: true,
         portfolios: [
             {
@@ -626,8 +622,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_cushon',
-        groupName: 'Cushon',
+        name: 'Cushon',
         isProvider: true,
         portfolios: [
             {
@@ -706,8 +701,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_fidelity',
-        groupName: 'Fidelity',
+        name: 'Fidelity',
         isProvider: true,
         portfolios: [
             {
@@ -773,8 +767,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_hl',
-        groupName: 'Hargreaves Lansdown',
+        name: 'Hargreaves Lansdown',
         isProvider: true,
         portfolios: [
             {
@@ -821,8 +814,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_lg',
-        groupName: 'L&G',
+        name: 'L&G',
         isProvider: true,
         portfolios: [
             {
@@ -933,8 +925,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_lifesight',
-        groupName: 'LifeSight',
+        name: 'LifeSight',
         isProvider: true,
         portfolios: [
             {
@@ -1044,8 +1035,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_mercer',
-        groupName: 'Mercer',
+        name: 'Mercer',
         isProvider: true,
         portfolios: [
             {
@@ -1120,8 +1110,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_nest',
-        groupName: 'NEST',
+        name: 'NEST',
         isProvider: true,
         portfolios: [
             {
@@ -1283,8 +1272,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_now',
-        groupName: 'NOW Pensions',
+        name: 'NOW Pensions',
         isProvider: true,
         portfolios: [
             {
@@ -1335,8 +1323,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_npt',
-        groupName: 'NPT',
+        name: 'NPT',
         isProvider: true,
         portfolios: [
             {
@@ -1374,8 +1361,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_rl',
-        groupName: 'Royal London',
+        name: 'Royal London',
         isProvider: true,
         portfolios: [
             {
@@ -1422,8 +1408,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_sw',
-        groupName: 'Scottish Widows',
+        name: 'Scottish Widows',
         isProvider: true,
         portfolios: [
             {
@@ -1495,8 +1480,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_sei',
-        groupName: 'SEI',
+        name: 'SEI',
         isProvider: true,
         portfolios: [
             {
@@ -1576,8 +1560,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_smart',
-        groupName: 'Smart',
+        name: 'Smart',
         isProvider: true,
         portfolios: [
             {
@@ -1644,8 +1627,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_sl',
-        groupName: 'Standard Life',
+        name: 'Standard Life',
         isProvider: true,
         portfolios: [
             {
@@ -1786,8 +1768,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_tpp',
-        groupName: 'TPP',
+        name: 'TPP',
         isProvider: true,
         portfolios: [
             {
@@ -1834,8 +1815,7 @@ export const PRESET_PORTFOLIOS = [
         ]
       },
     {
-        groupId: 'grp_tpt',
-        groupName: 'TPT',
+        name: 'TPT',
         isProvider: true,
         portfolios: [
             {
