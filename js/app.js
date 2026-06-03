@@ -1,5 +1,5 @@
 // js/app.js
-import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.21';
+import { ASSET_CLASSES, PRESET_PORTFOLIOS, STRATEGY_GROUPS, PRESET_PERSONAS, PRESET_CMAS, CHART_COLORS, STRESS_SCENARIOS } from './config.js?v=58.22';
 import { logGamma, getMatrixHeatmapBg, getCorrHeatmapBg, calcDeterministicStats } from './mathUtils.js';
 import { getAvatarSVG, getAvatarBgColor, getAvatarLabel } from './avatars.js';
 
@@ -1151,7 +1151,7 @@ function buildSharedLegend() {
 }
 
 function initWorker() {
-    state.worker = new Worker('./js/worker.js?v=58.21'); 
+    state.worker = new Worker('./js/worker.js?v=58.22'); 
     state.worker.onmessage = (e) => {
         const { type, payload } = e.data;
         if (type === 'SIMULATION_COMPLETE') {
@@ -1940,9 +1940,16 @@ function renderVFMRows(results, sortField, sortDir) {
             const medal = potRank <= 3
                 ? `<span class="vfm-medal">${MEDALS[potRank-1]}</span>`
                 : `<span class="vfm-rank-num">${potRank}</span>`;
-            html += `<tr class="vfm-provider-row">
+            // Look up confidence from the strategy's primary portfolio
+            const vfmStrat = STRATEGY_GROUPS.flatMap(g=>g.strategies).find(s=>s.name===r.name);
+            const vfmPrimPortId = vfmStrat?.points?.[0] ? Object.keys(vfmStrat.points[0].weights||{})[0] : null;
+            const vfmPrimPort   = vfmPrimPortId ? getGlobalPortfolio(vfmPrimPortId) : null;
+            const vfmConf       = vfmPrimPort?.confidence;
+            const vfmConfBadge  = vfmConf ? `&nbsp;${confidenceBadge(vfmConf, vfmPrimPort?.confidenceNote, {size:'.61rem'})}` : '';
+            const vfmOpacity    = vfmConf === 'LOW' ? 'opacity:0.75;' : '';
+            html += `<tr class="vfm-provider-row" style="${vfmOpacity}">
                 <td class="text-center ps-3" style="width:36px;">${medal}</td>
-                <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}</td>
+                <td style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${r.name}${vfmConfBadge}</td>
                 <td class="text-end" style="font-size:0.85rem;font-weight:700;color:var(--text-main);">${pot}${vsBadge(vs)}</td>
                 <td class="text-end" style="font-size:0.85rem;">${ret} p.a.</td>
                 <td class="text-end">${chancBar(r.pTop, false, true)}</td>
@@ -2127,6 +2134,16 @@ function setupAutoRun() {
     });
 }
 
+let _confidenceFilter = 'ALL'; // 'ALL' | 'HIGH_MED' | 'HIGH'
+
+window.applyConfidenceFilter = function(level) {
+    _confidenceFilter = level;
+    document.querySelectorAll('[data-conf-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.confFilter === level);
+    });
+    refreshPortfolioDropdowns();
+};
+
 function refreshPortfolioDropdowns() {
     const leftSel = document.getElementById('port-select-left');
     const rightSel = document.getElementById('port-select-right');
@@ -2140,9 +2157,12 @@ function refreshPortfolioDropdowns() {
     // Build provider options
     let presetHtml = '';
     providerGroups.forEach(group => {
+        const visiblePorts = group.portfolios.filter(p => _passesConfFilter(p));
+        if (!visiblePorts.length) return;
         presetHtml += `<optgroup label="${group.name}">`;
-        group.portfolios.forEach(p => {
-            presetHtml += `<option value="${p.id}">${p.name}</option>`;
+        visiblePorts.forEach(p => {
+            const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
+            presetHtml += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
         });
         presetHtml += `</optgroup>`;
     });
@@ -2231,10 +2251,18 @@ function renderPortfolioPane(side, portId) {
     const isCustom = portfolio.id.startsWith('custom_');
     const nameContainer = document.getElementById(`port-name-container-${side}`);
     if(nameContainer) {
+        // Confidence badge + asOf indicator for preset portfolios
+        const confBadge = (!isCustom && portfolio.confidence)
+            ? '<div class="d-flex align-items-center gap-2 mt-2">' +
+              confidenceBadge(portfolio.confidence, portfolio.confidenceNote) +
+              (portfolio.asOf ? '<span style="font-size:.64rem;color:#94A3B8;margin-left:4px;">as of ' + portfolio.asOf + '</span>' : '') +
+              '</div>'
+            : '';
         nameContainer.innerHTML = `
             <input type="text" class="form-control form-control-sm text-start fw-bold port-name-input rounded-pill border-0 shadow-sm w-100" value="${portfolio.name}" placeholder="Portfolio Name...">
             <button class="btn btn-sm btn-primary rounded-pill shadow-sm btn-save-port flex-shrink-0 px-3" title="Save Portfolio"><i class="fas fa-save"></i></button>
             ${isCustom ? `<button class="btn btn-sm btn-danger rounded-pill shadow-sm btn-delete-port flex-shrink-0 px-3" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
+            ${confBadge}
         `;
             
         nameContainer.querySelector('.btn-save-port').onclick = (e) => {
@@ -2569,7 +2597,10 @@ function refreshStrategyPortfolioSelects() {
         .sort((a,b) => a.name.localeCompare(b.name))
         .forEach(group => {
             optsHtml += `<optgroup label="${group.name}">`;
-            group.portfolios.forEach(p => { optsHtml += `<option value="${p.id}">${p.name}</option>`; });
+            group.portfolios.filter(p => _passesConfFilter(p)).forEach(p => {
+                const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
+                optsHtml += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
+            });
             optsHtml += `</optgroup>`;
         });
     const customPresetGrp = PRESET_PORTFOLIOS.find(g => g.name === 'Custom');
@@ -2605,8 +2636,9 @@ function appendStrategyRow(tbody, r) {
         .sort((a,b) => a.name.localeCompare(b.name))
         .forEach(group => {
             selHTML += `<optgroup label="${group.name}">`;
-            group.portfolios.forEach(p => {
-                selHTML += `<option value="${p.id}">${p.name}</option>`;
+            group.portfolios.filter(p => _passesConfFilter(p)).forEach(p => {
+                const cInd = p.confidence === 'HIGH' ? ' ✦' : p.confidence === 'MED' ? ' ◆' : p.confidence === 'LOW' ? ' ◇' : '';
+                selHTML += `<option value="${p.id}" data-confidence="${p.confidence||''}">${p.name}${cInd}</option>`;
             });
             selHTML += `</optgroup>`;
         });
