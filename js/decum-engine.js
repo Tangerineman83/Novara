@@ -1,4 +1,112 @@
 /**
+ * ============================================================
+ * FILE: js/decum-engine.js
+ * PURPOSE: Dual-engine decumulation calculation module.
+ *          Self-contained IIFE; exposes window.DecumEngine.
+ * ============================================================
+ *
+ * WHAT THIS FILE CONTAINS:
+ *   Pure calculation logic for decumulation projections.
+ *   No UI, no data constants (those live in js/data/decum-specs.js).
+ *
+ *   Exported via window.DecumEngine:
+ *     buildContext(params)          → GlobalContext
+ *     runSpec(spec, ctx)            → { records, apv, spec, ctx }
+ *     runAllSpecs(ctx, specIds?)    → { [id]: result }
+ *     getAllSpecs()                 → [...PRESET_SPECS, ...customSpecs]
+ *     PRESET_SPECS                 → from data/decum-specs.js
+ *     PRODUCT_TYPES                → from data/decum-specs.js
+ *     MORTALITY_MAX_AGE            → 110 (from data/decum-specs.js)
+ *     IndividualEngine(ctx, spec)  → YearlyRecord[]
+ *     CollectiveEngine(ctx, spec)  → YearlyRecord[]
+ *     buildSurvivalCurve(x0, max) → [{age, tpx}]
+ *     computeAPV(records, ctx)    → {apvIncome, apvBequest, totalNormalized,
+ *                                    lipvNormalized, consumptionEfficiency}
+ *     bisectIWR(ctx, spec)        → number
+ *     actuarialAnnuityValue(s, r) → number
+ *     loadCustomSpecs()           → StrategySpec[]
+ *     saveCustomSpec(spec)        → void
+ *     deleteCustomSpec(id)        → void
+ *
+ * ── ENGINE ARCHITECTURE ──────────────────────────────────────────────────────
+ *
+ * Two core engines:
+ *   IndividualEngine — personal pot. Member retains 100% asset ownership.
+ *     Longevity and sequence risk borne individually. Full bequest.
+ *     Income rules: FIXED_REAL | GLWB_RATCHET | DYNAMIC_VARIABLE
+ *
+ *   CollectiveEngine — institutional pool. Capital surrendered at inception.
+ *     productType controls mortality credit treatment:
+ *       'cdc': no credits on assets — mortality reduces LIABILITY (actuarial
+ *              reserve shrinks), improving funding ratio. Income adjusts via
+ *              1/3-per-year smoothing toward 100% funding. (Aon/WTW 2026)
+ *       'gsa': capped mortality credits (1.25%) flow to pool assets.
+ *              Excess above cap → longevity insurer reserve (ART structure).
+ *       'gla': bypassFundingAdjustment=true — income fixed at inception.
+ *              Insurer retains all released capital to sustain reserve.
+ *
+ * Orchestration patterns:
+ *   'single'   — one engine only.
+ *   'pipeline' — IndividualEngine (phase 1) → CollectiveEngine (phase 2).
+ *                Flex→Fix: income-continuity bisection at switchAge.
+ *   'parallel' — Both engines simultaneously, results aggregated.
+ *                Flex+Fix: X% to fix leg, (100-X)% to flex leg.
+ *
+ * ── FUNDING RATIO (CDC/GSA) ──────────────────────────────────────────────────
+ *   fundingRatio = poolAssets / actuarialReserve
+ *   actuarialReserve = Σ_s [ tpx_s (unconditional) × nomInc × DF(r, s-t) ]
+ *   Adjustment: income × (1 + min(0.05, max(-0.05, (FR-1) × 1/3)))
+ *   Source: Royal Mail CDC design; WTW "Reimagining Pensions" 2024.
+ *
+ * ── GLIDEPATH / RETURN SCHEDULE ──────────────────────────────────────────────
+ *   _buildDeRiskSchedule(ctx, splitT): age-driven glidepath.
+ *     Age 65-79: 60% equity = CPI+3.45% nominal.
+ *     Age 80-90: linear de-risk from 60% → 0% equity.
+ *     Age 90+:   0% equity = CPI+0.75% nominal.
+ *   _ctxWithReturn(ctx, engineSpec, splitT?): builds R_t vector.
+ *     useGlidepath=true → uses _buildDeRiskSchedule.
+ *     Otherwise: flat scalar from engineSpec.engineRealReturn.
+ *
+ * ── FUTURE INTEGRATION HOOKS (currently wired, not active) ───────────────────
+ *   GlobalContext.personaId  → pre-populate pot/startAge from persona.
+ *   GlobalContext.portfolioId → resolve CMA-based R_t vector.
+ *   runSpec(spec, ctx, R_t_override) → stochastic: pass pre-drawn return path.
+ *
+ * DEPENDENCIES:
+ *   js/data/decum-specs.js (must load BEFORE this file in index.html).
+ *   Consumes: window._decum_specs = { S4PMA_QX, MORTALITY_MAX_AGE,
+ *                                     PRODUCT_TYPES, PRESET_SPECS }
+ *
+ * STORAGE:
+ *   Custom user strategies: localStorage key 'novara_decum_strategies'.
+ *   Separate from main app storage ('novara_user_data').
+ *
+ * AUDIT TRAIL:
+ * ┌─────────────┬──────────────┬──────────────────────────────────────────────┐
+ * │ Date        │ Author       │ Description                                  │
+ * ├─────────────┼──────────────┼──────────────────────────────────────────────┤
+ * │ 2026-01-01  │ Novara/AI    │ Initial dual-engine architecture             │
+ * │ 2026-03-01  │ Novara/AI    │ CDC: correct pool evolution (no mort credits │
+ * │             │              │   on assets); aggregate actuarial reserve    │
+ * │ 2026-04-01  │ Novara/AI    │ Age-driven glidepath; strategy-specific R_t  │
+ * │ 2026-05-01  │ Novara/AI    │ LIPV + consumptionEfficiency in computeAPV   │
+ * │ 2026-05-27  │ Novara/AI    │ Data extracted to decum-specs.js; this file  │
+ * │             │              │   now contains engine logic only (v58.20)    │
+ * └─────────────┴──────────────┴──────────────────────────────────────────────┘
+ *
+ * FOR AI ASSISTANTS:
+ *   - Do NOT add data constants (mortality tables, product types, presets)
+ *     to this file. They belong in js/data/decum-specs.js.
+ *   - The IIFE pattern (function(global){...})(window) is intentional —
+ *     keeps all engine state private except what is assigned to global.DecumEngine.
+ *   - CollectiveEngine productType discrimination is critical:
+ *       CDC → poolMortalityAdj = 0 (no credits on assets)
+ *       GSA → poolMortalityAdj = cappedCredit (1.25% cap)
+ *       GLA → poolMortalityAdj = mortalityCredit (full, insurer retains)
+ *   - bisectIWR uses 60 iterations — sufficient for 1e-8 convergence.
+ *   - lrRound guarantees weights sum to exactly 1.0 (100 integer pct).
+ */
+/**
  * decum-engine.js  v58.2
  * Dual-Engine Decumulation Module — spec-driven, self-contained.
  * Exposes window.DecumEngine.
@@ -16,22 +124,13 @@
    qx = P(death in [x, x+1) | alive at x)
    Table runs to age 110 where q_110 = 1.0.
    ══════════════════════════════════════════════════════════════════ */
-const S4PMA_QX = {
-   50:0.00303,51:0.00334,52:0.00369,53:0.00408,54:0.00451,
-   55:0.00499,56:0.00552,57:0.00612,58:0.00680,59:0.00756,
-   60:0.00842,61:0.00939,62:0.01048,63:0.01170,64:0.01307,
-   65:0.01462,66:0.01636,67:0.01831,68:0.02051,69:0.02299,
-   70:0.02577,71:0.02888,72:0.03236,73:0.03624,74:0.04055,
-   75:0.04533,76:0.05062,77:0.05645,78:0.06286,79:0.06989,
-   80:0.07757,81:0.08594,82:0.09504,83:0.10489,84:0.11551,
-   85:0.12691,86:0.13910,87:0.15208,88:0.16584,89:0.18037,
-   90:0.19565,91:0.21165,92:0.22833,93:0.24564,94:0.26352,
-   95:0.28190,96:0.30072,97:0.31988,98:0.33929,99:0.35885,
-  100:0.37847,101:0.39805,102:0.41749,103:0.43669,104:0.45555,
-  105:0.47397,106:0.49186,107:0.50912,108:0.52569,109:0.54148,
-  110:1.00000,
-};
-const MORTALITY_MAX_AGE = 110;
+// ── Data: mortality table, product types, preset specs ────────────────────
+  // Loaded from js/data/decum-specs.js (must be loaded before this file).
+  const { S4PMA_QX, MORTALITY_MAX_AGE, PRODUCT_TYPES, PRESET_SPECS }
+      = global._decum_specs || {};
+  if (!S4PMA_QX) {
+    console.error('decum-specs.js not loaded before decum-engine.js — check <script> order in index.html');
+  }
 
 function buildSurvivalCurve(x0, maxAge) {
     const end = Math.min(maxAge, MORTALITY_MAX_AGE);
@@ -443,226 +542,6 @@ function computeAPV(records, ctx) {
  * Each maps to a productType key and sets engine defaults.
  * bypassFundingAdjustment is derived from productType; never shown to users.
  */
-const PRODUCT_TYPES = {
-    gla: {
-        label: 'Guaranteed Lifetime Annuity (GLA)',
-        description: 'Full risk transfer to insurer. Contracted income for life. Investment, longevity, and inflation risks all borne by the insurer (if inflation-linked). No bequest unless capital-protected.',
-        engineType: 'collective',
-        defaults: {
-            bypassFundingAdjustment: true,
-            staticReturn: true,
-            pricingDiscountRate: 0.038,
-            realPricingRate: 0.009,
-            mortalityCreditLimit: 0.0,
-            hasNominalMoneyBack: false,
-            inflationLinkage: 'guaranteed',
-        },
-    },
-    gsa: {
-        label: 'Group Self-Annuitisation (GSA / ART)',
-        description: 'Mutual pooling with capped mortality credits (1.25%/yr). Credits above the cap flow to a longevity reserve (ART structure), sustaining income for very long lives. No shareholder profit extraction. Income adjusts with actuarial funding position.',
-        engineType: 'collective',
-        defaults: {
-            bypassFundingAdjustment: false,
-            staticReturn: false,
-            pricingDiscountRate: 0.0405,
-            realPricingRate: 0.011,
-            mortalityCreditLimit: 0.0125,
-            hasNominalMoneyBack: true,
-            inflationLinkage: 'guaranteed',
-        },
-    },
-    cdc: {
-        label: 'Collective Defined Contribution (CDC)',
-        description: 'Scheme-managed pool at a prudent valuation rate. Income increases are discretionary, granted only when the funding position supports them — not contractually inflation-linked. Fully pooled mortality; no bequest.',
-        engineType: 'collective',
-        defaults: {
-            bypassFundingAdjustment: false,
-            staticReturn: false,
-            pricingDiscountRate: 0.04,
-            realPricingRate: null,   // not used for CDC
-            mortalityCreditLimit: 0.0,
-            hasNominalMoneyBack: false,
-            inflationLinkage: 'targeted',
-        },
-    },
-    drawdown: {
-        label: 'Invested Portfolio (Drawdown)',
-        description: 'Member retains full ownership of pot. Longevity and sequence-of-returns risk borne individually. Residual pot fully inheritable.',
-        engineType: 'individual',
-        defaults: {
-            incomeRule: 'FIXED_REAL',
-            initialWithdrawalRate: 'bisect',
-            riderFee: 0.0,
-            inflationLinkage: 'guaranteed',
-            deRiskYears: 0,
-        },
-    },
-    glwb: {
-        label: 'Guaranteed Lifetime Withdrawal Benefit (GLWB)',
-        description: 'Insurance overlay on invested portfolio. Lifetime income floor guaranteed; upside via ratchet if fund grows. Annual rider fee charged on asset base.',
-        engineType: 'individual',
-        defaults: {
-            incomeRule: 'GLWB_RATCHET',
-            initialWithdrawalRate: 0.05,
-            riderFee: 0.01,
-            inflationLinkage: 'guaranteed',
-            deRiskYears: 0,
-        },
-    },
-    pipeline: {
-        label: '"Flex then Fix" — Phased Hybrid',
-        description: 'Invested drawdown through early retirement with de-risking, then full annuitisation at a chosen switching age. Flexibility early; longevity protection later.',
-        engineType: 'pipeline',
-        defaults: {
-            splitAge: 75,
-            phase1: { productType:'drawdown', incomeRule:'FIXED_REAL', initialWithdrawalRate:'bisect', inflationLinkage:'guaranteed', deRiskYears:10 },
-            phase2: { productType:'gla', bypassFundingAdjustment:true, staticReturn:true, pricingDiscountRate:0.038, realPricingRate:0.009, inflationLinkage:'guaranteed' },
-        },
-    },
-    parallel: {
-        label: '"Flex and Fix" — Concurrent Hybrid',
-        description: 'Split at inception: a chosen percentage buys an annuity (essential income floor), remainder stays in invested drawdown (flexible spending). Both run simultaneously.',
-        engineType: 'parallel',
-        defaults: {
-            splitRatio: 0.40,
-            fixLeg:  { productType:'gla', bypassFundingAdjustment:true, staticReturn:true, pricingDiscountRate:0.038, realPricingRate:0.009, inflationLinkage:'guaranteed' },
-            flexLeg: { productType:'drawdown', incomeRule:'FIXED_REAL', initialWithdrawalRate:'bisect', inflationLinkage:'guaranteed' },
-        },
-    },
-};
-
-/**
- * PRESET_SPECS — the seven built-in strategy specifications.
- * Users can load any of these and adjust parameters freely.
- */
-const PRESET_SPECS = [
-    {
-        id: 'preset_drawdown', name: 'Invested Portfolio (Drawdown)',
-        shortName: 'Drawdown', color: '#1D4ED8', isPreset: true,
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'individual', productType: 'drawdown',
-            incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
-            riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
-            engineRealReturn: 0.0345,  // 60% equity at 65 (CPI+3.45%)
-            useGlidepath: true,           // de-risks age 80→90 to 100% bonds
-        },
-    },
-    {
-        id: 'preset_gsa', name: 'Group Self-Annuitisation (GSA)',
-        shortName: 'GSA', color: '#7E22CE', isPreset: true,
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'collective', productType: 'gsa',
-            bypassFundingAdjustment: false, staticReturn: false,
-            pricingDiscountRate: 0.0405, realPricingRate: 0.013,  // lower than GLA (1.5%) — money-back guarantee adds cost
-            mortalityCreditLimit: 0.0125, hasNominalMoneyBack: true,
-            inflationLinkage: 'guaranteed',
-            engineRealReturn: 0.0340,  // 60% equity pooled (matches ART Balanced Risk-Adjusted)
-        },
-    },
-    {
-        id: 'preset_cdc', name: 'Collective DC (CDC)',
-        shortName: 'CDC', color: '#047857', isPreset: true,
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'collective', productType: 'cdc',
-            bypassFundingAdjustment: false, staticReturn: false,
-            pricingDiscountRate: 0.04, realPricingRate: null,
-            mortalityCreditLimit: 0.0,
-            // CDC: no mortality credits flow to assets (deaths reduce LIABILITY, not assets).
-            // Mortality benefit captured via shrinking actuarialReserve → improving FR.
-            // Income adjustments follow rules-based FR mechanism. Aon/WTW 2024/2026.
-            hasNominalMoneyBack: false,
-            inflationLinkage: 'targeted',
-            // CPI granted year-by-year only when FR>=1. In central case: consistently
-            // granted → stable real income. In adverse scenarios: withheld → real declines.
-            engineRealReturn: 0.0320,  // 60% equity less 0.38% charges (actuarial governance overhead vs drawdown's 0.25%)
-            useGlidepath: true,           // de-risks age 80→90, consistent with drawdown
-            // ~CPI+3.20% at 65, transitioning to ~CPI+0.52% at 90 — consistent surplus over 4% prudent rate supports CPI grants.
-        },
-    },
-    {
-        id: 'preset_glwb', name: 'Guaranteed Lifetime Withdrawal (GLWB)',
-        shortName: 'GLWB', color: '#B45309', isPreset: true,
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'individual', productType: 'glwb',
-            incomeRule: 'GLWB_RATCHET', initialWithdrawalRate: 0.05,
-            riderFee: 0.01, inflationLinkage: 'none', deRiskYears: 0,  // nominal guarantee — real declines with CPI
-            engineRealReturn: 0.0245,  // 60% equity less 1% rider fee = CPI+2.45%
-        },
-    },
-    {
-        id: 'preset_gla', name: 'Guaranteed Lifetime Annuity (GLA)',
-        shortName: 'GLA', color: '#0E7490', isPreset: true,
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'collective', productType: 'gla',
-            bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.015,
-            mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
-            inflationLinkage: 'guaranteed',
-            // GLA staticReturn=true: pool earns pricingRate, not engineRealReturn
-        },
-    },
-    {
-        id: 'preset_flex_then_fix', name: '"Flex then Fix" — Phased Hybrid',
-        shortName: 'Flex→Fix', color: '#DC2626', isPreset: true,
-        orchestration: { type: 'pipeline', splitAge: 75 },
-        primaryEngine: {
-            type: 'individual', productType: 'drawdown',
-            incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
-            riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 10,
-            engineRealReturn: 0.0345,  // 60% equity at 65
-            useGlidepath: true,            // glidepath toward switchAge
-        },
-        secondaryEngine: {
-            type: 'collective', productType: 'gla',
-            bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.015,
-            mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
-            inflationLinkage: 'guaranteed',
-        },
-    },
-    {
-        id: 'preset_drawdown_prudent', name: 'Invested Portfolio (Prudent Drawdown)',
-        shortName: 'Drawdown*', color: '#93C5FD', isPreset: true,
-        // "Prudent Drawdown": same as Drawdown but bisects IWR to zero at age 105, not
-        // the planning horizon. Illustrates the real cost of longevity uncertainty for
-        // an unconstrained individual who must self-insure their longevity tail.
-        // The income gap vs standard Drawdown quantifies what pooling is worth.
-        orchestration: { type: 'single' },
-        primaryEngine: {
-            type: 'individual', productType: 'drawdown',
-            incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
-            riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
-            engineRealReturn: 0.0345,
-            useGlidepath: true,
-            prudentTargetAge: 105,   // bisect to zero at 105, not ctx.targetAge
-        },
-    },
-    {
-        id: 'preset_flex_and_fix', name: '"Flex and Fix" — Concurrent Hybrid',
-        shortName: 'Flex+Fix', color: '#CA8A04', isPreset: true,
-        orchestration: { type: 'parallel', splitRatio: 0.40 },
-        primaryEngine: {
-            type: 'collective', productType: 'gla',   // fix leg
-            bypassFundingAdjustment: true, staticReturn: true,
-            pricingDiscountRate: 0.038, realPricingRate: 0.015,
-            mortalityCreditLimit: 0.0, hasNominalMoneyBack: false,
-            inflationLinkage: 'guaranteed',
-        },
-        secondaryEngine: {
-            type: 'individual', productType: 'drawdown',   // flex leg
-            incomeRule: 'FIXED_REAL', initialWithdrawalRate: 'bisect',
-            riderFee: 0.0, inflationLinkage: 'guaranteed', deRiskYears: 0,
-            engineRealReturn: 0.0390,  // 70% equity (CPI+3.90%): annuity floor permits higher risk
-        },
-    },
-];
-
 /* ══════════════════════════════════════════════════════════════════
    9. CUSTOM STRATEGY PERSISTENCE
    Separate namespace from main app.
@@ -900,3 +779,4 @@ global.DecumEngine = {
 };
 
 })(window);
+
